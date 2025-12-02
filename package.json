@@ -1,0 +1,19 @@
+{
+  "name": "joyce",
+  "version": "0.0.1",
+  "description": "Nearform blog knowledge assistant.",
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve public -p 4300",
+    "lint": "eslint . --fix",
+    "pretty": "prettier . --write",
+    "format": "npm run lint && npm run pretty"
+  },
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.7.3"
+  }
+}

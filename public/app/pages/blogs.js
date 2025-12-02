@@ -1,0 +1,68 @@
+import { Fragment } from "react";
+import { Link } from "react-router";
+import { html } from "../util/html.js";
+import { Page } from "../components/page.js";
+import { useSettings } from "../hooks/use-settings.js";
+import { ShortDescription as ChatShortDescription } from "./chat.js";
+
+export const Blogs = () => {
+  const [settings] = useSettings();
+  const { isDeveloperMode } = settings;
+
+  return html`
+    <${Page} name="Blogs">
+      ${
+        !isDeveloperMode &&
+        html`
+        <${Fragment}>
+          <p>
+            This site incorporates Nearform's blogs, case studies, and services pages to provide
+            tools to find, list, and generate text answers using AI.
+            Go ahead and try it out!
+            ${" "}<i className="iconoir-sparks-solid"></i>
+          </p>
+          <ul>
+            <li id="posts"><${Link} to="/posts">Posts</${Link}>: Browse / filter all available content.</li>
+            <li id="search"><${Link} to="/search">Search</${Link}>: Find / filter similar posts to a query.</li>
+            <li id="chat"><${Link} to="/chat">Chat</${Link}>: Get answers from AI using our content.</li>
+          </ul>
+        </${Fragment}>
+        `
+      }
+      ${
+        isDeveloperMode &&
+        html`
+        <${Fragment}>
+          <h2 className="content-subhead">Introduction</h2>
+          <p>
+            This site provides a little bit of introduction to some AI concepts using some of the
+            Nearform blogs and case studies as our data source for useful information and examples.
+            To take a glance at all of the source data, please head over to
+            the <${Link} to="/posts">posts</${Link}> page.
+          </p>
+          <p>
+            We scrape all blog and work/case study post data directly from our websites and first store
+            as JSON on local disk. ${"" /* TODO(LOCAL): Hardcoded /api/posts links need local replacement */}
+            You can hit the JSON API to see the <a href="/api/posts?withContent=true">full raw
+            data</a> or in a shorter, <a href="/api/posts">metadata-only format</a>.
+            Then we load the data into a PostgreSQL database, where we store basic metadata and add embeddings for
+            each post from OpenAI. (This allows us to perform similarity searches).
+          </p>
+
+          <h2 className="content-subhead">Similarity Search</h2>
+          <p>
+            The <${Link} to="/search">search</${Link}> page allows you to find similar posts based on a
+            query. To facilitate this, we get embeddings for the query using the same model we used for
+            the posts storage in the database. We then perform a similarity search
+            (<a href="https://www.imaurer.com/which-vector-similarity-metric-should-i-use/">cosine distance</a>)
+            in the database to find the top "n" most similar posts.
+          </p>
+
+          <h2 className="content-subhead">Chat</h3>
+          <${ChatShortDescription} />
+        </${Fragment}>
+        `
+      }
+    </${Page}>
+  `;
+};

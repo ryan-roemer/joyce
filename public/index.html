@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Blogs</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/combine/npm/purecss@2.0.3/build/pure-min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/combine/npm/purecss@2.0.3/site/static/layouts/side-menu/styles.css"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir.css"
+    />
+  </head>
+
+  <body>
+    <div id="root"></div>
+
+    <!-- TODO(FRONTEND): REMOVE `?dev` mode -->
+    <script type="importmap">
+      {
+        "imports": {
+          "dompurify": "https://esm.sh/dompurify@3.3.0?dev",
+          "file-saver": "https://esm.sh/file-saver@2.0.5?dev",
+          "htm": "https://esm.sh/htm@3.1.1?dev&external=react,react-dom",
+          "marked": "https://esm.sh/marked@17.0.1?dev",
+          "react": "https://esm.sh/react@19.2.0?dev&external=react,react-dom",
+          "react/jsx-runtime": "https://esm.sh/react@19.2.0/jsx-runtime?dev&external=react,react-dom",
+          "react-dom": "https://esm.sh/react-dom@19.2.0?dev&external=react,react-dom",
+          "react-dom/client": "https://esm.sh/react-dom@19.2.0/client?dev&external=react,react-dom",
+          "react-is": "https://esm.sh/react-is@19.2.0?dev&external=react,react-dom",
+          "react-select": "https://esm.sh/react-select@5.10.2?dev&external=react,react-dom",
+          "react-router": "https://esm.sh/react-router@7.9.6?dev&external=react,react-dom"
+        }
+      }
+    </script>
+    <script type="module">
+      import React from "react";
+      import ReactDOM from "react-dom/client";
+      import { html } from "/app/util/html.js";
+      import { App } from "/app/index.js";
+
+      // TODO(LOCAL): Add config or remove.
+      const config = {
+        providers: {
+          openai: {
+            enabled: false,
+          },
+          anthropic: {
+            enabled: false,
+          },
+          groq: {
+            enabled: false,
+          },
+        },
+      };
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(html`<${App} config=${config} />`);
+    </script>
+  </body>
+</html>
