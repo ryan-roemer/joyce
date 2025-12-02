@@ -33,8 +33,8 @@ export const Posts = () => {
   const fetchPosts = async () => {
     const data = await getPosts({
       minDate,
-      postType: selectedPostTypes,
-      categoryPrimary: selectedCategoryPrimary,
+      postType: selectedPostTypes.map(({ value }) => value),
+      categoryPrimary: selectedCategoryPrimary.map(({ value }) => value),
       withContent: false,
     });
     setPostsData(data);
