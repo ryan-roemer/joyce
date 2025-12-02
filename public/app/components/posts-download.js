@@ -32,10 +32,10 @@ const postsToCsv = (posts) => {
           escapedTitle,
           href,
           categories.primary,
-          analytics.views,
-          analytics.users,
-          analytics.time.toFixed(2),
-          analytics.bounceRate.toFixed(2),
+          analytics?.views ?? "",
+          analytics?.users ?? "",
+          analytics?.time?.toFixed(2) ?? "",
+          analytics?.bounceRate?.toFixed(2) ?? "",
         ].join(",");
       })
       .join("\n")
