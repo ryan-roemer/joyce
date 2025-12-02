@@ -1,6 +1,9 @@
 /* global fetch:false */
 import { getAndCache } from "../../shared-util.js";
 
+// ==============================
+// Helpers
+// ==============================
 const getPosts = getAndCache(async () => {
   const response = await fetch("/data/posts.json");
   return response.json();
@@ -29,6 +32,9 @@ const filterPosts = async ({
     .map((post) => (withContent ? post : { ...post, content: undefined }));
 };
 
+// ==============================
+// API
+// ==============================
 /**
  * Get posts with optional filtering.
  * @param {Object} params
