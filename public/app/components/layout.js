@@ -8,13 +8,13 @@ import { useSettings } from "../hooks/use-settings.js";
 import { useClickOutside } from "../hooks/use-click-outside.js";
 
 import { Settings } from "../pages/settings.js";
-import { Blogs } from "../pages/blogs.js";
+import { Home } from "../pages/home.js";
 import { Posts } from "../pages/posts.js";
 import { Search } from "../pages/search.js";
 import { Chat } from "../pages/chat.js";
 
 const PAGE_COMPONENTS = {
-  Blogs,
+  Home,
   Posts,
   Search,
   Settings,

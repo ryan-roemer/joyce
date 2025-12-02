@@ -57,7 +57,7 @@ export const DownloadPostsCsv = ({ posts }) => {
 
   const handleDownload = () => {
     const blob = new Blob([postsToCsv(posts)], { type: "text/csv" });
-    saveAs(blob, `blogs-ai-${getPathname()}-${formatDate(new Date())}.csv`);
+    saveAs(blob, `joyce-ai-${getPathname()}-${formatDate(new Date())}.csv`);
   };
 
   return html`

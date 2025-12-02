@@ -5,12 +5,12 @@ import { Page } from "../components/page.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
 
-export const Blogs = () => {
+export const Home = () => {
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
 
   return html`
-    <${Page} name="Blogs">
+    <${Page} name="Joyce">
       ${
         !isDeveloperMode &&
         html`
