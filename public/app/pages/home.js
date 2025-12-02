@@ -5,6 +5,7 @@ import { Page } from "../components/page.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
 
+// TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
@@ -58,7 +59,7 @@ export const Home = () => {
             in the database to find the top "n" most similar posts.
           </p>
 
-          <h2 className="content-subhead">Chat</h3>
+          <h2 className="content-subhead">Chat</h2>
           <${ChatShortDescription} />
         </${Fragment}>
         `
