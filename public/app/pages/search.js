@@ -98,6 +98,7 @@ export const Search = () => {
         />
         <${PostMinDate} />
         ${
+          /* TODO(SEARCH): Have a datastore??? */
           isDeveloperMode &&
           html`<${DatastoreSelect}
             selected=${datastore}
