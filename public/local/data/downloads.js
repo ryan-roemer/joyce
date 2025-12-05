@@ -72,6 +72,7 @@ export const startDownload = async (resource) => {
     await get();
     setDownloadStatus(id, "loaded");
   } catch (error) {
+    console.error(`Error downloading ${id}:`, error); // eslint-disable-line no-undef
     setDownloadStatus(id, "error", error);
   }
 };

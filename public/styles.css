@@ -36,6 +36,12 @@
   --color-success-border: #d4e8d4;
   --color-primary: #007bff;
 
+  /* Status Colors (for icons/indicators) */
+  --color-status-idle: #999;
+  --color-status-loading: #ff9500;
+  --color-status-success: #28a745;
+  --color-status-error: var(--color-error-text);
+
   /* Transparency/Overlay */
   --color-overlay-dark: rgba(0, 0, 0, 0.5);
   --color-overlay-light: rgba(0, 0, 0, 0.1);
@@ -918,11 +924,11 @@ button.download-status-icon-button {
 
 /* Status Colors */
 .download-status-not-loaded i {
-  color: #999;
+  color: var(--color-status-idle);
 }
 
 .download-status-loading i {
-  color: #ff9500;
+  color: var(--color-status-loading);
   animation: download-status-loading 1.5s linear infinite;
 }
 
@@ -936,9 +942,9 @@ button.download-status-icon-button {
 }
 
 .download-status-loaded i {
-  color: #28a745;
+  color: var(--color-status-success);
 }
 
 .download-status-error i {
-  color: #dc3545;
+  color: var(--color-status-error);
 }
