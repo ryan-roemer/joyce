@@ -15,7 +15,7 @@ import {
 import { useSettings } from "../hooks/use-settings.js";
 import { posts as getPosts } from "../data/index.js";
 import { useDownloads } from "../../local/app/context/downloads.js";
-import { DownloadMessage } from "../../local/app/components/downloads/message.js";
+import { DownloadMessage } from "../../local/app/components/downloads/index.js";
 
 export const Posts = () => {
   const [posts, setPosts] = useState(null);
