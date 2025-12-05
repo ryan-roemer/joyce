@@ -842,3 +842,95 @@ table.pure-table-bordered tr:first-child th:last-child {
 .query-info strong {
   color: var(--color-text-query-emphasis);
 }
+
+/* Download Status Component */
+.download-status-row {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 0.5em;
+  border: 1px solid var(--color-border-medium);
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: fit-content;
+  width: 100%;
+  max-width: 100%;
+}
+
+.download-status-label {
+  flex: 1 1 auto;
+  padding: 0.5em 1em;
+  margin: 0;
+  margin-bottom: 0;
+  font-weight: normal;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.download-status-label::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--color-border-medium);
+}
+
+.download-status-icon-container {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5em 1em;
+}
+
+.download-status-icon,
+.download-status-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5em;
+  line-height: 1;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.download-status-icon-button:hover {
+  transform: scale(1.1);
+}
+
+.download-status-icon-button:active {
+  transform: scale(0.95);
+}
+
+/* Status Colors */
+.download-status-not-loaded i {
+  color: #999;
+}
+
+.download-status-loading i {
+  color: #ff9500;
+  animation: download-status-loading 1.5s linear infinite;
+}
+
+@keyframes download-status-loading {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.download-status-loaded i {
+  color: #28a745;
+}
+
+.download-status-error i {
+  color: #dc3545;
+}

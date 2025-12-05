@@ -50,15 +50,11 @@ The frontend of this project uses modern web development without build tools. Al
 
 ### Phosphor Icons
 
-- Use Phosphor Icons for all iconography with docs at: https://phosphoricons.com/
-- Include the CSS library via CDN: `https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/style.css`
-- Use icon classes directly in HTML: `<i className="ph ph-push-pin"></i>`
-- Icons are available in multiple weights: `ph-thin`, `ph-light`, `ph-regular`, `ph-bold`, `ph-fill`, `ph-duotone`
-- Default weight is `ph-regular` if no weight class is specified
+- Use iconoir Icons for all iconography with docs at: https://iconoir.com/
 
 ### CSS and HTML
 - Use modern CSS features (Grid, Flexbox, custom properties)
-- Use https://picocss.com/ for CSS library with docs at https://picocss.com/docs.
+- Use https://pure-css.github.io/ for CSS library with special nav menu using: https://pure-css.github.io/layouts/side-menu/ (example)
 - Use semantic HTML5 elements
 - Leverage native browser APIs
 - Avoid polyfills when possible

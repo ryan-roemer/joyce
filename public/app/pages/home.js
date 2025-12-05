@@ -63,11 +63,13 @@ export const Home = () => {
           <${ChatShortDescription} />
 
           <h2 className="content-subhead">Downloads</h2>
-          <ul>
-            <li>
-              <${DownloadStatus} resourceId="posts_data" label="Posts data" />
-            </li>
-          </ul>
+          <div>
+            <${DownloadStatus} resourceId="posts_data" label="Posts data" />
+            <${DownloadStatus} resourceId="demo_not_loaded" label="Demo: Not loaded" forceStatus="not_loaded" />
+            <${DownloadStatus} resourceId="demo_loading" label="Demo: Loading" forceStatus="loading" />
+            <${DownloadStatus} resourceId="demo_loaded" label="Demo: Loaded" forceStatus="loaded" />
+            <${DownloadStatus} resourceId="demo_error" label="Demo: Error" forceStatus="error" />
+          </div>
         </${Fragment}>
         `
       }

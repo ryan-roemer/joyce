@@ -6,28 +6,28 @@ import { useDownloads } from "../context/downloads.js";
  * @param {Object} props
  * @param {string} props.resourceId - The resource identifier
  * @param {string} props.label - Display label for the resource
+ * @param {string} props.forceStatus - Optional status to force (for demo purposes)
  */
-export const DownloadStatus = ({ resourceId, label }) => {
-  const { getStatus, getError, startDownload } = useDownloads();
-  const status = getStatus(resourceId);
-  const error = getError(resourceId);
+export const DownloadStatus = ({ resourceId, label, forceStatus = null }) => {
+  const { getStatus, startDownload } = useDownloads();
+  const status = forceStatus || getStatus(resourceId);
 
   const handleStartDownload = () => {
     startDownload(resourceId);
   };
 
-  const getStatusText = () => {
+  const getIconClass = () => {
     switch (status) {
       case "not_loaded":
-        return "Not loaded";
+        return "iconoir-circle";
       case "loading":
-        return "Loading...";
+        return "iconoir-refresh";
       case "loaded":
-        return "Loaded";
+        return "iconoir-check-circle";
       case "error":
-        return "Error";
+        return "iconoir-warning-circle";
       default:
-        return "Unknown";
+        return "iconoir-circle";
     }
   };
 
@@ -42,35 +42,33 @@ export const DownloadStatus = ({ resourceId, label }) => {
       case "error":
         return "download-status-error";
       default:
-        return "";
+        return "download-status-not-loaded";
     }
   };
 
+  const isClickable = status === "not_loaded" && !forceStatus;
+
   return html`
-    <div className=${`download-status ${getStatusClass()}`}>
-      <div className="download-status-label">${label}</div>
-      <div className="download-status-info">
-        <span className="download-status-text">${getStatusText()}</span>
-        ${status === "not_loaded" &&
-        html`
-          <button
-            className="pure-button pure-button-small"
-            onClick=${handleStartDownload}
-          >
-            Load
-          </button>
-        `}
-        ${status === "loading" &&
-        html`<span className="download-status-spinner">⏳</span>`}
-        ${status === "loaded" &&
-        html`<span className="download-status-check">✓</span>`}
-        ${status === "error" &&
-        error &&
-        html`
-          <span className="download-status-error-message">
-            ${error.message || error.toString()}
-          </span>
-        `}
+    <div className="pure-form pure-form-stacked">
+      <div className="pure-control-group download-status-row">
+        <label className="download-status-label">${label}</label>
+        <div className="download-status-icon-container">
+          ${isClickable
+            ? html`
+                <button
+                  className=${`download-status-icon-button ${getStatusClass()}`}
+                  onClick=${handleStartDownload}
+                  type="button"
+                >
+                  <i className=${getIconClass()}></i>
+                </button>
+              `
+            : html`
+                <span className=${`download-status-icon ${getStatusClass()}`}>
+                  <i className=${getIconClass()}></i>
+                </span>
+              `}
+        </div>
       </div>
     </div>
   `;
