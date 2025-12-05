@@ -866,7 +866,6 @@ table.pure-table-bordered tr:first-child th:last-child {
   flex: 1 1 auto;
   padding: 0.5em 1em;
   margin: 0;
-  margin-bottom: 0;
   font-weight: normal;
   white-space: nowrap;
   display: flex;

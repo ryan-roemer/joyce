@@ -1,4 +1,11 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { html } from "../../../app/util/html.js";
 import {
   RESOURCES,
@@ -27,7 +34,7 @@ export const DownloadsProvider = ({ children }) => {
   const [errors, setErrors] = useState(new Map());
 
   // Update status for a resource
-  const updateStatus = (resourceId, status, error = null) => {
+  const updateStatus = useCallback((resourceId, status, error = null) => {
     setStatuses((prev) => {
       const next = new Map(prev);
       next.set(resourceId, status);
@@ -46,7 +53,7 @@ export const DownloadsProvider = ({ children }) => {
         return next;
       });
     }
-  };
+  }, []);
 
   // Initialize statuses from API
   useEffect(() => {
@@ -55,7 +62,7 @@ export const DownloadsProvider = ({ children }) => {
       const status = getDownloadStatus(resource.id);
       updateStatus(resource.id, status);
     });
-  }, []);
+  }, [updateStatus]);
 
   // Subscribe to status changes
   useEffect(() => {
@@ -69,20 +76,23 @@ export const DownloadsProvider = ({ children }) => {
     return () => {
       unsubscribes.forEach((unsub) => unsub());
     };
-  }, []);
+  }, [updateStatus]);
 
-  const handleStartDownload = (resourceId) => {
+  const handleStartDownload = useCallback((resourceId) => {
     const resource = findResourceById(resourceId);
     if (resource) {
       startDownload(resource);
     }
-  };
+  }, []);
 
-  const value = {
-    getStatus: (resourceId) => statuses.get(resourceId) || "not_loaded",
-    getError: (resourceId) => errors.get(resourceId) || null,
-    startDownload: handleStartDownload,
-  };
+  const value = useMemo(
+    () => ({
+      getStatus: (resourceId) => statuses.get(resourceId) || "not_loaded",
+      getError: (resourceId) => errors.get(resourceId) || null,
+      startDownload: handleStartDownload,
+    }),
+    [statuses, errors, handleStartDownload],
+  );
 
   return html`
     <${DownloadsContext.Provider} value=${value}>

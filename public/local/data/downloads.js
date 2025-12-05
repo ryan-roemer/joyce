@@ -47,7 +47,7 @@ export const subscribeDownloadStatus = (resourceId, callback) => {
   downloadCallbacks.get(resourceId).push(callback);
   return () => {
     const callbacks = downloadCallbacks.get(resourceId);
-    const index = callbacks.indexOf(callback);
+    const index = (callbacks || []).indexOf(callback);
     if (index > -1) {
       callbacks.splice(index, 1);
     }

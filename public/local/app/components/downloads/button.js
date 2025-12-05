@@ -31,6 +31,7 @@ const STATES = {
  * @param {string} props.label - Display label for the resource
  * @param {string} props.forceStatus - Optional status to force (for demo purposes)
  */
+// TODO(CLEANUP): Remove forceStatus prop
 export const DownloadButton = ({
   resourceId,
   label,
