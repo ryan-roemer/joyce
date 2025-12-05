@@ -3,7 +3,7 @@ export const getAndCache = (fn) => {
   let cache;
   return async () => {
     if (!cache) {
-      cache = await fn();
+      cache = fn();
     }
 
     return cache;
