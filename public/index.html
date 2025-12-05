@@ -53,6 +53,10 @@
       import ReactDOM from "react-dom/client";
       import { html } from "/app/util/html.js";
       import { App } from "/app/index.js";
+      import { init } from "/local/data/api.js";
+
+      // Initialize download system early
+      init();
 
       // TODO(LOCAL): Add config or remove.
       const config = {

@@ -14,6 +14,8 @@ import {
 } from "../components/posts-download.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { posts as getPosts } from "../data/index.js";
+import { useDownloads } from "../../local/app/context/downloads.js";
+import { StatusMessage } from "../../local/app/components/status-message.js";
 
 export const Posts = () => {
   const [posts, setPosts] = useState(null);
@@ -28,6 +30,8 @@ export const Posts = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
+  const { getStatus } = useDownloads();
+  const postsDataStatus = getStatus("posts_data");
 
   // Helper function to fetch posts
   const fetchPosts = async () => {
@@ -64,6 +68,12 @@ export const Posts = () => {
         ${isDeveloperMode && postsData && html`<${JsonDataLink} data=${postsData} />`}
         <${DownloadPostsCsv} posts=${posts} />
       </p>
+      <${StatusMessage}
+        resourceId="posts_data"
+        type="info"
+        message=${postsDataStatus === "loading" ? "Loading posts data..." : null}
+      />
+      <${StatusMessage} resourceId="posts_data" type="error" />
       <${Form} ...${{ isFetching, handleSubmit, submitName: "Filter" }}>
         <${PostTypeSelect}
           selected=${selectedPostTypes}

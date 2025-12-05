@@ -4,6 +4,7 @@ import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
+import { DownloadStatus } from "../../local/app/components/download-status.js";
 
 // TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
@@ -60,6 +61,13 @@ export const Home = () => {
 
           <h2 className="content-subhead">Chat</h2>
           <${ChatShortDescription} />
+
+          <h2 className="content-subhead">Downloads</h2>
+          <ul>
+            <li>
+              <${DownloadStatus} resourceId="posts_data" label="Posts data" />
+            </li>
+          </ul>
         </${Fragment}>
         `
       }
