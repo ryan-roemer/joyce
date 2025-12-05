@@ -43,11 +43,10 @@ export const Home = () => {
           </p>
           <p>
             We scrape all blog and work/case study post data directly from our websites and first store
-            as JSON on local disk. ${"" /* TODO(LOCAL): Hardcoded /api/posts links need local replacement */}
-            You can hit the JSON API to see the <a href="/api/posts?withContent=true">full raw
-            data</a> or in a shorter, <a href="/api/posts">metadata-only format</a>.
-            Then we load the data into a PostgreSQL database, where we store basic metadata and add embeddings for
-            each post from OpenAI. (This allows us to perform similarity searches).
+            as JSON on local disk and add embeddings using a small emebddings model (currently
+            <)
+            Then we load the data into an <a href="https://docs.oramasearch.com/docs/orama-js">Orama</a> database,
+            where we store basic metadata and  mbeddings for each post. (This allows us to perform similarity searches).
           </p>
 
           <h2 className="content-subhead">Similarity Search</h2>

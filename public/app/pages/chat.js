@@ -81,6 +81,7 @@ const DescriptionButton = () => {
           <i className="iconoir-sparks"></i> <strong>Model</strong>: Choose the AI language model that will generate the responses, with different models offering varying speed and quality trade-offs.
         </li>
         ${
+          /* TODO(LOCAL): Remove */
           isDeveloperMode &&
           html`
           <${Fragment}>
