@@ -1,5 +1,5 @@
-import { html } from "../../../app/util/html.js";
-import { useDownloads } from "../context/downloads.js";
+import { html } from "../../../../app/util/html.js";
+import { useDownloads } from "../../context/downloads.js";
 
 /**
  * Component for displaying download status and initiating downloads
@@ -8,7 +8,7 @@ import { useDownloads } from "../context/downloads.js";
  * @param {string} props.label - Display label for the resource
  * @param {string} props.forceStatus - Optional status to force (for demo purposes)
  */
-export const DownloadStatus = ({ resourceId, label, forceStatus = null }) => {
+export const DownloadButton = ({ resourceId, label, forceStatus = null }) => {
   const { getStatus, startDownload } = useDownloads();
   const status = forceStatus || getStatus(resourceId);
 

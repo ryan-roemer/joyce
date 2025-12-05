@@ -4,7 +4,7 @@ import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
-import { DownloadStatus } from "../../local/app/components/download-status.js";
+import { DownloadButton } from "../../local/app/components/downloads/button.js";
 
 // TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
@@ -64,11 +64,11 @@ export const Home = () => {
 
           <h2 className="content-subhead">Downloads</h2>
           <div>
-            <${DownloadStatus} resourceId="posts_data" label="Posts data" />
-            <${DownloadStatus} resourceId="demo_not_loaded" label="Demo: Not loaded" forceStatus="not_loaded" />
-            <${DownloadStatus} resourceId="demo_loading" label="Demo: Loading" forceStatus="loading" />
-            <${DownloadStatus} resourceId="demo_loaded" label="Demo: Loaded" forceStatus="loaded" />
-            <${DownloadStatus} resourceId="demo_error" label="Demo: Error" forceStatus="error" />
+            <${DownloadButton} resourceId="posts_data" label="Posts data" />
+            <${DownloadButton} resourceId="demo_not_loaded" label="Demo: Not loaded" forceStatus="not_loaded" />
+            <${DownloadButton} resourceId="demo_loading" label="Demo: Loading" forceStatus="loading" />
+            <${DownloadButton} resourceId="demo_loaded" label="Demo: Loaded" forceStatus="loaded" />
+            <${DownloadButton} resourceId="demo_error" label="Demo: Error" forceStatus="error" />
           </div>
         </${Fragment}>
         `

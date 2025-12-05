@@ -15,7 +15,7 @@ import {
 import { useSettings } from "../hooks/use-settings.js";
 import { posts as getPosts } from "../data/index.js";
 import { useDownloads } from "../../local/app/context/downloads.js";
-import { StatusMessage } from "../../local/app/components/status-message.js";
+import { DownloadMessage } from "../../local/app/components/downloads/message.js";
 
 export const Posts = () => {
   const [posts, setPosts] = useState(null);
@@ -68,7 +68,7 @@ export const Posts = () => {
         ${isDeveloperMode && postsData && html`<${JsonDataLink} data=${postsData} />`}
         <${DownloadPostsCsv} posts=${posts} />
       </p>
-      <${StatusMessage} resourceId="posts_data" type="error" />
+      <${DownloadMessage} resourceId="posts_data" type="error" />
       <${Form} ...${{ isFetching, handleSubmit, submitName: "Filter" }}>
         <${PostTypeSelect}
           selected=${selectedPostTypes}
@@ -86,7 +86,7 @@ export const Posts = () => {
             posts=${posts}
             analyticsDates=${analyticsDates}
           />`) ||
-        html`<${StatusMessage}
+        html`<${DownloadMessage}
           resourceId="posts_data"
           type="info"
           message=${postsDataStatus === "loading"
