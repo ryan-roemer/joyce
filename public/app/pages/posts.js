@@ -15,7 +15,10 @@ import {
 import { useSettings } from "../hooks/use-settings.js";
 import { posts as getPosts } from "../data/index.js";
 import { useDownloads } from "../../local/app/context/downloads.js";
-import { DownloadMessage } from "../../local/app/components/downloads/index.js";
+import {
+  DownloadMessage,
+  DOWNLOADS,
+} from "../../local/app/components/downloads/index.js";
 
 export const Posts = () => {
   const [posts, setPosts] = useState(null);
@@ -31,7 +34,7 @@ export const Posts = () => {
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
   const { getStatus } = useDownloads();
-  const postsDataStatus = getStatus("posts_data");
+  const postsDataStatus = getStatus(DOWNLOADS.POSTS_DATA);
 
   // Helper function to fetch posts
   const fetchPosts = async () => {
@@ -68,7 +71,7 @@ export const Posts = () => {
         ${isDeveloperMode && postsData && html`<${JsonDataLink} data=${postsData} />`}
         <${DownloadPostsCsv} posts=${posts} />
       </p>
-      <${DownloadMessage} resourceId="posts_data" type="error" />
+      <${DownloadMessage} resourceId=${DOWNLOADS.POSTS_DATA} type="error" />
       <${Form} ...${{ isFetching, handleSubmit, submitName: "Filter" }}>
         <${PostTypeSelect}
           selected=${selectedPostTypes}
@@ -87,7 +90,7 @@ export const Posts = () => {
             analyticsDates=${analyticsDates}
           />`) ||
         html`<${DownloadMessage}
-          resourceId="posts_data"
+          resourceId=${DOWNLOADS.POSTS_DATA}
           type="info"
           message=${postsDataStatus === "loading"
             ? "Loading posts data..."

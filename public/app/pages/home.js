@@ -4,7 +4,10 @@ import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
-import { DownloadButton } from "../../local/app/components/downloads/index.js";
+import {
+  DownloadButton,
+  DOWNLOADS,
+} from "../../local/app/components/downloads/index.js";
 
 // TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
@@ -64,7 +67,7 @@ export const Home = () => {
 
           <h2 className="content-subhead">Downloads</h2>
           <div>
-            <${DownloadButton} resourceId="posts_data" label="Posts data" />
+            <${DownloadButton} resourceId=${DOWNLOADS.POSTS_DATA} label="Posts data" />
             <${DownloadButton} resourceId="demo_not_loaded" label="Demo: Not loaded" forceStatus="not_loaded" />
             <${DownloadButton} resourceId="demo_loading" label="Demo: Loading" forceStatus="loading" />
             <${DownloadButton} resourceId="demo_loaded" label="Demo: Loaded" forceStatus="loaded" />
