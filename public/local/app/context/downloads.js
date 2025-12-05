@@ -3,8 +3,8 @@ import { html } from "../../../app/util/html.js";
 import {
   getDownloadStatus,
   subscribeDownloadStatus,
-  startDownload as startDownloadApi,
-} from "../../data/api/index.js";
+  startDownload,
+} from "../../data/downloads.js";
 
 // Create the context with a default value
 const DownloadsContext = createContext(null);
@@ -62,7 +62,7 @@ export const DownloadsProvider = ({ children }) => {
   }, []);
 
   const handleStartDownload = (resourceId) => {
-    startDownloadApi(resourceId);
+    startDownload(resourceId);
   };
 
   const value = {
