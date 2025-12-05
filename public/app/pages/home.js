@@ -66,6 +66,11 @@ export const Home = () => {
           <${ChatShortDescription} />
 
           <h2 className="content-subhead">Data & Downloads</h2>
+          <p>
+            We download data, databases, and models for use in the app.
+            Some we automatically download (like our posts data), while others can be downloaded
+            manually. (If you see a gray circle, this is unloaded data that you can click to load.)
+          </p>
           <div>
             <${DownloadButton} resourceId=${DOWNLOADS.POSTS_DATA}>
               <strong>Posts</strong>: raw web page data

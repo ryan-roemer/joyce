@@ -80,6 +80,5 @@ export const startDownload = async (resource) => {
  * Initialize download system and start default downloads
  */
 export const init = () => {
-  // Auto-start posts data download
   startDownload(RESOURCES.POSTS_DATA);
 };

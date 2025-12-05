@@ -887,7 +887,7 @@ table.pure-table-bordered tr:first-child th:last-child {
 }
 
 .download-status-icon,
-.download-status-icon-button {
+button.download-status-icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -896,8 +896,16 @@ table.pure-table-bordered tr:first-child th:last-child {
   border: none;
   background: none;
   padding: 0;
-  cursor: pointer;
+  margin: 0 auto;
   transition: transform 0.2s ease;
+}
+
+.download-status-icon {
+  cursor: not-allowed;
+}
+
+.download-status-icon-button {
+  cursor: pointer;
 }
 
 .download-status-icon-button:hover {
