@@ -3,8 +3,11 @@ import { getPosts } from "./api/posts.js";
 // ==============================
 // Download Management
 // ==============================
-const RESOURCE_IDS = {
-  POSTS_DATA: "posts_data",
+export const RESOURCES = {
+  POSTS_DATA: {
+    id: "posts_data",
+    get: getPosts,
+  },
 };
 
 const downloadStatus = new Map();
@@ -52,34 +55,24 @@ export const subscribeDownloadStatus = (resourceId, callback) => {
 };
 
 /**
- * Start downloading posts data
+ * Start a download for a resource
+ * @param {{ id: string, get: () => Promise<any> }} resource
  */
-const startPostsDataDownload = async () => {
-  const resourceId = RESOURCE_IDS.POSTS_DATA;
+export const startDownload = async (resource) => {
+  const { id, get } = resource;
   if (
-    downloadStatus.get(resourceId) === "loading" ||
-    downloadStatus.get(resourceId) === "loaded"
+    downloadStatus.get(id) === "loading" ||
+    downloadStatus.get(id) === "loaded"
   ) {
     return;
   }
 
-  setDownloadStatus(resourceId, "loading");
+  setDownloadStatus(id, "loading");
   try {
-    // Use getPosts to ensure data is cached
-    await getPosts();
-    setDownloadStatus(resourceId, "loaded");
+    await get();
+    setDownloadStatus(id, "loaded");
   } catch (error) {
-    setDownloadStatus(resourceId, "error", error);
-  }
-};
-
-/**
- * Start a download for a resource
- * @param {string} resourceId
- */
-export const startDownload = (resourceId) => {
-  if (resourceId === RESOURCE_IDS.POSTS_DATA) {
-    startPostsDataDownload();
+    setDownloadStatus(id, "error", error);
   }
 };
 
@@ -88,5 +81,5 @@ export const startDownload = (resourceId) => {
  */
 export const init = () => {
   // Auto-start posts data download
-  startPostsDataDownload();
+  startDownload(RESOURCES.POSTS_DATA);
 };

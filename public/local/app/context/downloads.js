@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { html } from "../../../app/util/html.js";
 import {
+  RESOURCES,
   getDownloadStatus,
   subscribeDownloadStatus,
   startDownload,
@@ -8,6 +9,15 @@ import {
 
 // Create the context with a default value
 const DownloadsContext = createContext(null);
+
+/**
+ * Find a resource by its ID
+ * @param {string} resourceId
+ * @returns {{ id: string, get: () => Promise<any> } | undefined}
+ */
+const findResourceById = (resourceId) => {
+  return Object.values(RESOURCES).find((r) => r.id === resourceId);
+};
 
 /**
  * Provider component that manages download state
@@ -40,19 +50,19 @@ export const DownloadsProvider = ({ children }) => {
 
   // Initialize statuses from API
   useEffect(() => {
-    const resourceIds = ["posts_data"];
-    resourceIds.forEach((resourceId) => {
-      const status = getDownloadStatus(resourceId);
-      updateStatus(resourceId, status);
+    const resources = Object.values(RESOURCES);
+    resources.forEach((resource) => {
+      const status = getDownloadStatus(resource.id);
+      updateStatus(resource.id, status);
     });
   }, []);
 
   // Subscribe to status changes
   useEffect(() => {
-    const resourceIds = ["posts_data"];
-    const unsubscribes = resourceIds.map((resourceId) => {
-      return subscribeDownloadStatus(resourceId, (status, error) => {
-        updateStatus(resourceId, status, error);
+    const resources = Object.values(RESOURCES);
+    const unsubscribes = resources.map((resource) => {
+      return subscribeDownloadStatus(resource.id, (status, error) => {
+        updateStatus(resource.id, status, error);
       });
     });
 
@@ -62,7 +72,10 @@ export const DownloadsProvider = ({ children }) => {
   }, []);
 
   const handleStartDownload = (resourceId) => {
-    startDownload(resourceId);
+    const resource = findResourceById(resourceId);
+    if (resource) {
+      startDownload(resource);
+    }
   };
 
   const value = {
