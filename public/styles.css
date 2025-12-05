@@ -36,6 +36,12 @@
   --color-success-border: #d4e8d4;
   --color-primary: #007bff;
 
+  /* Status Colors (for icons/indicators) */
+  --color-status-idle: #999;
+  --color-status-loading: #ff9500;
+  --color-status-success: #28a745;
+  --color-status-error: var(--color-error-text);
+
   /* Transparency/Overlay */
   --color-overlay-dark: rgba(0, 0, 0, 0.5);
   --color-overlay-light: rgba(0, 0, 0, 0.1);
@@ -841,4 +847,103 @@ table.pure-table-bordered tr:first-child th:last-child {
 
 .query-info strong {
   color: var(--color-text-query-emphasis);
+}
+
+/* Download Status Component */
+.download-status-row {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 0.5em;
+  border: 1px solid var(--color-border-medium);
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: fit-content;
+  width: 100%;
+  max-width: 100%;
+}
+
+.download-status-label {
+  flex: 1 1 auto;
+  padding: 0.5em 1em;
+  margin: 0;
+  font-weight: normal;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.download-status-label::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--color-border-medium);
+}
+
+.download-status-icon-container {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5em 1em;
+}
+
+.download-status-icon,
+button.download-status-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5em;
+  line-height: 1;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0 auto;
+  transition: transform 0.2s ease;
+}
+
+.download-status-icon {
+  cursor: not-allowed;
+}
+
+.download-status-icon-button {
+  cursor: pointer;
+}
+
+.download-status-icon-button:hover {
+  transform: scale(1.1);
+}
+
+.download-status-icon-button:active {
+  transform: scale(0.95);
+}
+
+/* Status Colors */
+.download-status-not-loaded i {
+  color: var(--color-status-idle);
+}
+
+.download-status-loading i {
+  color: var(--color-status-loading);
+  animation: download-status-loading 1.5s linear infinite;
+}
+
+@keyframes download-status-loading {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.download-status-loaded i {
+  color: var(--color-status-success);
+}
+
+.download-status-error i {
+  color: var(--color-status-error);
 }

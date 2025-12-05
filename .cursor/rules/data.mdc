@@ -1,0 +1,25 @@
+---
+description: Guidelines for data code
+globs: public/local/data/**/*.js
+alwaysApply: false
+---
+
+# Data Development Guidelines
+
+## Core Philosophy
+
+This is a pure JavaScript, web browser-only app.
+- All data is served / imported as part of a static app.
+- That means all of our tools are in-browser tools.
+- There is no remote backend, and our use of data should be available offline. (The only exception to this is fetching embedding or chat models and storing locally).
+
+## Database
+
+We use [Orama](https://docs.oramasearch.com/docs/orama-js) for all database and search functionality. Orama is a full-text search engine that runs entirely in the browser, which aligns with our browser-only architecture.
+
+### Key Points
+- All database operations happen client-side using Orama JS
+- No backend database server required - everything runs in the browser
+- Search indexes are built and maintained in-memory
+- Data persistence is handled through browser storage mechanisms (localStorage, IndexedDB, etc.)
+- Refer to the [Orama JS documentation](https://docs.oramasearch.com/docs/orama-js) for API details and usage patterns

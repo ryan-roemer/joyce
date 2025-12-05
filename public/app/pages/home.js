@@ -4,6 +4,10 @@ import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
+import {
+  DownloadButton,
+  DOWNLOADS,
+} from "../../local/app/components/downloads/index.js";
 
 // TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
@@ -20,7 +24,7 @@ export const Home = () => {
             This site incorporates Nearform's blogs, case studies, and services pages to provide
             tools to find, list, and generate text answers using AI.
             Go ahead and try it out!
-            ${" "}<i className="iconoir-sparks-solid"></i>
+            ${" "}<i className="iconoir-sparks"></i>
           </p>
           <ul>
             <li id="posts"><${Link} to="/posts">Posts</${Link}>: Browse / filter all available content.</li>
@@ -43,11 +47,10 @@ export const Home = () => {
           </p>
           <p>
             We scrape all blog and work/case study post data directly from our websites and first store
-            as JSON on local disk. ${"" /* TODO(LOCAL): Hardcoded /api/posts links need local replacement */}
-            You can hit the JSON API to see the <a href="/api/posts?withContent=true">full raw
-            data</a> or in a shorter, <a href="/api/posts">metadata-only format</a>.
-            Then we load the data into a PostgreSQL database, where we store basic metadata and add embeddings for
-            each post from OpenAI. (This allows us to perform similarity searches).
+            as JSON on local disk and add embeddings using a small emebeddings
+            model (currently <a href="https://huggingface.co/Xenova/gte-small"><code>gte-small</code></a>).
+            Then we load the data into an <a href="https://docs.oramasearch.com/docs/orama-js">Orama</a> database,
+            where we store basic metadata and embeddings for each post. (This allows us to perform similarity searches).
           </p>
 
           <h2 className="content-subhead">Similarity Search</h2>
@@ -61,6 +64,25 @@ export const Home = () => {
 
           <h2 className="content-subhead">Chat</h2>
           <${ChatShortDescription} />
+
+          <h2 className="content-subhead">Data & Downloads</h2>
+          <p>
+            We download data, databases, and models for use in the app.
+            Some we automatically download (like our posts data), while others can be downloaded
+            manually. (If you see a gray circle, this is unloaded data that you can click to load.)
+          </p>
+          <div>
+            <${DownloadButton} resourceId=${DOWNLOADS.POSTS_DATA}>
+              <strong>Posts</strong>: raw web page data
+            </${DownloadButton}>
+          </div>
+          <div>
+            <!-- TODO(LOCAL): Remove these demo buttons -->
+            <${DownloadButton} resourceId="demo_not_loaded" label="Demo: Not loaded" forceStatus="not_loaded" />
+            <${DownloadButton} resourceId="demo_loading" label="Demo: Loading" forceStatus="loading" />
+            <${DownloadButton} resourceId="demo_loaded" label="Demo: Loaded" forceStatus="loaded" />
+            <${DownloadButton} resourceId="demo_error" label="Demo: Error" forceStatus="error" />
+          </div>
         </${Fragment}>
         `
       }
