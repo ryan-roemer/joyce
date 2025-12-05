@@ -1,1 +1,1 @@
-export { search, chat, posts } from "../../local/data/api.js";
+export { search, chat, posts } from "../../local/data/api/index.js";

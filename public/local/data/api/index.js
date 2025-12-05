@@ -1,5 +1,5 @@
 /* global fetch:false */
-import { getAndCache } from "../../shared-util.js";
+import { getAndCache } from "../../../shared-util.js";
 
 // ==============================
 // Download Management

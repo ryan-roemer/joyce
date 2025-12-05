@@ -4,7 +4,7 @@ import {
   getDownloadStatus,
   subscribeDownloadStatus,
   startDownload as startDownloadApi,
-} from "../../data/api.js";
+} from "../../data/api/index.js";
 
 // Create the context with a default value
 const DownloadsContext = createContext(null);

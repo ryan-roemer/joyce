@@ -68,11 +68,6 @@ export const Posts = () => {
         ${isDeveloperMode && postsData && html`<${JsonDataLink} data=${postsData} />`}
         <${DownloadPostsCsv} posts=${posts} />
       </p>
-      <${StatusMessage}
-        resourceId="posts_data"
-        type="info"
-        message=${postsDataStatus === "loading" ? "Loading posts data..." : null}
-      />
       <${StatusMessage} resourceId="posts_data" type="error" />
       <${Form} ...${{ isFetching, handleSubmit, submitName: "Filter" }}>
         <${PostTypeSelect}
@@ -85,7 +80,20 @@ export const Posts = () => {
         />
         <${PostMinDate} value=${minDate} setValue=${setMinDate} />
       </${Form}>
-      ${(posts && html`<${PostsTable} posts=${posts} analyticsDates=${analyticsDates} />`) || html`<p>Loading...</p>`}
+      ${
+        (posts &&
+          html`<${PostsTable}
+            posts=${posts}
+            analyticsDates=${analyticsDates}
+          />`) ||
+        html`<${StatusMessage}
+          resourceId="posts_data"
+          type="info"
+          message=${postsDataStatus === "loading"
+            ? "Loading posts data..."
+            : null}
+        />`
+      }
     </${Page}>
   `;
 };
