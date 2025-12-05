@@ -65,9 +65,14 @@ export const Home = () => {
           <h2 className="content-subhead">Chat</h2>
           <${ChatShortDescription} />
 
-          <h2 className="content-subhead">Downloads</h2>
+          <h2 className="content-subhead">Data & Downloads</h2>
           <div>
-            <${DownloadButton} resourceId=${DOWNLOADS.POSTS_DATA} label="Posts data" />
+            <${DownloadButton} resourceId=${DOWNLOADS.POSTS_DATA}>
+              <strong>Posts</strong>: raw web page data
+            </${DownloadButton}>
+          </div>
+          <div>
+            <!-- TODO(LOCAL): Remove these demo buttons -->
             <${DownloadButton} resourceId="demo_not_loaded" label="Demo: Not loaded" forceStatus="not_loaded" />
             <${DownloadButton} resourceId="demo_loading" label="Demo: Loading" forceStatus="loading" />
             <${DownloadButton} resourceId="demo_loaded" label="Demo: Loaded" forceStatus="loaded" />

@@ -8,7 +8,12 @@ import { useDownloads } from "../../context/downloads.js";
  * @param {string} props.label - Display label for the resource
  * @param {string} props.forceStatus - Optional status to force (for demo purposes)
  */
-export const DownloadButton = ({ resourceId, label, forceStatus = null }) => {
+export const DownloadButton = ({
+  resourceId,
+  label,
+  forceStatus = null,
+  children,
+}) => {
   const { getStatus, startDownload } = useDownloads();
   const status = forceStatus || getStatus(resourceId);
 
@@ -51,7 +56,7 @@ export const DownloadButton = ({ resourceId, label, forceStatus = null }) => {
   return html`
     <div className="pure-form pure-form-stacked">
       <div className="pure-control-group download-status-row">
-        <label className="download-status-label">${label}</label>
+        <label className="download-status-label">${children || label}</label>
         <div className="download-status-icon-container">
           ${isClickable
             ? html`
