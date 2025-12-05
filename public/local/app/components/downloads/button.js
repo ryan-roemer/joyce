@@ -1,6 +1,29 @@
 import { html } from "../../../../app/util/html.js";
 import { useDownloads } from "../../context/downloads.js";
 
+const STATES = {
+  not_loaded: {
+    icon: "iconoir-circle",
+    cls: "download-status-not-loaded",
+    title: "Not Loaded",
+  },
+  loading: {
+    icon: "iconoir-refresh",
+    cls: "download-status-loading",
+    title: "Loading",
+  },
+  loaded: {
+    icon: "iconoir-check-circle",
+    cls: "download-status-loaded",
+    title: "Loaded",
+  },
+  error: {
+    icon: "iconoir-warning-circle",
+    cls: "download-status-error",
+    title: (err) => `Error${err ? `: ${err}` : ""}`,
+  },
+};
+
 /**
  * Component for displaying download status and initiating downloads
  * @param {Object} props
@@ -14,41 +37,15 @@ export const DownloadButton = ({
   forceStatus = null,
   children,
 }) => {
-  const { getStatus, startDownload } = useDownloads();
+  const { getStatus, getError, startDownload } = useDownloads();
   const status = forceStatus || getStatus(resourceId);
+  const error = getError(resourceId);
+  const state = STATES[status] || STATES.not_loaded;
+  const title =
+    typeof state.title === "function" ? state.title(error) : state.title;
 
   const handleStartDownload = () => {
     startDownload(resourceId);
-  };
-
-  const getIconClass = () => {
-    switch (status) {
-      case "not_loaded":
-        return "iconoir-circle";
-      case "loading":
-        return "iconoir-refresh";
-      case "loaded":
-        return "iconoir-check-circle";
-      case "error":
-        return "iconoir-warning-circle";
-      default:
-        return "iconoir-circle";
-    }
-  };
-
-  const getStatusClass = () => {
-    switch (status) {
-      case "not_loaded":
-        return "download-status-not-loaded";
-      case "loading":
-        return "download-status-loading";
-      case "loaded":
-        return "download-status-loaded";
-      case "error":
-        return "download-status-error";
-      default:
-        return "download-status-not-loaded";
-    }
   };
 
   const isClickable = status === "not_loaded" && !forceStatus;
@@ -61,16 +58,20 @@ export const DownloadButton = ({
           ${isClickable
             ? html`
                 <button
-                  className=${`download-status-icon-button ${getStatusClass()}`}
+                  className=${`download-status-icon-button ${state.cls}`}
                   onClick=${handleStartDownload}
                   type="button"
+                  title=${title}
                 >
-                  <i className=${getIconClass()}></i>
+                  <i className=${state.icon}></i>
                 </button>
               `
             : html`
-                <span className=${`download-status-icon ${getStatusClass()}`}>
-                  <i className=${getIconClass()}></i>
+                <span
+                  className=${`download-status-icon ${state.cls}`}
+                  title=${title}
+                >
+                  <i className=${state.icon}></i>
                 </span>
               `}
         </div>
