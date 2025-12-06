@@ -35,8 +35,7 @@ import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { parseArgs } from "node:util";
 import { pipeline, AutoTokenizer } from "@xenova/transformers";
-import { split, getChunk } from "llm-splitter";
-import { normalizeDiacritics } from "normalize-text"; // TODO: REMOVE AND PUT UPSTREAM.
+import { split } from "llm-splitter";
 import config, { TOKEN_CUSHION_EMBEDDINGS } from "../public/shared-config.js";
 
 const { dirname } = import.meta;
@@ -46,8 +45,8 @@ const TOKEN_CHUNK_SIZE = config.embeddings.maxTokens - TOKEN_CUSHION_EMBEDDINGS;
 
 const tokenizer = await AutoTokenizer.from_pretrained(config.embeddings.model);
 
-// TODO: Refactor and document codes for gte-small tokenizer.
-const normalizeToken = (token, i, tokens) => {
+// Specifically normalize the tokens for the gte-small tokenizer.
+const normalizeTokenGteSmall = (token, i, tokens) => {
   if (i === 0 && token === "[CLS]") {
     return "";
   } else if (token === "[UNK]") {
@@ -65,7 +64,7 @@ const splitter = (text) => {
   const tokenInts = tokenizer.encode(text);
   const tokens = tokenInts
     .map((id) => tokenizer.decode([id]))
-    .map(normalizeToken);
+    .map(normalizeTokenGteSmall);
 
   return tokens;
 };
@@ -90,7 +89,7 @@ const logTokenStats = () => {
   const overMaxCount = overMax.length;
   const overMaxPct = ((overMaxCount / totalChunks) * 100).toFixed(2);
 
-  console.log("\n--- Token Debug Stats ---");
+  console.log("\n## Token Debug Stats");
   console.log(
     `Config: maxTokens=${config.embeddings.maxTokens}, cushion=${TOKEN_CUSHION_EMBEDDINGS}, overlap=${TOKEN_CHUNK_OVERLAP}, chunkSize=${TOKEN_CHUNK_SIZE}`,
   );
@@ -142,7 +141,6 @@ const generateEmbeddings = async (extractor, lines) => {
     pooling: "mean",
     normalize: true,
   });
-  //console.log("TODO EMBEDDINGS", output);
   return Array.from(output.data);
 };
 
@@ -166,15 +164,9 @@ const main = async () => {
   // Read posts.json
   const postsPath = resolve(dirname, "../public/data/posts.json");
   const postsContent = await readFile(postsPath, "utf8");
-  let posts = JSON.parse(postsContent);
-  //posts = { "digital-community-09-29-london-formidable-has-landed": posts["digital-community-09-29-london-formidable-has-landed"] };
-  Object.entries(posts).forEach(([slug, post]) => {
-    const content = post.content.map((line) => {
-      line = normalizeDiacritics(line);
-      return line;
-    });
-    posts[slug] = { ...post, content };
-  });
+  const posts = JSON.parse(postsContent);
+
+  console.log("## Generating Embeddings");
 
   // Initialize the feature-extraction pipeline
   const { model } = config.embeddings;
@@ -196,16 +188,17 @@ const main = async () => {
     const slug = slugs[i];
     const post = posts[slug];
     const embeddings = await generateEmbeddings(extractor, post.content);
-    const tokens = generateTokens(post.content); // TODO: REMOVE
     let chunks = [];
     try {
+      // Just store the start and end indices of the chunks.
       chunks = getChunks(post.content);
+      chunks = chunks.map(({ start, end }) => ({ start, end }));
     } catch (error) {
       console.error("(E) getChunks: ", slug);
       throw error;
     }
 
-    result[slug] = { embeddings, tokens, chunks };
+    result[slug] = { embeddings, chunks };
 
     if ((i + 1) % 100 === 0) {
       const now = performance.now();
@@ -214,7 +207,6 @@ const main = async () => {
       console.log(
         `Processed ${i + 1}/${slugs.length} posts... (${incrementTime}s)`,
       );
-      // break; // TODO REMOVE
     }
   }
   const totalTime = ((performance.now() - processStart) / 1000).toFixed(2);
@@ -234,8 +226,7 @@ const main = async () => {
   const output = jsonString.replace(/"__EMBEDDINGS_(\[.*?\])__"/g, "$1");
 
   // Write to output file
-  console.log("TODO SKIP WRITE");
-  // await writeFile(resolve(outputPath), output, "utf8");
+  await writeFile(resolve(outputPath), output, "utf8");
   console.log(
     `Wrote embeddings for ${Object.keys(result).length} posts to ${outputPath}`,
   );

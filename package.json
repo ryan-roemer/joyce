@@ -16,7 +16,6 @@
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "llm-splitter": "^0.2.0",
-    "normalize-text": "^2.6.0",
     "prettier": "^3.7.3"
   }
 }
