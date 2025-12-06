@@ -14,7 +14,8 @@ const ALL_PAGES = [
   { name: "Settings", to: "/settings", icon: "iconoir-tools" },
 ];
 
-export const TOKEN_CUSHION_CHAT = 10000;
+export const TOKEN_CUSHION_CHAT = 200;
+export const TOKEN_CUSHION_EMBEDDINGS = 25;
 
 const config = {
   pages: {

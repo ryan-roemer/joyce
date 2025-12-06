@@ -20,10 +20,79 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { parseArgs } from "node:util";
-import { pipeline } from "@xenova/transformers";
-import config from "../public/shared-config.js";
+import { pipeline, AutoTokenizer } from "@xenova/transformers";
+import { split, getChunk } from "llm-splitter";
+import { normalizeDiacritics } from "normalize-text"; // TODO: REMOVE AND PUT UPSTREAM.
+import config, { TOKEN_CUSHION_EMBEDDINGS } from "../public/shared-config.js";
 
 const { dirname } = import.meta;
+
+const TOKEN_CHUNK_OVERLAP = 10;
+const TOKEN_CHUNK_SIZE = config.embeddings.maxTokens - TOKEN_CUSHION_EMBEDDINGS;
+
+const tokenizer = await AutoTokenizer.from_pretrained(config.embeddings.model);
+
+// TODO: Refactor and document codes for gte-small tokenizer.
+const normalizeToken = (token, i, tokens) => {
+  if (i === 0 && token === "[CLS]") {
+    return "";
+  } else if (token === "[UNK]") {
+    return "";
+  } else if (i === tokens.length - 1 && token === "[SEP]") {
+    return "";
+  } else if (token.startsWith("##")) {
+    return token.slice(2);
+  }
+
+  return token;
+};
+
+const splitter = (text) => {
+  const tokenInts = tokenizer.encode(text);
+  const tokens = tokenInts
+    .map((id) => tokenizer.decode([id]))
+    .map(normalizeToken);
+
+  return tokens;
+};
+
+// TODO: REMOVE
+const generateTokens = (lines) => {
+  return lines.map((line) => splitter(line));
+};
+
+const getChunks = (lines) => {
+  try {
+    // Note: We lower case the lines to match the tokenizer, but our `getChunk` calls
+    // have normal, cased text.
+    const chunks = split(
+      lines.map((line) => line.toLocaleLowerCase()),
+      {
+        chunkSize: TOKEN_CHUNK_SIZE,
+        chunkOverlap: TOKEN_CHUNK_OVERLAP,
+        splitter,
+      },
+    );
+
+    // TODO: REMOVE -- SANITY check lower casing.
+    chunks.forEach(({ start, end, text }) => {
+      let getText = getChunk(lines, start, end);
+      //  console.log("TODO getText", getText);
+      getText = getText.map((line) => line.toLocaleLowerCase());
+      if (JSON.stringify(getText) !== JSON.stringify(text)) {
+        console.error("(E) getChunks: ", getText, text);
+      }
+    });
+
+    return chunks;
+  } catch (error) {
+    console.error(
+      "(E) getChunks: ",
+      JSON.stringify(generateTokens(lines), null, 2),
+    );
+    throw error;
+  }
+};
 
 /**
  * Generate embeddings for a given text using the extractor
@@ -31,11 +100,14 @@ const { dirname } = import.meta;
  * @param {string} text - The text to generate embeddings for
  * @returns {Promise<number[]>} - The embedding vector as an array
  */
-const generateEmbeddings = async (extractor, text) => {
-  const output = await extractor(text, {
+const generateEmbeddings = async (extractor, lines) => {
+  // TODO: reconsider joining lines.
+  // TODO: Switch to chunks.
+  const output = await extractor(lines.join("\n"), {
     pooling: "mean",
     normalize: true,
   });
+  //console.log("TODO EMBEDDINGS", output);
   return Array.from(output.data);
 };
 
@@ -59,10 +131,18 @@ const main = async () => {
   // Read posts.json
   const postsPath = resolve(dirname, "../public/data/posts.json");
   const postsContent = await readFile(postsPath, "utf8");
-  const posts = JSON.parse(postsContent);
+  let posts = JSON.parse(postsContent);
+  //posts = { "digital-community-09-29-london-formidable-has-landed": posts["digital-community-09-29-london-formidable-has-landed"] };
+  Object.entries(posts).forEach(([slug, post]) => {
+    const content = post.content.map((line) => {
+      line = normalizeDiacritics(line);
+      return line;
+    });
+    posts[slug] = { ...post, content };
+  });
 
   // Initialize the feature-extraction pipeline
-  const model = config.embeddings.model;
+  const { model } = config.embeddings;
   console.log(`Loading model: ${model}...`);
   const modelLoadStart = performance.now();
   const extractor = await pipeline("feature-extraction", model);
@@ -80,11 +160,18 @@ const main = async () => {
   for (let i = 0; i < slugs.length; i++) {
     const slug = slugs[i];
     const post = posts[slug];
+    const embeddings = await generateEmbeddings(extractor, post.content);
+    const tokens = generateTokens(post.content); // TODO: REMOVE
+    let chunks = [];
+    try {
+      chunks = getChunks(post.content); // TODO: REMOVE
+    } catch (error) {
+      console.error("(E) getChunks: ", slug);
+      throw error;
+    }
 
-    // TODO(search): Need to look at max tokens and chunking, etc.
-    const text = post.content.join("\n");
-    const embeddings = await generateEmbeddings(extractor, text);
-    result[slug] = { embeddings };
+    result[slug] = { embeddings, tokens, chunks };
+
     if ((i + 1) % 100 === 0) {
       const now = performance.now();
       const incrementTime = ((now - lastCheckpoint) / 1000).toFixed(2);
@@ -92,6 +179,7 @@ const main = async () => {
       console.log(
         `Processed ${i + 1}/${slugs.length} posts... (${incrementTime}s)`,
       );
+      // break; // TODO REMOVE
     }
   }
   const totalTime = ((performance.now() - processStart) / 1000).toFixed(2);
