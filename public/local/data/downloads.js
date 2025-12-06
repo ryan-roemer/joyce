@@ -17,6 +17,7 @@ export const RESOURCES = {
 
 const downloadStatus = new Map();
 const downloadCallbacks = new Map();
+const downloadedData = new Map();
 
 /**
  * Get download status for a resource
@@ -25,6 +26,15 @@ const downloadCallbacks = new Map();
  */
 export const getDownloadStatus = (resourceId) => {
   return downloadStatus.get(resourceId) || "not_loaded";
+};
+
+/**
+ * Get downloaded data for a resource (sync)
+ * @param {string} resourceId
+ * @returns {any | null} The downloaded data or null if not loaded
+ */
+export const getDownloadedData = (resourceId) => {
+  return downloadedData.get(resourceId) ?? null;
 };
 
 /**
@@ -79,7 +89,8 @@ export const startDownload = async (resource) => {
   setDownloadStatus(id, "loading");
   const start = performance.now();
   try {
-    await get();
+    const result = await get();
+    downloadedData.set(id, result);
     const elapsed = performance.now() - start;
     setDownloadStatus(id, "loaded", { elapsed });
   } catch (error) {
