@@ -124,6 +124,7 @@ export const startDownload = async (resource) => {
     await Promise.all(deps.map((depId) => waitForDownload(depId)));
   }
 
+  // TODO(BUG): Occasionally elapsed is `null` upstream. Not fixed yet.
   const start = performance.now();
   try {
     const result = await get();
