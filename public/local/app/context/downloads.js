@@ -100,7 +100,7 @@ export const DownloadsProvider = ({ children }) => {
     () => ({
       getStatus: (resourceId) => statuses.get(resourceId) || "not_loaded",
       getError: (resourceId) => errors.get(resourceId) || null,
-      getElapsed: (resourceId) => elapsedTimes.get(resourceId) || null,
+      getElapsed: (resourceId) => elapsedTimes.get(resourceId) ?? null,
       startDownload: handleStartDownload,
     }),
     [statuses, errors, elapsedTimes, handleStartDownload],
