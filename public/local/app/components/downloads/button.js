@@ -1,5 +1,6 @@
 import { html } from "../../../../app/util/html.js";
 import { useDownloads } from "../../context/downloads.js";
+import { formatElapsed } from "../../../../app/components/answer.js";
 
 const STATES = {
   not_loaded: {
@@ -38,9 +39,10 @@ export const DownloadButton = ({
   forceStatus = null,
   children,
 }) => {
-  const { getStatus, getError, startDownload } = useDownloads();
+  const { getStatus, getError, getElapsed, startDownload } = useDownloads();
   const status = forceStatus || getStatus(resourceId);
   const error = getError(resourceId);
+  const elapsed = getElapsed(resourceId);
   const state = STATES[status] || STATES.not_loaded;
   const title =
     typeof state.title === "function" ? state.title(error) : state.title;
@@ -51,10 +53,18 @@ export const DownloadButton = ({
 
   const isClickable = status === "not_loaded" && !forceStatus;
 
+  // TODO(CLEANUP): Move elapsed to right side in italics.
   return html`
     <div className="pure-form pure-form-stacked">
       <div className="pure-control-group download-status-row">
-        <label className="download-status-label">${children || label}</label>
+        <label className="download-status-label">
+          ${children || label}
+          ${elapsed
+            ? html` <span className="download-status-elapsed" key="elapsed"
+                >(${formatElapsed(elapsed)})</span
+              >`
+            : null}
+        </label>
         <div className="download-status-icon-container">
           ${isClickable
             ? html`

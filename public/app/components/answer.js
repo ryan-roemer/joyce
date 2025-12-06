@@ -13,11 +13,11 @@ const formatFloat = (num) =>
     maximumFractionDigits: 2,
   });
 
-const formatElapsed = (elapsed) => {
+export const formatElapsed = (elapsed) => {
   if (elapsed === null || elapsed === undefined) {
     return "";
   } else if (elapsed < 1000) {
-    return `${elapsed}ms`;
+    return `${elapsed.toFixed(0)}ms`;
   }
   return `${(elapsed / 1000).toFixed(2)}s`;
 };

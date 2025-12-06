@@ -1,3 +1,4 @@
+/* global performance:false */
 import { getPosts } from "./api/posts.js";
 
 // ==============================
@@ -26,12 +27,16 @@ export const getDownloadStatus = (resourceId) => {
  * Set download status for a resource
  * @param {string} resourceId
  * @param {"not_loaded" | "loading" | "loaded" | "error"} status
- * @param {Error|null} error
+ * @param {{ error?: Error, elapsed?: number }} options
  */
-const setDownloadStatus = (resourceId, status, error = null) => {
+const setDownloadStatus = (
+  resourceId,
+  status,
+  { error = null, elapsed = null } = {},
+) => {
   downloadStatus.set(resourceId, status);
   const callbacks = downloadCallbacks.get(resourceId) || [];
-  callbacks.forEach((cb) => cb(status, error));
+  callbacks.forEach((cb) => cb(status, { error, elapsed }));
 };
 
 /**
@@ -68,12 +73,15 @@ export const startDownload = async (resource) => {
   }
 
   setDownloadStatus(id, "loading");
+  const start = performance.now();
   try {
     await get();
-    setDownloadStatus(id, "loaded");
+    const elapsed = performance.now() - start;
+    setDownloadStatus(id, "loaded", { elapsed });
   } catch (error) {
+    const elapsed = performance.now() - start;
     console.error(`Error downloading ${id}:`, error); // eslint-disable-line no-undef
-    setDownloadStatus(id, "error", error);
+    setDownloadStatus(id, "error", { error, elapsed });
   }
 };
 

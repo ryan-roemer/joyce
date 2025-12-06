@@ -32,28 +32,39 @@ const findResourceById = (resourceId) => {
 export const DownloadsProvider = ({ children }) => {
   const [statuses, setStatuses] = useState(new Map());
   const [errors, setErrors] = useState(new Map());
+  const [elapsedTimes, setElapsedTimes] = useState(new Map());
 
   // Update status for a resource
-  const updateStatus = useCallback((resourceId, status, error = null) => {
-    setStatuses((prev) => {
-      const next = new Map(prev);
-      next.set(resourceId, status);
-      return next;
-    });
-    if (error) {
-      setErrors((prev) => {
+  const updateStatus = useCallback(
+    (resourceId, status, { error = null, elapsed = null } = {}) => {
+      setStatuses((prev) => {
         const next = new Map(prev);
-        next.set(resourceId, error);
+        next.set(resourceId, status);
         return next;
       });
-    } else {
-      setErrors((prev) => {
-        const next = new Map(prev);
-        next.delete(resourceId);
-        return next;
-      });
-    }
-  }, []);
+      if (error) {
+        setErrors((prev) => {
+          const next = new Map(prev);
+          next.set(resourceId, error);
+          return next;
+        });
+      } else {
+        setErrors((prev) => {
+          const next = new Map(prev);
+          next.delete(resourceId);
+          return next;
+        });
+      }
+      if (elapsed !== null) {
+        setElapsedTimes((prev) => {
+          const next = new Map(prev);
+          next.set(resourceId, elapsed);
+          return next;
+        });
+      }
+    },
+    [],
+  );
 
   // Initialize statuses from API
   useEffect(() => {
@@ -68,9 +79,12 @@ export const DownloadsProvider = ({ children }) => {
   useEffect(() => {
     const resources = Object.values(RESOURCES);
     const unsubscribes = resources.map((resource) => {
-      return subscribeDownloadStatus(resource.id, (status, error) => {
-        updateStatus(resource.id, status, error);
-      });
+      return subscribeDownloadStatus(
+        resource.id,
+        (status, { error, elapsed }) => {
+          updateStatus(resource.id, status, { error, elapsed });
+        },
+      );
     });
 
     return () => {
@@ -89,9 +103,10 @@ export const DownloadsProvider = ({ children }) => {
     () => ({
       getStatus: (resourceId) => statuses.get(resourceId) || "not_loaded",
       getError: (resourceId) => errors.get(resourceId) || null,
+      getElapsed: (resourceId) => elapsedTimes.get(resourceId) || null,
       startDownload: handleStartDownload,
     }),
-    [statuses, errors, handleStartDownload],
+    [statuses, errors, elapsedTimes, handleStartDownload],
   );
 
   return html`
