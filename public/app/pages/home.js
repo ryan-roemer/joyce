@@ -65,7 +65,7 @@ export const Home = () => {
           <h2 className="content-subhead">Chat</h2>
           <${ChatShortDescription} />
 
-          <h2 className="content-subhead">Data & Downloads</h2>
+          <h2 className="content-subhead">Downloads & Data Loading</h2>
           <p>
             We download data, databases, and models for use in the app.
             Some we automatically download (like our posts data), while others can be downloaded
@@ -79,7 +79,7 @@ export const Home = () => {
               <strong>Posts Embeddings</strong>: embeddings for posts data
             </${DownloadButton}>
             <${DownloadButton} resourceId=${DOWNLOADS.DB}>
-              <strong>Database</strong>: search index
+              <strong>Database</strong>: loading search index
             </${DownloadButton}>
           </div>
           <div>
