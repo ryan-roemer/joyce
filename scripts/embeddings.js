@@ -21,6 +21,7 @@ import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { parseArgs } from "node:util";
 import { pipeline } from "@xenova/transformers";
+import config from "../public/shared-config.js";
 
 const { dirname } = import.meta;
 
@@ -60,10 +61,11 @@ const main = async () => {
   const postsContent = await readFile(postsPath, "utf8");
   const posts = JSON.parse(postsContent);
 
-  // Initialize the feature-extraction pipeline with gte-small
-  console.log("Loading model: Xenova/gte-small...");
+  // Initialize the feature-extraction pipeline
+  const model = config.embeddings.model;
+  console.log(`Loading model: ${model}...`);
   const modelLoadStart = performance.now();
-  const extractor = await pipeline("feature-extraction", "Xenova/gte-small");
+  const extractor = await pipeline("feature-extraction", model);
   const modelLoadTime = ((performance.now() - modelLoadStart) / 1000).toFixed(
     2,
   );
