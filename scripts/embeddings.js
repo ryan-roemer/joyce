@@ -20,15 +20,22 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { pipeline } from "@xenova/transformers";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
- * Generate stub embeddings (array of 10 zeros)
- * @returns {number[]} - Array of 10 zeros
+ * Generate embeddings for a given text using the extractor
+ * @param {any} extractor - The feature extraction pipeline
+ * @param {string} text - The text to generate embeddings for
+ * @returns {Promise<number[]>} - The embedding vector as an array
  */
-const generateEmbeddings = () => {
-  return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const generateEmbeddings = async (extractor, text) => {
+  const output = await extractor(text, {
+    pooling: "mean",
+    normalize: true,
+  });
+  return Array.from(output.data);
 };
 
 const main = async () => {
@@ -53,12 +60,28 @@ const main = async () => {
   const postsContent = await readFile(postsPath, "utf8");
   const posts = JSON.parse(postsContent);
 
+  // Initialize the feature-extraction pipeline with gte-small
+  console.log("Loading model: Xenova/gte-small...");
+  const extractor = await pipeline("feature-extraction", "Xenova/gte-small");
+  console.log("Model loaded.");
+
   // Generate embeddings object keyed by slug
+  const slugs = Object.keys(posts);
   const result = {};
-  for (const slug of Object.keys(posts)) {
-    const embeddings = generateEmbeddings();
+  console.log(`Generating embeddings for ${slugs.length} posts...`);
+  for (let i = 0; i < slugs.length; i++) {
+    const slug = slugs[i];
+    const post = posts[slug];
+
+    // TODO(search): Need to look at max tokens and chunking, etc.
+    const text = post.content.join("\n");
+    const embeddings = await generateEmbeddings(extractor, text);
     result[slug] = { embeddings };
+    if ((i + 1) % 100 === 0) {
+      console.log(`Processed ${i + 1}/${slugs.length} posts...`);
+    }
   }
+  console.log(`Completed processing ${slugs.length} posts.`);
 
   // Convert to JSON string with pretty print, but keep embeddings arrays compact
   const jsonString = JSON.stringify(
