@@ -54,6 +54,7 @@ export const DownloadButton = ({
   const isClickable = status === "not_loaded" && !forceStatus;
 
   // TODO(CLEANUP): Move elapsed to right side in italics.
+  // TODO(DOWNLOADS): Maybe add label name and description, separated in styles, then elapsed separately.
   return html`
     <div className="pure-form pure-form-stacked">
       <div className="pure-control-group download-status-row">

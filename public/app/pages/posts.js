@@ -49,6 +49,7 @@ export const Posts = () => {
     setAnalyticsDates(data.metadata?.analytics?.dates);
   };
 
+  // TODO(DOWNLOADS): Can we skip this if postsDataStatus is loaded and directly set posts?
   useEffect(() => {
     fetchPosts();
   }, []);
