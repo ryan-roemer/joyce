@@ -15,6 +15,20 @@
  * ```
  * $ node scripts/embeddings.js --output=public/data/posts-embeddings.json
  * ```
+ *
+ * Token notes:
+ * The `gte-small` tokenizer has a max token limit of 512, but ignores tokens over the limit.
+ * We use the `llm-splitter` library to split the text into chunks, and then generate tokens
+ * for each chunk. We've got some debugging stats that show for the following configuration
+ * we only have a handful of chunks over the limit, and most not by much. This means that
+ * the chunks should be good enough for our purposes.
+ *
+ * - Config: maxTokens=512, cushion=25, overlap=10, chunkSize=487
+ * - Token counts - min: 3, max: 584, avg: 331.73
+ * - Total chunks: 5155
+ * - Chunks over maxTokens (512): 8
+ * -   Counts: 580, 516, 541, 538, 541, 539, 584, 519
+ * - Percentage over maxTokens: 0.16%
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -56,42 +70,65 @@ const splitter = (text) => {
   return tokens;
 };
 
-// TODO: REMOVE
 const generateTokens = (lines) => {
   return lines.map((line) => splitter(line));
 };
 
-const getChunks = (lines) => {
-  try {
-    // Note: We lower case the lines to match the tokenizer, but our `getChunk` calls
-    // have normal, cased text.
-    const chunks = split(
-      lines.map((line) => line.toLocaleLowerCase()),
-      {
-        chunkSize: TOKEN_CHUNK_SIZE,
-        chunkOverlap: TOKEN_CHUNK_OVERLAP,
-        splitter,
-      },
-    );
+const DEBUG_TOKENS = true;
+const TOKEN_COUNTS = [];
 
-    // TODO: REMOVE -- SANITY check lower casing.
-    chunks.forEach(({ start, end, text }) => {
-      let getText = getChunk(lines, start, end);
-      //  console.log("TODO getText", getText);
-      getText = getText.map((line) => line.toLocaleLowerCase());
-      if (JSON.stringify(getText) !== JSON.stringify(text)) {
-        console.error("(E) getChunks: ", getText, text);
-      }
-    });
+const logTokenStats = () => {
+  const totalChunks = TOKEN_COUNTS.length;
+  const minTokens = Math.min(...TOKEN_COUNTS);
+  const maxTokens = Math.max(...TOKEN_COUNTS);
+  const avgTokens = (
+    TOKEN_COUNTS.reduce((a, b) => a + b, 0) / totalChunks
+  ).toFixed(2);
+  const overMax = TOKEN_COUNTS.filter(
+    (count) => count > config.embeddings.maxTokens,
+  );
+  const overMaxCount = overMax.length;
+  const overMaxPct = ((overMaxCount / totalChunks) * 100).toFixed(2);
 
-    return chunks;
-  } catch (error) {
-    console.error(
-      "(E) getChunks: ",
-      JSON.stringify(generateTokens(lines), null, 2),
-    );
-    throw error;
+  console.log("\n--- Token Debug Stats ---");
+  console.log(
+    `Config: maxTokens=${config.embeddings.maxTokens}, cushion=${TOKEN_CUSHION_EMBEDDINGS}, overlap=${TOKEN_CHUNK_OVERLAP}, chunkSize=${TOKEN_CHUNK_SIZE}`,
+  );
+  console.log(
+    `Token counts - min: ${minTokens}, max: ${maxTokens}, avg: ${avgTokens}`,
+  );
+  console.log(`Total chunks: ${totalChunks}`);
+  console.log(
+    `Chunks over maxTokens (${config.embeddings.maxTokens}): ${overMaxCount}`,
+  );
+  if (overMaxCount > 0) {
+    console.log(`  Counts: ${overMax.join(", ")}`);
   }
+  console.log(`Percentage over maxTokens: ${overMaxPct}%`);
+};
+
+const getChunks = (lines) => {
+  // Note: We lower case the lines to match the tokenizer, but our `getChunk` calls
+  // have normal, cased text.
+  const chunks = split(
+    lines.map((line) => line.toLocaleLowerCase()),
+    {
+      chunkSize: TOKEN_CHUNK_SIZE,
+      chunkOverlap: TOKEN_CHUNK_OVERLAP,
+      splitter,
+    },
+  );
+
+  if (DEBUG_TOKENS) {
+    chunks.forEach(({ text }) => {
+      const tokenItems = generateTokens(text);
+      tokenItems.forEach((tokens) => {
+        TOKEN_COUNTS.push(tokens.length);
+      });
+    });
+  }
+
+  return chunks;
 };
 
 /**
@@ -101,8 +138,6 @@ const getChunks = (lines) => {
  * @returns {Promise<number[]>} - The embedding vector as an array
  */
 const generateEmbeddings = async (extractor, lines) => {
-  // TODO: reconsider joining lines.
-  // TODO: Switch to chunks.
   const output = await extractor(lines.join("\n"), {
     pooling: "mean",
     normalize: true,
@@ -164,7 +199,7 @@ const main = async () => {
     const tokens = generateTokens(post.content); // TODO: REMOVE
     let chunks = [];
     try {
-      chunks = getChunks(post.content); // TODO: REMOVE
+      chunks = getChunks(post.content);
     } catch (error) {
       console.error("(E) getChunks: ", slug);
       throw error;
@@ -199,10 +234,14 @@ const main = async () => {
   const output = jsonString.replace(/"__EMBEDDINGS_(\[.*?\])__"/g, "$1");
 
   // Write to output file
-  await writeFile(resolve(outputPath), output, "utf8");
+  console.log("TODO SKIP WRITE");
+  // await writeFile(resolve(outputPath), output, "utf8");
   console.log(
     `Wrote embeddings for ${Object.keys(result).length} posts to ${outputPath}`,
   );
+  if (DEBUG_TOKENS) {
+    logTokenStats();
+  }
 };
 
 // Run script
