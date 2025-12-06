@@ -66,25 +66,22 @@ export const DownloadsProvider = ({ children }) => {
     [],
   );
 
-  // Initialize statuses from API
-  useEffect(() => {
-    const resources = Object.values(RESOURCES);
-    resources.forEach((resource) => {
-      const status = getDownloadStatus(resource.id);
-      updateStatus(resource.id, status);
-    });
-  }, [updateStatus]);
-
-  // Subscribe to status changes
+  // Subscribe to status changes and initialize from current state
+  // Note: We subscribe first, then check current status to avoid race conditions
+  // where a download completes between checking status and subscribing
   useEffect(() => {
     const resources = Object.values(RESOURCES);
     const unsubscribes = resources.map((resource) => {
-      return subscribeDownloadStatus(
+      const unsub = subscribeDownloadStatus(
         resource.id,
         (status, { error, elapsed }) => {
           updateStatus(resource.id, status, { error, elapsed });
         },
       );
+      // Check current status after subscribing to catch any updates we missed
+      const currentStatus = getDownloadStatus(resource.id);
+      updateStatus(resource.id, currentStatus);
+      return unsub;
     });
 
     return () => {
