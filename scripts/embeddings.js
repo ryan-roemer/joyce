@@ -187,18 +187,21 @@ const main = async () => {
   for (let i = 0; i < slugs.length; i++) {
     const slug = slugs[i];
     const post = posts[slug];
-    const embeddings = await generateEmbeddings(extractor, post.content);
     let chunks = [];
     try {
-      // Just store the start and end indices of the chunks.
+      // Just store the start and end indices of the chunks and add the embeddings.
       chunks = getChunks(post.content);
-      chunks = chunks.map(({ start, end }) => ({ start, end }));
+      for (const chunk of chunks) {
+        const embeddings = await generateEmbeddings(extractor, chunk.text);
+        delete chunk.text;
+        chunk.embeddings = embeddings;
+      }
     } catch (error) {
       console.error("(E) getChunks: ", slug);
       throw error;
     }
 
-    result[slug] = { embeddings, chunks };
+    result[slug] = { chunks };
 
     if ((i + 1) % 100 === 0) {
       const now = performance.now();

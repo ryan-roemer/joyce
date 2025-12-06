@@ -1,15 +1,11 @@
 import { getAndCache } from "../../../shared-util.js";
 import { fetchWrapper } from "../util.js";
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)); // eslint-disable-line no-undef
-
 export const getPosts = getAndCache(async () => {
-  await wait(100); // TODO: REMOVE WAIT
   return fetchWrapper("/data/posts.json");
 });
 
 export const getPostsEmbeddings = getAndCache(async () => {
-  await wait(200);
   return fetchWrapper("/data/posts-embeddings.json");
 });
 
