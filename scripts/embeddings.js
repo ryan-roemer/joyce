@@ -17,13 +17,12 @@
  * ```
  */
 import { readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { pipeline } from "@xenova/transformers";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const { dirname } = import.meta;
 
 /**
  * Generate embeddings for a given text using the extractor
@@ -57,7 +56,7 @@ const main = async () => {
   }
 
   // Read posts.json
-  const postsPath = resolve(__dirname, "../public/data/posts.json");
+  const postsPath = resolve(dirname, "../public/data/posts.json");
   const postsContent = await readFile(postsPath, "utf8");
   const posts = JSON.parse(postsContent);
 
