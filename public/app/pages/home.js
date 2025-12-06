@@ -75,6 +75,9 @@ export const Home = () => {
             <${DownloadButton} resourceId=${DOWNLOADS.POSTS_DATA}>
               <strong>Posts</strong>: raw web page data
             </${DownloadButton}>
+            <${DownloadButton} resourceId=${DOWNLOADS.POSTS_EMBEDDINGS}>
+              <strong>Posts Embeddings</strong>: embeddings for posts data
+            </${DownloadButton}>
           </div>
           <div>
             <!-- TODO(LOCAL): Remove these demo buttons -->

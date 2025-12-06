@@ -3,6 +3,10 @@ import { fetchWrapper } from "../util.js";
 
 export const getPosts = getAndCache(() => fetchWrapper("/data/posts.json"));
 
+export const getPostsEmbeddings = getAndCache(() =>
+  fetchWrapper("/data/posts-embeddings.json"),
+);
+
 const filterPosts = async ({
   org,
   postType = [],

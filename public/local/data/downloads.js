@@ -1,5 +1,5 @@
 /* global performance:false */
-import { getPosts } from "./api/posts.js";
+import { getPosts, getPostsEmbeddings } from "./api/posts.js";
 
 // ==============================
 // Download Management
@@ -8,6 +8,10 @@ export const RESOURCES = {
   POSTS_DATA: {
     id: "posts_data",
     get: getPosts,
+  },
+  POSTS_EMBEDDINGS: {
+    id: "posts_embeddings",
+    get: getPostsEmbeddings,
   },
 };
 
@@ -90,4 +94,5 @@ export const startDownload = async (resource) => {
  */
 export const init = () => {
   startDownload(RESOURCES.POSTS_DATA);
+  startDownload(RESOURCES.POSTS_EMBEDDINGS);
 };
