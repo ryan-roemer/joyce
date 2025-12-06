@@ -18,6 +18,7 @@
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { pipeline } from "@xenova/transformers";
@@ -62,13 +63,19 @@ const main = async () => {
 
   // Initialize the feature-extraction pipeline with gte-small
   console.log("Loading model: Xenova/gte-small...");
+  const modelLoadStart = performance.now();
   const extractor = await pipeline("feature-extraction", "Xenova/gte-small");
-  console.log("Model loaded.");
+  const modelLoadTime = ((performance.now() - modelLoadStart) / 1000).toFixed(
+    2,
+  );
+  console.log(`Model loaded. (${modelLoadTime}s)`);
 
   // Generate embeddings object keyed by slug
   const slugs = Object.keys(posts);
   const result = {};
   console.log(`Generating embeddings for ${slugs.length} posts...`);
+  const processStart = performance.now();
+  let lastCheckpoint = processStart;
   for (let i = 0; i < slugs.length; i++) {
     const slug = slugs[i];
     const post = posts[slug];
@@ -78,10 +85,16 @@ const main = async () => {
     const embeddings = await generateEmbeddings(extractor, text);
     result[slug] = { embeddings };
     if ((i + 1) % 100 === 0) {
-      console.log(`Processed ${i + 1}/${slugs.length} posts...`);
+      const now = performance.now();
+      const incrementTime = ((now - lastCheckpoint) / 1000).toFixed(2);
+      lastCheckpoint = now;
+      console.log(
+        `Processed ${i + 1}/${slugs.length} posts... (${incrementTime}s)`,
+      );
     }
   }
-  console.log(`Completed processing ${slugs.length} posts.`);
+  const totalTime = ((performance.now() - processStart) / 1000).toFixed(2);
+  console.log(`Completed processing ${slugs.length} posts. (${totalTime}s)`);
 
   // Convert to JSON string with pretty print, but keep embeddings arrays compact
   const jsonString = JSON.stringify(
