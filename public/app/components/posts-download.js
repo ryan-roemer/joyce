@@ -8,7 +8,7 @@ const postsToCsv = (posts) => {
   return (
     [
       "Date",
-      "Org",
+      // TODO(ORG): No Org Presently --"Org",
       "Type",
       "Title",
       "URL",
@@ -21,13 +21,13 @@ const postsToCsv = (posts) => {
     "\n" +
     posts
       .map((post) => {
-        const { title, org, postType, date, href, categories, analytics } =
+        const { title, /*org,*/ postType, date, href, categories, analytics } =
           post;
         // Escape any commas in the title with quotes
         const escapedTitle = `"${title}"`.replace(/\n/g, " ");
         return [
           date,
-          org,
+          // TODO(ORG): No Org Presently -- org,
           postType,
           escapedTitle,
           href,
