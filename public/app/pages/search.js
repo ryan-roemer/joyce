@@ -98,7 +98,8 @@ export const Search = () => {
       </${Form}>
 
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
-      ${(posts && html`<${PostsTable} posts=${posts} analyticsDates=${analyticsDates} />`) || html`<p className="status">No results.</p>`}
+      ${posts?.length > 0 && html`<${PostsTable} posts=${posts} analyticsDates=${analyticsDates} />`}
+      ${searchData && !posts?.length > 0 && html`<p className="status">No results.</p>`}
     </${Page}>
   `;
 };
