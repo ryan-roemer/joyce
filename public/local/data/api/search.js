@@ -40,21 +40,35 @@ export const getPostsDb = getAndCache(async () => {
 
 // Chunks database (vector search)
 export const getChunksDb = getAndCache(async () => {
-  const embeddingsObj = await getPostsEmbeddings();
+  const [embeddingsObj, postsObj] = await Promise.all([
+    getPostsEmbeddings(),
+    getPosts(),
+  ]);
 
-  // Flatten chunks: each chunk becomes a document with slug reference
-  const chunks = Object.entries(embeddingsObj).flatMap(([slug, { chunks }]) =>
-    chunks.map((chunk) => ({
+  // Flatten chunks: each chunk becomes a document with slug reference and post metadata
+  const chunks = Object.entries(embeddingsObj).flatMap(([slug, { chunks }]) => {
+    const post = postsObj[slug];
+    return chunks.map((chunk) => ({
       slug,
-      start: chunk.start,
-      end: chunk.end,
-      embeddings: chunk.embeddings,
-    })),
-  );
+      date: post?.date,
+      postType: post?.postType,
+      categories: post?.categories,
+      ...chunk,
+    }));
+  });
 
   const db = await create({
     schema: {
+      // Post.
       slug: "string",
+      date: "string",
+      postType: "enum",
+      categories: {
+        primary: "string",
+        others: "string[]",
+      },
+
+      // Chunk.
       start: "number",
       end: "number",
       embeddings: "vector[384]",
@@ -96,10 +110,11 @@ export const search = async ({
   withContent,
 }) => {
   const db = await getDb();
-  const { posts, chunks } = db;
+  const { chunks } = db; // TODO: ONLY DO CHUNKS and remove posts???
   const extractor = await getExtractor();
 
   // TODO: HERE -- IMPLEMENT
+  console.log("(I) chunks: ", chunks.data.docs.docs);
 
   return {
     posts: [],
