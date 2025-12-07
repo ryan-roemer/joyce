@@ -42,7 +42,7 @@ export const Search = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const { query, minDate } = getElements(event);
+    const { query } = getElements(event);
     if (!query) {
       return;
     }
