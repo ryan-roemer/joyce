@@ -13,16 +13,22 @@ const postsToCsv = (posts) => {
       "Title",
       "URL",
       "Category",
-      "Views",
-      "Users",
-      "Time (min)",
-      "Bounce Rate",
+      // TODO(ANALYTICS): No Analytics Presently -- analytics,
+      // "Views",
+      // "Users",
+      // "Time (min)",
+      // "Bounce Rate",
     ].join(",") +
     "\n" +
     posts
       .map((post) => {
-        const { title, /*org,*/ postType, date, href, categories, analytics } =
-          post;
+        const {
+          title,
+          /*org,*/ postType,
+          date,
+          href,
+          categories /*analytics*/,
+        } = post;
         // Escape any commas in the title with quotes
         const escapedTitle = `"${title}"`.replace(/\n/g, " ");
         return [
@@ -32,10 +38,11 @@ const postsToCsv = (posts) => {
           escapedTitle,
           href,
           categories.primary,
-          analytics?.views ?? "",
-          analytics?.users ?? "",
-          analytics?.time?.toFixed(2) ?? "",
-          analytics?.bounceRate?.toFixed(2) ?? "",
+          // TODO(ANALYTICS): No Analytics Presently -- analytics,
+          // analytics?.views ?? "",
+          // analytics?.users ?? "",
+          // analytics?.time?.toFixed(2) ?? "",
+          // analytics?.bounceRate?.toFixed(2) ?? "",
         ].join(",");
       })
       .join("\n")
