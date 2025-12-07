@@ -1,2 +1,2 @@
 .data
-public/data/posts.json
+public/data/*.json

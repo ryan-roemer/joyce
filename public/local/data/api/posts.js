@@ -1,10 +1,16 @@
 import { getAndCache } from "../../../shared-util.js";
 import { fetchWrapper } from "../util.js";
 
-export const getPosts = getAndCache(() => fetchWrapper("/data/posts.json"));
+export const getPosts = getAndCache(async () => {
+  return fetchWrapper("/data/posts.json");
+});
+
+export const getPostsEmbeddings = getAndCache(async () => {
+  return fetchWrapper("/data/posts-embeddings.json");
+});
 
 const filterPosts = async ({
-  org,
+  // TODO(ORG): No Org Presently -- org,
   postType = [],
   minDate,
   categoryPrimary = [],
@@ -17,7 +23,7 @@ const filterPosts = async ({
   return Object.values(postsObj)
     .filter(
       (post) =>
-        (!org || post.org === org) &&
+        // TODO(ORG): No Org Presently -- (!org || post.org === org) &&
         (postType.length === 0 || postTypeSet.has(post.postType)) &&
         (!minDateObj || new Date(post.date) >= minDateObj) &&
         (categoryPrimary.length === 0 ||

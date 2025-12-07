@@ -8,7 +8,6 @@ import {
   PostTypeSelect,
   PostCategoryPrimarySelect,
   QueryField,
-  DatastoreSelect,
 } from "../components/forms.js";
 import {
   DownloadPostsCsv,
@@ -37,13 +36,13 @@ export const Search = () => {
     start: null,
     end: null,
   });
-  const [datastore, setDatastore] = useState("postgresql");
+  const [minDate, setMinDate] = useState("");
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const { query, minDate } = getElements(event);
+    const { query } = getElements(event);
     if (!query) {
       return;
     }
@@ -63,7 +62,6 @@ export const Search = () => {
         minDate,
         categoryPrimary,
         withContent: true,
-        datastore,
       });
       const { posts, chunks, metadata } = searchResults;
       setSearchData(searchResults);
@@ -96,20 +94,12 @@ export const Search = () => {
           selected=${selectedCategoryPrimary}
           setSelected=${setSelectedCategoryPrimary}
         />
-        <${PostMinDate} />
-        ${
-          /* TODO(SEARCH): Have a datastore??? */
-          isDeveloperMode &&
-          html`<${DatastoreSelect}
-            selected=${datastore}
-            setSelected=${setDatastore}
-            includeOpenAITool=${false}
-          />`
-        }
+        <${PostMinDate} value=${minDate} setValue=${setMinDate} />
       </${Form}>
 
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
-      ${(posts && html`<${PostsTable} posts=${posts} analyticsDates=${analyticsDates} />`) || html`<p className="status">No results.</p>`}
+      ${posts?.length > 0 && html`<${PostsTable} posts=${posts} analyticsDates=${analyticsDates} />`}
+      ${searchData && posts?.length === 0 && html`<p className="status">No results.</p>`}
     </${Page}>
   `;
 };

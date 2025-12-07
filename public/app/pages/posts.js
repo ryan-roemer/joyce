@@ -14,11 +14,11 @@ import {
 } from "../components/posts-download.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { posts as getPosts } from "../data/index.js";
-import { useDownloads } from "../../local/app/context/downloads.js";
+import { useLoading } from "../../local/app/context/loading.js";
 import {
-  DownloadMessage,
-  DOWNLOADS,
-} from "../../local/app/components/downloads/index.js";
+  LoadingMessage,
+  LOADING,
+} from "../../local/app/components/loading/index.js";
 
 export const Posts = () => {
   const [posts, setPosts] = useState(null);
@@ -33,8 +33,8 @@ export const Posts = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
-  const { getStatus } = useDownloads();
-  const postsDataStatus = getStatus(DOWNLOADS.POSTS_DATA);
+  const { getStatus } = useLoading();
+  const postsDataStatus = getStatus(LOADING.POSTS_DATA);
 
   // Helper function to fetch posts
   const fetchPosts = async () => {
@@ -49,6 +49,7 @@ export const Posts = () => {
     setAnalyticsDates(data.metadata?.analytics?.dates);
   };
 
+  // TODO(LOADING): Can we skip this if postsDataStatus is loaded and directly set posts?
   useEffect(() => {
     fetchPosts();
   }, []);
@@ -71,7 +72,7 @@ export const Posts = () => {
         ${isDeveloperMode && postsData && html`<${JsonDataLink} data=${postsData} />`}
         <${DownloadPostsCsv} posts=${posts} />
       </p>
-      <${DownloadMessage} resourceId=${DOWNLOADS.POSTS_DATA} type="error" />
+      <${LoadingMessage} resourceId=${LOADING.POSTS_DATA} type="error" />
       <${Form} ...${{ isFetching, handleSubmit, submitName: "Filter" }}>
         <${PostTypeSelect}
           selected=${selectedPostTypes}
@@ -89,8 +90,8 @@ export const Posts = () => {
             posts=${posts}
             analyticsDates=${analyticsDates}
           />`) ||
-        html`<${DownloadMessage}
-          resourceId=${DOWNLOADS.POSTS_DATA}
+        html`<${LoadingMessage}
+          resourceId=${LOADING.POSTS_DATA}
           type="info"
           message=${postsDataStatus === "loading"
             ? "Loading posts data..."
