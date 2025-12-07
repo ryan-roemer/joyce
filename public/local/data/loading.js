@@ -114,13 +114,11 @@ export const subscribeLoadingStatus = (resourceId, callback) => {
  */
 export const startLoading = async (resource) => {
   const { id, get, deps } = resource;
-  if (
-    loadingStatus.get(id) === "loading" ||
-    loadingStatus.get(id) === "loaded"
-  ) {
+  // Check and set must remain synchronous (no await between) to prevent races
+  const status = loadingStatus.get(id);
+  if (status === "loading" || status === "loaded") {
     return;
   }
-
   setLoadingStatus(id, "loading");
 
   // Wait for dependencies before starting the timer
