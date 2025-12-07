@@ -116,6 +116,7 @@ export const search = async ({
   const { chunks: chunksDb } = db;
   const extractor = await getExtractor();
   const postsData = await getPosts();
+  const chunksData = await getPostsEmbeddings();
 
   // Generate query embedding
   const embeddingStart = performance.now();
@@ -155,12 +156,14 @@ export const search = async ({
   for (const hit of results.hits) {
     const { document, score: similarity } = hit;
     const { slug, start, end } = document;
-
+    const { embeddingNumTokens } = chunksData[slug].chunks.find(
+      (chunk) => chunk.start === start && chunk.end === end,
+    );
     similarities.push(similarity);
 
     // Add chunk to array
     // TODO: add embeddingNumTokens when available on chunk objects
-    chunksArray.push({ slug, start, end, similarity });
+    chunksArray.push({ slug, start, end, embeddingNumTokens, similarity });
 
     // Build/update post entry
     if (!postsMap[slug]) {
@@ -199,8 +202,6 @@ export const search = async ({
       : { min: 0, max: 0, avg: 0 };
 
   return {
-    posts,
-    chunks: chunksArray,
     metadata: {
       elapsed: {
         embeddingQuery,
@@ -210,5 +211,7 @@ export const search = async ({
         similarity: similarityStats,
       },
     },
+    posts,
+    chunks: chunksArray,
   };
 };
