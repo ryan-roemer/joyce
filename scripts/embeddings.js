@@ -118,6 +118,7 @@ const getChunks = (lines) => {
     },
   );
 
+  // TODO: add embeddingNumTokens count to each chunk.
   if (DEBUG_TOKENS) {
     chunks.forEach(({ text }) => {
       const tokenItems = generateTokens(text);

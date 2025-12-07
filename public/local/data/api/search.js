@@ -1,6 +1,10 @@
 import { create, insertMultiple } from "@orama/orama";
+// TODO: FIGURE THIS OUT
+// TODO: Put a Loader on this.
+import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
 
 import { getAndCache } from "../../../shared-util.js";
+import config from "../../../shared-config.js";
 import { getPosts, getPostsEmbeddings } from "./posts.js";
 
 // Posts database (full-text search)
@@ -65,7 +69,39 @@ export const getDb = getAndCache(async () => {
     chunks: chunksDb,
   };
 
-  console.log("TODO ORAMA", db); // eslint-disable-line no-undef
-
   return db;
 });
+
+/**
+ * Search for posts matching a query.
+ * @param {Object} params
+ * @param {string} params.query
+ * @param {string[]} params.postType
+ * @param {string} params.minDate
+ * @param {string[]} params.categoryPrimary
+ * @param {boolean} params.withContent
+ * @returns {Promise<{posts: Object, chunks: Array, metadata: Object}>}
+ */
+// Unused params: @param {string} params.datastore
+export const search = async ({
+  query,
+  postType,
+  minDate,
+  categoryPrimary,
+  withContent,
+}) => {
+  const db = await getDb();
+  const { posts, chunks } = db;
+
+  const { model } = config.embeddings;
+  const extractor = await pipeline("feature-extraction", model);
+  console.log("(I) extractor: ", extractor);
+
+  // TODO: HERE -- IMPLEMENT
+
+  return {
+    posts: [],
+    chunks: [],
+    metadata: {},
+  };
+};

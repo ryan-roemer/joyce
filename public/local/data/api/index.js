@@ -2,26 +2,7 @@
 // API
 // ==============================
 export { posts } from "./posts.js";
-
-/**
- * Search for posts matching a query.
- * @param {Object} params
- * @param {string} params.query
- * @param {string[]} params.postType
- * @param {string} params.minDate
- * @param {string[]} params.categoryPrimary
- * @param {boolean} params.withContent
- * @param {string} params.datastore
- * @returns {Promise<{posts: Object, chunks: Array, metadata: Object}>}
- */
-// TODO(LOCAL): IMPLEMENT!!!
-export const search = async () => {
-  return {
-    posts: [],
-    chunks: [],
-    metadata: {},
-  };
-};
+export { search } from "./search.js";
 
 /**
  * Chat with AI using streaming responses.
