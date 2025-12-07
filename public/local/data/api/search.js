@@ -1,11 +1,16 @@
 import { create, insertMultiple } from "@orama/orama";
-// TODO: FIGURE THIS OUT
-// TODO: Put a Loader on this.
 import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
 
 import { getAndCache } from "../../../shared-util.js";
 import config from "../../../shared-config.js";
 import { getPosts, getPostsEmbeddings } from "./posts.js";
+
+// Embeddings extractor (feature-extraction pipeline)
+export const getExtractor = getAndCache(async () => {
+  const { model } = config.embeddings;
+  const extractor = await pipeline("feature-extraction", model);
+  return extractor;
+});
 
 // Posts database (full-text search)
 export const getPostsDb = getAndCache(async () => {
@@ -93,9 +98,7 @@ export const search = async ({
   const db = await getDb();
   const { posts, chunks } = db;
 
-  const { model } = config.embeddings;
-  const extractor = await pipeline("feature-extraction", model);
-  console.log("(I) extractor: ", extractor);
+  const extractor = await getExtractor();
 
   // TODO: HERE -- IMPLEMENT
 

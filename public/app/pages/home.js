@@ -81,6 +81,9 @@ export const Home = () => {
             <${LoadingButton} resourceId=${LOADING.DB}>
               <strong>Database</strong>: loading search index
             </${LoadingButton}>
+            <${LoadingButton} resourceId=${LOADING.EXTRACTOR}>
+              <strong>Extractor</strong>: embeddings model
+            </${LoadingButton}>
           </div>
           <div>
             <!-- TODO(LOCAL): Remove these demo buttons -->

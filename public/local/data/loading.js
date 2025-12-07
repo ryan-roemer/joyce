@@ -1,6 +1,6 @@
 /* global performance:false */
 import { getPosts, getPostsEmbeddings } from "./api/posts.js";
-import { getDb } from "./api/search.js";
+import { getDb, getExtractor } from "./api/search.js";
 
 // ==============================
 // Loading Management
@@ -18,6 +18,10 @@ export const RESOURCES = {
     id: "db",
     get: getDb,
     deps: ["posts_data", "posts_embeddings"],
+  },
+  EXTRACTOR: {
+    id: "extractor",
+    get: getExtractor,
   },
 };
 
@@ -144,4 +148,5 @@ export const init = () => {
   startLoading(RESOURCES.POSTS_DATA);
   startLoading(RESOURCES.POSTS_EMBEDDINGS);
   startLoading(RESOURCES.DB);
+  startLoading(RESOURCES.EXTRACTOR);
 };
