@@ -20,7 +20,7 @@ export const getPostsDb = getAndCache(async () => {
   const db = await create({
     schema: {
       href: "string",
-      postType: "string",
+      postType: "enum",
       slug: "string",
       date: "string",
       title: "string",
@@ -97,7 +97,6 @@ export const search = async ({
 }) => {
   const db = await getDb();
   const { posts, chunks } = db;
-
   const extractor = await getExtractor();
 
   // TODO: HERE -- IMPLEMENT
