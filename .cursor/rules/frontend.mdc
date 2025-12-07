@@ -48,9 +48,9 @@ The frontend of this project uses modern web development without build tools. Al
 
 ## Stack
 
-### Phosphor Icons
+### Iconoir Icons
 
-- Use iconoir Icons for all iconography with docs at: https://iconoir.com/
+- Use Iconoir for all iconography: https://iconoir.com/
 
 ### CSS and HTML
 - Use modern CSS features (Grid, Flexbox, custom properties)

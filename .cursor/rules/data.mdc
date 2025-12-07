@@ -17,9 +17,42 @@ This is a pure JavaScript, web browser-only app.
 
 We use [Orama](https://docs.oramasearch.com/docs/orama-js) for all database and search functionality. Orama is a full-text search engine that runs entirely in the browser, which aligns with our browser-only architecture.
 
+### Orama Databases
+Two databases are created at runtime:
+- **postsDb** — Full-text search on post metadata (title, authors, categories, etc.)
+- **chunksDb** — Vector search using 384-dimension embeddings from `gte-small`
+
 ### Key Points
 - All database operations happen client-side using Orama JS
 - No backend database server required - everything runs in the browser
 - Search indexes are built and maintained in-memory
-- Data persistence is handled through browser storage mechanisms (localStorage, IndexedDB, etc.)
 - Refer to the [Orama JS documentation](https://docs.oramasearch.com/docs/orama-js) for API details and usage patterns
+
+## Embeddings
+
+Query embeddings are generated using [@xenova/transformers](https://huggingface.co/docs/transformers.js) with the `Xenova/gte-small` model (384 dimensions, max 512 tokens).
+
+## Loading System
+
+Resource loading is managed via `public/local/data/loading.js` with status tracking and pub/sub notifications.
+
+### Resources
+Resources are defined with `id`, `get` (async loader), and optional `deps` (dependency IDs):
+```javascript
+RESOURCES.POSTS_DATA    // posts.json
+RESOURCES.POSTS_EMBEDDINGS  // posts-embeddings.json
+RESOURCES.DB            // Orama databases (depends on above)
+RESOURCES.EXTRACTOR     // Transformers pipeline
+```
+
+### Status Tracking
+- `getLoadingStatus(id)` — returns `"not_loaded"` | `"loading"` | `"loaded"` | `"error"`
+- `subscribeLoadingStatus(id, callback)` — pub/sub for status changes
+
+## Caching Pattern
+
+Use `getAndCache` from `shared-util.js` to memoize async operations:
+```javascript
+import { getAndCache } from "../../../shared-util.js";
+export const getMyData = getAndCache(async () => { /* ... */ });
+```
