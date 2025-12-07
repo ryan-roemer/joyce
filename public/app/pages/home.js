@@ -73,16 +73,16 @@ export const Home = () => {
           </p>
           <div>
             <${LoadingButton} resourceId=${LOADING.POSTS_DATA}>
-              <strong>Posts</strong>: raw web page data
+              <strong>Posts</strong>: posts data
             </${LoadingButton}>
             <${LoadingButton} resourceId=${LOADING.POSTS_EMBEDDINGS}>
-              <strong>Posts Embeddings</strong>: embeddings for posts data
+              <strong>Posts Embeddings</strong>: chunked embeddings for posts data
             </${LoadingButton}>
             <${LoadingButton} resourceId=${LOADING.DB}>
-              <strong>Database</strong>: loading search index
+              <strong>Database</strong>: search indexes
             </${LoadingButton}>
             <${LoadingButton} resourceId=${LOADING.EXTRACTOR}>
-              <strong>Extractor</strong>: embeddings model
+              <strong>Extractor</strong>: embeddings extraction model
             </${LoadingButton}>
           </div>
           <div>
