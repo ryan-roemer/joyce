@@ -65,7 +65,7 @@ export const getChunksDb = getAndCache(async () => {
       // Post.
       slug: "string",
       date: "string",
-      postType: "enum",
+      postType: "string",
       categories: {
         primary: "string",
         others: "string[]",
