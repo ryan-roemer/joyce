@@ -8,7 +8,6 @@ import {
   PostTypeSelect,
   PostCategoryPrimarySelect,
   QueryField,
-  DatastoreSelect,
 } from "../components/forms.js";
 import {
   DownloadPostsCsv,
@@ -37,7 +36,6 @@ export const Search = () => {
     start: null,
     end: null,
   });
-  const [datastore, setDatastore] = useState("postgresql");
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
 
@@ -63,7 +61,6 @@ export const Search = () => {
         minDate,
         categoryPrimary,
         withContent: true,
-        datastore,
       });
       const { posts, chunks, metadata } = searchResults;
       setSearchData(searchResults);
@@ -97,15 +94,6 @@ export const Search = () => {
           setSelected=${setSelectedCategoryPrimary}
         />
         <${PostMinDate} />
-        ${
-          /* TODO(SEARCH): Have a datastore??? */
-          isDeveloperMode &&
-          html`<${DatastoreSelect}
-            selected=${datastore}
-            setSelected=${setDatastore}
-            includeOpenAITool=${false}
-          />`
-        }
       </${Form}>
 
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
