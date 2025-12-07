@@ -8,6 +8,8 @@ import { getPosts, getPostsEmbeddings } from "./posts.js";
 
 const MAX_CHUNKS = 50;
 
+const dateToNumber = (date) => Date.parse(date);
+
 // Embeddings extractor (feature-extraction pipeline)
 export const getExtractor = getAndCache(async () => {
   const { model } = config.embeddings;
@@ -18,14 +20,17 @@ export const getExtractor = getAndCache(async () => {
 // Posts database (full-text search)
 export const getPostsDb = getAndCache(async () => {
   const postsObj = await getPosts();
-  const posts = Object.values(postsObj);
+  const posts = Object.values(postsObj).map((post) => ({
+    ...post,
+    date: dateToNumber(post.date),
+  }));
 
   const db = await create({
     schema: {
       href: "string",
       postType: "enum",
       slug: "string",
-      date: "string",
+      date: "number",
       title: "string",
       authors: "string[]",
       content: "string[]",
@@ -53,7 +58,7 @@ export const getChunksDb = getAndCache(async () => {
     const post = postsObj[slug];
     return chunks.map((chunk) => ({
       slug,
-      date: post?.date,
+      date: dateToNumber(post?.date),
       postType: post?.postType,
       categories: post?.categories,
       ...chunk,
@@ -64,7 +69,7 @@ export const getChunksDb = getAndCache(async () => {
     schema: {
       // Post.
       slug: "string",
-      date: "string",
+      date: "number",
       postType: "string",
       categories: {
         primary: "string",
@@ -120,8 +125,11 @@ export const search = async ({
 
   // Generate query embedding
   const embeddingStart = performance.now();
-  const output = await extractor(query, { pooling: "mean", normalize: true });
-  const queryEmbedding = Array.from(output.data);
+  const queryExtracted = await extractor(query, {
+    pooling: "mean",
+    normalize: true,
+  });
+  const queryEmbedding = Array.from(queryExtracted.data);
   const embeddingQuery = performance.now() - embeddingStart;
 
   // Build where clause for filtering
@@ -132,10 +140,8 @@ export const search = async ({
   if (categoryPrimary?.length) {
     where["categories.primary"] = categoryPrimary;
   }
-  // TODO: HERE -- Date selection not working. Maybe because a string in DB?
-  console.log("(I) minDate: ", minDate);
   if (minDate) {
-    where.date = { gte: minDate };
+    where.date = { gte: dateToNumber(minDate) };
   }
 
   // Vector search on chunks DB
@@ -162,7 +168,6 @@ export const search = async ({
     similarities.push(similarity);
 
     // Add chunk to array
-    // TODO: add embeddingNumTokens when available on chunk objects
     chunksArray.push({ slug, start, end, embeddingNumTokens, similarity });
 
     // Build/update post entry
