@@ -31,6 +31,9 @@ const QueryInfo = ({
   chunks,
   internal,
 } = {}) => {
+  // TODO(CHAT): REENABlE
+  return null;
+
   if (!elapsed && !usage && !model && !chunks) return null;
 
   const totalElapsed = elapsed?.tokensLast

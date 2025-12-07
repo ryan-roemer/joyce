@@ -21,7 +21,11 @@ export async function* chat({ query }) {
   const initProgressCallback = (initProgress) => {
     console.log(initProgress);
   };
-  const selectedModel = "Llama-3.1-8B-Instruct-q4f32_1-MLC";
+
+  // Supported models: https://github.com/mlc-ai/web-llm/blob/main/src/config.ts#L293
+  // TODO: LOAD MODELS FROM CONFIG! Note VRAM, etc.
+  // const selectedModel = "Llama-3.1-8B-Instruct-q4f32_1-MLC";
+  const selectedModel = "SmolLM2-360M-Instruct-q4f16_1-MLC";
 
   const engine = await CreateMLCEngine(
     selectedModel,
@@ -41,4 +45,9 @@ export async function* chat({ query }) {
   });
   console.log(reply.choices[0].message);
   console.log(reply.usage);
+
+  yield {
+    type: "data",
+    message: reply.choices[0].message.content,
+  };
 }
