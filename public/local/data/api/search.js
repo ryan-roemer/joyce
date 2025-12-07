@@ -117,13 +117,13 @@ export const search = async ({
   const extractor = await getExtractor();
   const postsData = await getPosts();
 
-  // 1. Generate query embedding
+  // Generate query embedding
   const embeddingStart = performance.now();
   const output = await extractor(query, { pooling: "mean", normalize: true });
   const queryEmbedding = Array.from(output.data);
   const embeddingQuery = performance.now() - embeddingStart;
 
-  // 2. Build where clause for filtering
+  // Build where clause for filtering
   const where = {};
   if (postType?.length) {
     where.postType = postType;
@@ -131,11 +131,13 @@ export const search = async ({
   if (categoryPrimary?.length) {
     where["categories.primary"] = categoryPrimary;
   }
+  // TODO: HERE -- Date selection not working. Maybe because a string in DB?
+  console.log("(I) minDate: ", minDate);
   if (minDate) {
     where.date = { gte: minDate };
   }
 
-  // 3. Vector search on chunks DB
+  // Vector search on chunks DB
   const databaseStart = performance.now();
   const results = await oramaSearch(chunksDb, {
     mode: "vector",
@@ -145,7 +147,7 @@ export const search = async ({
   });
   const databaseQuery = performance.now() - databaseStart;
 
-  // 4. Build posts map and chunks array
+  // Build posts map and chunks array
   const postsMap = {};
   const chunksArray = [];
   const similarities = [];
@@ -180,13 +182,13 @@ export const search = async ({
     }
   }
 
-  // 5. Sort posts by similarityMax descending
+  // Sort posts by similarityMax descending
   const sortedEntries = Object.entries(postsMap).sort(
     ([, a], [, b]) => b.similarityMax - a.similarityMax,
   );
   const posts = Object.fromEntries(sortedEntries);
 
-  // 6. Compute similarity stats
+  // Compute similarity stats
   const similarityStats =
     similarities.length > 0
       ? {

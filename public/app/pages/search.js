@@ -36,6 +36,7 @@ export const Search = () => {
     start: null,
     end: null,
   });
+  const [minDate, setMinDate] = useState("");
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
 
@@ -93,7 +94,7 @@ export const Search = () => {
           selected=${selectedCategoryPrimary}
           setSelected=${setSelectedCategoryPrimary}
         />
-        <${PostMinDate} />
+        <${PostMinDate} value=${minDate} setValue=${setMinDate} />
       </${Form}>
 
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
