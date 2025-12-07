@@ -1,5 +1,5 @@
 import { create, insertMultiple } from "@orama/orama";
-import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
+import { pipeline } from "@xenova/transformers";
 
 import { getAndCache } from "../../../shared-util.js";
 import config from "../../../shared-config.js";
