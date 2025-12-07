@@ -1,21 +1,21 @@
 import { html } from "../../../../app/util/html.js";
-import { useDownloads } from "../../context/downloads.js";
+import { useLoading } from "../../context/loading.js";
 
 /**
- * Component for displaying status messages based on download state
+ * Component for displaying status messages based on loading state
  * @param {Object} props
  * @param {string} props.resourceId - The resource identifier
  * @param {string} props.type - Message type: "info" or "error"
  * @param {string} props.message - Custom message to display (optional)
  * @param {boolean} props.showWhenLoaded - Whether to show message when loaded (default: false)
  */
-export const DownloadMessage = ({
+export const LoadingMessage = ({
   resourceId,
   type = "info",
   message = null,
   showWhenLoaded = false,
 }) => {
-  const { getStatus, getError } = useDownloads();
+  const { getStatus, getError } = useLoading();
   const status = getStatus(resourceId);
   const error = getError(resourceId);
 

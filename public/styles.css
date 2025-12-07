@@ -849,8 +849,8 @@ table.pure-table-bordered tr:first-child th:last-child {
   color: var(--color-text-query-emphasis);
 }
 
-/* Download Status Component */
-.download-status-row {
+/* Loading Status Component */
+.loading-status-row {
   display: flex;
   align-items: stretch;
   margin-bottom: 0.5em;
@@ -862,7 +862,7 @@ table.pure-table-bordered tr:first-child th:last-child {
   max-width: 100%;
 }
 
-.download-status-label {
+.loading-status-label {
   flex: 1 1 auto;
   padding: 0.5em 1em;
   margin: 0;
@@ -873,7 +873,7 @@ table.pure-table-bordered tr:first-child th:last-child {
   position: relative;
 }
 
-.download-status-label::after {
+.loading-status-label::after {
   content: "";
   position: absolute;
   right: 0;
@@ -883,7 +883,7 @@ table.pure-table-bordered tr:first-child th:last-child {
   background-color: var(--color-border-medium);
 }
 
-.download-status-icon-container {
+.loading-status-icon-container {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -891,8 +891,8 @@ table.pure-table-bordered tr:first-child th:last-child {
   padding: 0.5em 1em;
 }
 
-.download-status-icon,
-button.download-status-icon-button {
+.loading-status-icon,
+button.loading-status-icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -905,33 +905,33 @@ button.download-status-icon-button {
   transition: transform 0.2s ease;
 }
 
-.download-status-icon {
+.loading-status-icon {
   cursor: not-allowed;
 }
 
-.download-status-icon-button {
+.loading-status-icon-button {
   cursor: pointer;
 }
 
-.download-status-icon-button:hover {
+.loading-status-icon-button:hover {
   transform: scale(1.1);
 }
 
-.download-status-icon-button:active {
+.loading-status-icon-button:active {
   transform: scale(0.95);
 }
 
 /* Status Colors */
-.download-status-not-loaded i {
+.loading-status-not-loaded i {
   color: var(--color-status-idle);
 }
 
-.download-status-loading i {
+.loading-status-loading i {
   color: var(--color-status-loading);
-  animation: download-status-loading 1.5s linear infinite;
+  animation: loading-status-loading 1.5s linear infinite;
 }
 
-@keyframes download-status-loading {
+@keyframes loading-status-loading {
   from {
     transform: rotate(0deg);
   }
@@ -940,10 +940,10 @@ button.download-status-icon-button {
   }
 }
 
-.download-status-loaded i {
+.loading-status-loaded i {
   color: var(--color-status-success);
 }
 
-.download-status-error i {
+.loading-status-error i {
   color: var(--color-status-error);
 }

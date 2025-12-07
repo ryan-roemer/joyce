@@ -9,13 +9,13 @@ import {
 import { html } from "../../../app/util/html.js";
 import {
   RESOURCES,
-  getDownloadStatus,
-  subscribeDownloadStatus,
-  startDownload,
-} from "../../data/downloads.js";
+  getLoadingStatus,
+  subscribeLoadingStatus,
+  startLoading,
+} from "../../data/loading.js";
 
 // Create the context with a default value
-const DownloadsContext = createContext(null);
+const LoadingContext = createContext(null);
 
 /**
  * Find a resource by its ID
@@ -27,9 +27,9 @@ const findResourceById = (resourceId) => {
 };
 
 /**
- * Provider component that manages download state
+ * Provider component that manages loading state
  */
-export const DownloadsProvider = ({ children }) => {
+export const LoadingProvider = ({ children }) => {
   const [statuses, setStatuses] = useState(new Map());
   const [errors, setErrors] = useState(new Map());
   const [elapsedTimes, setElapsedTimes] = useState(new Map());
@@ -68,18 +68,18 @@ export const DownloadsProvider = ({ children }) => {
 
   // Subscribe to status changes and initialize from current state
   // Note: We subscribe first, then check current status to avoid race conditions
-  // where a download completes between checking status and subscribing
+  // where a load completes between checking status and subscribing
   useEffect(() => {
     const resources = Object.values(RESOURCES);
     const unsubscribes = resources.map((resource) => {
-      const unsub = subscribeDownloadStatus(
+      const unsub = subscribeLoadingStatus(
         resource.id,
         (status, { error, elapsed }) => {
           updateStatus(resource.id, status, { error, elapsed });
         },
       );
       // Check current status after subscribing to catch any updates we missed
-      const currentStatus = getDownloadStatus(resource.id);
+      const currentStatus = getLoadingStatus(resource.id);
       updateStatus(resource.id, currentStatus);
       return unsub;
     });
@@ -89,10 +89,10 @@ export const DownloadsProvider = ({ children }) => {
     };
   }, [updateStatus]);
 
-  const handleStartDownload = useCallback((resourceId) => {
+  const handleStartLoading = useCallback((resourceId) => {
     const resource = findResourceById(resourceId);
     if (resource) {
-      startDownload(resource);
+      startLoading(resource);
     }
   }, []);
 
@@ -101,25 +101,25 @@ export const DownloadsProvider = ({ children }) => {
       getStatus: (resourceId) => statuses.get(resourceId) || "not_loaded",
       getError: (resourceId) => errors.get(resourceId) || null,
       getElapsed: (resourceId) => elapsedTimes.get(resourceId) ?? null,
-      startDownload: handleStartDownload,
+      startLoading: handleStartLoading,
     }),
-    [statuses, errors, elapsedTimes, handleStartDownload],
+    [statuses, errors, elapsedTimes, handleStartLoading],
   );
 
   return html`
-    <${DownloadsContext.Provider} value=${value}>
+    <${LoadingContext.Provider} value=${value}>
       ${children}
-    </${DownloadsContext.Provider}>
+    </${LoadingContext.Provider}>
   `;
 };
 
 /**
- * Hook to use the downloads context
+ * Hook to use the loading context
  */
-export const useDownloads = () => {
-  const context = useContext(DownloadsContext);
+export const useLoading = () => {
+  const context = useContext(LoadingContext);
   if (!context) {
-    throw new Error("useDownloads must be used within a DownloadsProvider");
+    throw new Error("useLoading must be used within a LoadingProvider");
   }
   return context;
 };

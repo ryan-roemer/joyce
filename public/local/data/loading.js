@@ -3,7 +3,7 @@ import { getPosts, getPostsEmbeddings } from "./api/posts.js";
 import { getDb } from "./api/search.js";
 
 // ==============================
-// Download Management
+// Loading Management
 // ==============================
 export const RESOURCES = {
   POSTS_DATA: {
@@ -21,58 +21,58 @@ export const RESOURCES = {
   },
 };
 
-const downloadStatus = new Map();
-const downloadCallbacks = new Map();
-const downloadedData = new Map();
+const loadingStatus = new Map();
+const loadingCallbacks = new Map();
+const loadedData = new Map();
 
 /**
- * Get download status for a resource
+ * Get loading status for a resource
  * @param {string} resourceId
  * @returns {"not_loaded" | "loading" | "loaded" | "error"}
  */
-export const getDownloadStatus = (resourceId) => {
-  return downloadStatus.get(resourceId) || "not_loaded";
+export const getLoadingStatus = (resourceId) => {
+  return loadingStatus.get(resourceId) || "not_loaded";
 };
 
 /**
- * Get downloaded data for a resource (sync)
+ * Get loaded data for a resource (sync)
  * @param {string} resourceId
- * @returns {any | null} The downloaded data or null if not loaded
+ * @returns {any | null} The loaded data or null if not loaded
  */
-export const getDownloadedData = (resourceId) => {
-  return downloadedData.get(resourceId) ?? null;
+export const getLoadedData = (resourceId) => {
+  return loadedData.get(resourceId) ?? null;
 };
 
 /**
- * Set download status for a resource
+ * Set loading status for a resource
  * @param {string} resourceId
  * @param {"not_loaded" | "loading" | "loaded" | "error"} status
  * @param {{ error?: Error, elapsed?: number }} options
  */
-const setDownloadStatus = (
+const setLoadingStatus = (
   resourceId,
   status,
   { error = null, elapsed = null } = {},
 ) => {
-  downloadStatus.set(resourceId, status);
+  loadingStatus.set(resourceId, status);
   // Copy array before iterating to avoid issues if callbacks unsubscribe during iteration
-  const callbacks = [...(downloadCallbacks.get(resourceId) || [])];
+  const callbacks = [...(loadingCallbacks.get(resourceId) || [])];
   callbacks.forEach((cb) => cb(status, { error, elapsed }));
 };
 
 /**
- * Wait for a download to complete
+ * Wait for a load to complete
  * @param {string} resourceId
  * @returns {Promise<void>} Resolves when loaded, rejects on error
  */
-const waitForDownload = (resourceId) => {
+const waitForLoading = (resourceId) => {
   return new Promise((resolve, reject) => {
-    const status = downloadStatus.get(resourceId);
+    const status = loadingStatus.get(resourceId);
     if (status === "loaded") return resolve();
     if (status === "error")
       return reject(new Error(`Dependency ${resourceId} failed`));
 
-    const unsubscribe = subscribeDownloadStatus(resourceId, (newStatus) => {
+    const unsubscribe = subscribeLoadingStatus(resourceId, (newStatus) => {
       if (newStatus === "loaded") {
         unsubscribe();
         resolve();
@@ -85,18 +85,18 @@ const waitForDownload = (resourceId) => {
 };
 
 /**
- * Subscribe to download status changes
+ * Subscribe to loading status changes
  * @param {string} resourceId
  * @param {Function} callback
  * @returns {Function} Unsubscribe function
  */
-export const subscribeDownloadStatus = (resourceId, callback) => {
-  if (!downloadCallbacks.has(resourceId)) {
-    downloadCallbacks.set(resourceId, []);
+export const subscribeLoadingStatus = (resourceId, callback) => {
+  if (!loadingCallbacks.has(resourceId)) {
+    loadingCallbacks.set(resourceId, []);
   }
-  downloadCallbacks.get(resourceId).push(callback);
+  loadingCallbacks.get(resourceId).push(callback);
   return () => {
-    const callbacks = downloadCallbacks.get(resourceId);
+    const callbacks = loadingCallbacks.get(resourceId);
     const index = (callbacks || []).indexOf(callback);
     if (index > -1) {
       callbacks.splice(index, 1);
@@ -105,43 +105,43 @@ export const subscribeDownloadStatus = (resourceId, callback) => {
 };
 
 /**
- * Start a download for a resource
+ * Start loading a resource
  * @param {{ id: string, get: () => Promise<any>, deps?: string[] }} resource
  */
-export const startDownload = async (resource) => {
+export const startLoading = async (resource) => {
   const { id, get, deps } = resource;
   if (
-    downloadStatus.get(id) === "loading" ||
-    downloadStatus.get(id) === "loaded"
+    loadingStatus.get(id) === "loading" ||
+    loadingStatus.get(id) === "loaded"
   ) {
     return;
   }
 
-  setDownloadStatus(id, "loading");
+  setLoadingStatus(id, "loading");
 
   // Wait for dependencies before starting the timer
   if (deps?.length) {
-    await Promise.all(deps.map((depId) => waitForDownload(depId)));
+    await Promise.all(deps.map((depId) => waitForLoading(depId)));
   }
 
   // TODO(BUG): Occasionally elapsed is `null` upstream. Not fixed yet.
   const start = performance.now();
   try {
     const result = await get();
-    downloadedData.set(id, result);
+    loadedData.set(id, result);
     const elapsed = performance.now() - start;
-    setDownloadStatus(id, "loaded", { elapsed });
+    setLoadingStatus(id, "loaded", { elapsed });
   } catch (error) {
     const elapsed = performance.now() - start;
-    setDownloadStatus(id, "error", { error, elapsed });
+    setLoadingStatus(id, "error", { error, elapsed });
   }
 };
 
 /**
- * Initialize download system and start default downloads
+ * Initialize loading system and start default loads
  */
 export const init = () => {
-  startDownload(RESOURCES.POSTS_DATA);
-  startDownload(RESOURCES.POSTS_EMBEDDINGS);
-  startDownload(RESOURCES.DB);
+  startLoading(RESOURCES.POSTS_DATA);
+  startLoading(RESOURCES.POSTS_EMBEDDINGS);
+  startLoading(RESOURCES.DB);
 };
