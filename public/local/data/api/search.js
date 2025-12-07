@@ -162,7 +162,11 @@ export const search = async ({
   for (const hit of results.hits) {
     const { document, score: similarity } = hit;
     const { slug, start, end } = document;
-    const { embeddingNumTokens } = chunksData[slug].chunks.find(
+    const slugChunks = chunksData[slug]?.chunks;
+    if (!slugChunks) {
+      throw new Error(`No chunks found for slug: ${slug}`);
+    }
+    const { embeddingNumTokens } = slugChunks.find(
       (chunk) => chunk.start === start && chunk.end === end,
     );
     similarities.push(similarity);
