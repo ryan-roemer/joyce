@@ -24,11 +24,11 @@
  * the chunks should be good enough for our purposes.
  *
  * - Config: maxTokens=512, cushion=25, overlap=10, chunkSize=487
- * - Token counts - min: 3, max: 584, avg: 331.73
- * - Total chunks: 5155
- * - Chunks over maxTokens (512): 8
- * -   Counts: 580, 516, 541, 538, 541, 539, 584, 519
- * - Percentage over maxTokens: 0.16%
+ * - Token counts - min: 8, max: 596, avg: 434.58
+ * - Total chunks: 3935
+ * - Chunks over maxTokens (512): 9
+ * -   Counts: 580, 516, 541, 538, 541, 596, 584, 516, 519
+ * - Percentage over maxTokens: 0.23%
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -69,9 +69,7 @@ const splitter = (text) => {
   return tokens;
 };
 
-const generateTokens = (lines) => {
-  return lines.map((line) => splitter(line));
-};
+const generateTokens = (lines) => lines.flatMap((line) => splitter(line));
 
 const DEBUG_TOKENS = true;
 const TOKEN_COUNTS = [];
@@ -118,15 +116,14 @@ const getChunks = (lines) => {
     },
   );
 
-  // TODO: add embeddingNumTokens count to each chunk.
-  if (DEBUG_TOKENS) {
-    chunks.forEach(({ text }) => {
-      const tokenItems = generateTokens(text);
-      tokenItems.forEach((tokens) => {
-        TOKEN_COUNTS.push(tokens.length);
-      });
-    });
-  }
+  // Add numTokens to each chunk.
+  chunks.forEach((chunk) => {
+    const numTokens = generateTokens(chunk.text).length;
+    chunk.embeddingNumTokens = numTokens;
+    if (DEBUG_TOKENS) {
+      TOKEN_COUNTS.push(numTokens);
+    }
+  });
 
   return chunks;
 };
