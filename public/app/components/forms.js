@@ -301,6 +301,7 @@ export const ModelChatSelect = ({
     }));
   } else {
     const provider = "webLlm";
+    // TODO(CHAT): REFACTOR to use config directly with `fastest` and `best` keys (backport to blogs-ai).
     options = [
       {
         label: "Fastest",
@@ -308,7 +309,7 @@ export const ModelChatSelect = ({
       },
       {
         label: "Best",
-        model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+        model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
       },
       // TODO(CHAT): ADD MORE OR REMOVE
       // {

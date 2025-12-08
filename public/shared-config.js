@@ -1,5 +1,16 @@
 import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 
+const MODELS = prebuiltAppConfig.model_list
+  .filter((model) => model.model_id.includes("-q4f16_1-"))
+  .map((model) => ({
+    model: model.model_id,
+    maxTokens: model.overrides?.context_window_size ?? null,
+    vramMb: model.vram_required_MB ?? null,
+  }))
+  .sort((a, b) => a.vramMb - b.vramMb);
+
+console.log("TODO (I) MODELS: ", MODELS); // eslint-disable-line no-undef
+
 /**
  * Shared client configuration. (No secrets).
  */
@@ -41,8 +52,8 @@ const config = {
           autoLoad: true, // Default model, auto-loaded on app start
         },
         {
-          model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
-          modelShortName: "Llama-3.2-1B",
+          model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
+          modelShortName: "TinyLlama-1.1B",
           autoLoad: false, // Manual load only
         },
       ],

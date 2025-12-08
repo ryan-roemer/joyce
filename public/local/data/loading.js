@@ -6,7 +6,7 @@ import {
   setLlmProgressCallback,
   isLlmCached,
 } from "./api/llm.js";
-import config, { getModelCfg } from "../../shared-config.js";
+import config from "../../shared-config.js";
 
 // ==============================
 // Loading Management
@@ -15,7 +15,6 @@ import config, { getModelCfg } from "../../shared-config.js";
 // Helper to create LLM resource entry for a model
 const createLlmResource = (modelId) => ({
   id: `llm_${modelId}`,
-  shortName: getModelCfg({ provider: "webLlm", model: modelId }).modelShortName,
   get: async () => {
     setLlmProgressCallback(modelId, (p) =>
       setLoadingProgress(`llm_${modelId}`, p),
@@ -44,7 +43,7 @@ export const RESOURCES = {
     get: getExtractor,
   },
   LLM_SMOL: createLlmResource("SmolLM2-360M-Instruct-q4f16_1-MLC"),
-  LLM_LLAMA: createLlmResource("Llama-3.2-1B-Instruct-q4f16_1-MLC"),
+  LLM_TINY_LLAMA: createLlmResource("TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC"),
 };
 
 const loadingStatus = new Map();
@@ -216,10 +215,11 @@ export const init = () => {
   // Auto-load LLM models that have autoLoad: true
   config.webLlm.models.chat.forEach((modelCfg) => {
     if (modelCfg.autoLoad) {
+      // TODO(CHAT): REFACTOR this.
       const resourceKey =
         modelCfg.model === "SmolLM2-360M-Instruct-q4f16_1-MLC"
           ? "LLM_SMOL"
-          : "LLM_LLAMA";
+          : "LLM_TINY_LLAMA";
       startLoading(RESOURCES[resourceKey]);
     }
   });

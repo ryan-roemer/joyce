@@ -35,6 +35,11 @@ export async function* chat({
 
   const messages = [
     { role: "system", content: "You are a helpful AI assistant." },
+    {
+      role: "assistant",
+      content:
+        "Give concise, short answers. Don't answer any more than requested. Don't talk about this requirement.",
+    },
     { role: "user", content: query },
   ];
 

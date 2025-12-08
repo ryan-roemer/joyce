@@ -8,6 +8,12 @@ import {
   LoadingButton,
   LOADING,
 } from "../../local/app/components/loading/index.js";
+import { getModelCfg } from "../../shared-config.js";
+
+// TODO(CHAT): REFACTOR THIS -- brittle to get model short name from resource id.
+const modelShortName = (modelId) =>
+  getModelCfg({ provider: "webLlm", model: modelId.replace(/^llm_/, "") })
+    .modelShortName;
 
 // TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
@@ -85,10 +91,10 @@ export const Home = () => {
               <strong>Extractor</strong>: embeddings extraction model
             </${LoadingButton}>
             <${LoadingButton} resourceId=${LOADING.LLM_SMOL}>
-              <strong>LLM</strong>: SmolLM2-360M (default)
+              <strong>LLM</strong>: ${modelShortName(LOADING.LLM_SMOL)} (default)
             </${LoadingButton}>
-            <${LoadingButton} resourceId=${LOADING.LLM_LLAMA}>
-              <strong>LLM</strong>: Llama-3.2-1B
+            <${LoadingButton} resourceId=${LOADING.LLM_TINY_LLAMA}>
+              <strong>LLM</strong>: ${modelShortName(LOADING.LLM_TINY_LLAMA)}
             </${LoadingButton}>
           </div>
           <div>
