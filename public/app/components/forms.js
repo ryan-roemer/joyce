@@ -273,8 +273,8 @@ export const ModelChatSelect = ({
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
 
-  const getLabel = (label, { provider, model }) => {
-    // TODO(CHAT): REFACTOR
+  const getLabel = (label /*, { provider, model }*/) => {
+    // TODO(CHAT): REFACTOR to include VRAM size and download size (?)
     return label;
 
     // if (!displayModelStats) {

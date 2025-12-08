@@ -11,7 +11,6 @@ import {
   PostCategoryPrimarySelectDropdown,
   QueryField,
   ChatInputForm,
-  DatastoreSelectDropdown,
   ApiSelectDropdown,
 } from "../components/forms.js";
 import { Answer } from "../components/answer.js";
@@ -33,7 +32,6 @@ import { searchResultsToPosts } from "../data/util.js";
 import {
   DEFAULT_API,
   DEFAULT_CHAT_MODEL,
-  DEFAULT_DATASTORE,
   DEFAULT_TEMPERATURE,
 } from "../../shared-config.js";
 import { chat } from "../data/index.js";
@@ -131,7 +129,6 @@ export const Chat = () => {
     end: null,
   });
   const [modelObj, setModelObj] = useState(DEFAULT_CHAT_MODEL);
-  const [datastore, setDatastore] = useState(DEFAULT_DATASTORE);
   const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
   const [minDate, setMinDate] = useState("");
   const [currentQuery, setCurrentQuery] = useState(null);
@@ -191,7 +188,6 @@ export const Chat = () => {
         model: modelObj.model,
         provider: modelObj.provider,
         temperature,
-        datastore,
       })) {
         if (part.type === "chunks") {
           chunks.push(...part.message);
@@ -249,16 +245,6 @@ export const Chat = () => {
     const { query } = getElements(event);
     if (!query) {
       return;
-    }
-
-    // Validation.
-    // TODO(CHAT): REMOVE DATASTORE and all "openai" references!!!
-    if (datastore === "openai-tool") {
-      if (api !== "responses") {
-        return setErr("OpenAI Tool is only supported for Responses API");
-      } else if (modelObj.provider !== "openai") {
-        return setErr("OpenAI Tool is only supported for OpenAI models.");
-      }
     }
 
     // Infer other input parameters.
@@ -332,11 +318,6 @@ export const Chat = () => {
           selected=${modelObj}
           setSelected=${setModelObj}
           providers=${providers}
-        />
-        <${DatastoreSelectDropdown}
-          hidden=${!isDeveloperMode}
-          selected=${datastore}
-          setSelected=${setDatastore}
         />
         <${ApiSelectDropdown}
           hidden=${!isDeveloperMode}
