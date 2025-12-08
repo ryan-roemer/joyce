@@ -877,10 +877,21 @@ table.pure-table-bordered tr:first-child th:last-child {
 
 .loading-status-text {
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.loading-status-label::before {
+  content: "";
+  position: absolute;
+  right: 1px;
+  top: 0;
+  bottom: 0;
+  width: 2em;
+  background: linear-gradient(to right, transparent, var(--color-bg-white));
+  pointer-events: none;
+  z-index: 1;
 }
 
 .loading-status-label::after {

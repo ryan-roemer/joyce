@@ -37,10 +37,12 @@ const config = {
       chat: [
         {
           model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
+          modelShortName: "SmolLM2-360M",
           autoLoad: true, // Default model, auto-loaded on app start
         },
         {
           model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+          modelShortName: "Llama-3.2-1B",
           autoLoad: false, // Manual load only
         },
       ],

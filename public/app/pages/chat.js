@@ -33,6 +33,7 @@ import {
   DEFAULT_API,
   DEFAULT_CHAT_MODEL,
   DEFAULT_TEMPERATURE,
+  getModelCfg,
 } from "../../shared-config.js";
 import { chat } from "../data/index.js";
 
@@ -297,8 +298,8 @@ export const Chat = () => {
       ${
         isLoadingModelForChat &&
         html`
-        <${LoadingButton} resourceId=${modelResourceId} label=${modelObj.model}>
-          Loading model <strong>${modelObj.model}</strong>
+        <${LoadingButton} resourceId=${modelResourceId} label=${getModelCfg(modelObj).modelShortName}>
+          Loading model <strong>${getModelCfg(modelObj).modelShortName}</strong>
         </${LoadingButton}>
       `
       }

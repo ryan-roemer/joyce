@@ -6,7 +6,7 @@ import {
   setLlmProgressCallback,
   isLlmCached,
 } from "./api/llm.js";
-import config from "../../shared-config.js";
+import config, { getModelCfg } from "../../shared-config.js";
 
 // ==============================
 // Loading Management
@@ -15,6 +15,7 @@ import config from "../../shared-config.js";
 // Helper to create LLM resource entry for a model
 const createLlmResource = (modelId) => ({
   id: `llm_${modelId}`,
+  shortName: getModelCfg({ provider: "webLlm", model: modelId }).modelShortName,
   get: async () => {
     setLlmProgressCallback(modelId, (p) =>
       setLoadingProgress(`llm_${modelId}`, p),
