@@ -7,6 +7,7 @@ import {
   DEFAULT_CHAT_MODEL,
   ALL_PROVIDERS,
   getModelCfg,
+  getSimpleModelOptions,
   DEFAULT_DATASTORE,
   DEFAULT_API,
   DEFAULT_TEMPERATURE,
@@ -300,23 +301,8 @@ export const ModelChatSelect = ({
       }),
     }));
   } else {
-    const provider = "webLlm";
-    // TODO(CHAT): REFACTOR to use config directly with `fastest` and `best` keys (backport to blogs-ai).
-    options = [
-      {
-        label: "Fastest",
-        model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
-      },
-      {
-        label: "Best",
-        model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
-      },
-      // TODO(CHAT): ADD MORE OR REMOVE
-      // {
-      //   label: "Best",
-      //   model: "gpt-5.1",
-      // },
-    ].map(({ label, model }) => ({
+    const provider = DEFAULT_CHAT_MODEL.provider;
+    options = getSimpleModelOptions(provider).map(({ label, model }) => ({
       id: `${provider}-${model}`,
       label: getLabel(label, { provider, model }),
       value: modelObjToOption({ provider, model }),

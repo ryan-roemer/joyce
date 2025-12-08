@@ -49,11 +49,13 @@ const config = {
         {
           model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
           modelShortName: "SmolLM2-360M",
+          shortOption: "Fastest",
           autoLoad: true, // Default model, auto-loaded on app start
         },
         {
           model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
           modelShortName: "TinyLlama-1.1B",
+          shortOption: "Best",
           autoLoad: false, // Manual load only
         },
       ],
@@ -107,6 +109,11 @@ export const getModelCfg = ({ provider, model }) => {
   }
   return modelCfg;
 };
+
+export const getSimpleModelOptions = (provider) =>
+  config[provider].models.chat
+    .filter((m) => m.shortOption)
+    .map(({ model, shortOption }) => ({ provider, model, label: shortOption }));
 
 console.log("TODO (I) config: ", config); // eslint-disable-line no-undef
 
