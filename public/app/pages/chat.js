@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { Link } from "react-router";
 
 import { html, getElements, getQuerySetter } from "../util/html.js";
@@ -148,14 +148,18 @@ export const Chat = () => {
   );
 
   // Model loading status
-  const { getStatus } = useLoading();
+  const { getStatus, startLoading } = useLoading();
   const modelResourceId = `llm_${modelObj.model}`;
   const modelStatus = getStatus(modelResourceId);
   const isModelLoaded = modelStatus === "loaded";
 
-  const resetOutputs = (query) => {
+  // Track when we're waiting for model to load before chat
+  const [isLoadingModelForChat, setIsLoadingModelForChat] = useState(false);
+  const pendingQueryRef = useRef(null);
+
+  const resetOutputs = (query, { setFetching = true } = {}) => {
     setQueryValue("");
-    setIsFetching(true);
+    if (setFetching) setIsFetching(true);
     setPosts(null);
     setSearchData(null);
     setQueryInfo(null);
@@ -164,29 +168,12 @@ export const Chat = () => {
     setCurrentQuery(query);
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const { query } = getElements(event);
-    if (!query) {
-      return;
-    }
-
-    // Validation.
-    // TODO(CHAT): REMOVE DATASTORE and all "openai" references!!!
-    if (datastore === "openai-tool") {
-      if (api !== "responses") {
-        return setErr("OpenAI Tool is only supported for Responses API");
-      } else if (modelObj.provider !== "openai") {
-        return setErr("OpenAI Tool is only supported for OpenAI models.");
-      }
-    }
+  // Execute the actual chat query
+  const executeChatQuery = async (queryParams) => {
+    const { query, postType, categoryPrimary } = queryParams;
 
     // Get ready for new query output for the page.
     resetOutputs(query);
-
-    // Infer other input parameters.
-    const postType = selectedPostTypes.map(({ value }) => value);
-    const categoryPrimary = selectedCategoryPrimary.map(({ value }) => value);
 
     // Do the query.
     try {
@@ -247,6 +234,51 @@ export const Chat = () => {
     }
   };
 
+  // Effect to execute pending query once model is loaded
+  useEffect(() => {
+    if (isModelLoaded && isLoadingModelForChat && pendingQueryRef.current) {
+      setIsLoadingModelForChat(false);
+      const queryParams = pendingQueryRef.current;
+      pendingQueryRef.current = null;
+      executeChatQuery(queryParams);
+    }
+  }, [isModelLoaded, isLoadingModelForChat]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const { query } = getElements(event);
+    if (!query) {
+      return;
+    }
+
+    // Validation.
+    // TODO(CHAT): REMOVE DATASTORE and all "openai" references!!!
+    if (datastore === "openai-tool") {
+      if (api !== "responses") {
+        return setErr("OpenAI Tool is only supported for Responses API");
+      } else if (modelObj.provider !== "openai") {
+        return setErr("OpenAI Tool is only supported for OpenAI models.");
+      }
+    }
+
+    // Infer other input parameters.
+    const postType = selectedPostTypes.map(({ value }) => value);
+    const categoryPrimary = selectedCategoryPrimary.map(({ value }) => value);
+    const queryParams = { query, postType, categoryPrimary };
+
+    // If model not loaded, trigger loading and wait
+    if (!isModelLoaded) {
+      pendingQueryRef.current = queryParams;
+      setIsLoadingModelForChat(true);
+      resetOutputs(query, { setFetching: false });
+      startLoading(modelResourceId);
+      return;
+    }
+
+    // Model is loaded, proceed directly
+    executeChatQuery(queryParams);
+  };
+
   const submitName = `Ask${completionsCount > 0 ? "  (New)" : ""}`;
   const placeholder =
     completionsCount > 0
@@ -271,19 +303,18 @@ export const Chat = () => {
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
 
       ${currentQuery && html`<${QueryDisplay} query=${currentQuery} />`}
-      ${isFetching && !completions && html`<${LoadingBubble} />`}
+      ${
+        isLoadingModelForChat &&
+        html`
+        <${LoadingButton} resourceId=${modelResourceId} label=${modelObj.model}>
+          Loading model <strong>${modelObj.model}</strong>...
+        </${LoadingButton}>
+      `
+      }
+      ${isFetching && !completions && !isLoadingModelForChat && html`<${LoadingBubble} />`}
       ${
         completions &&
         html`<${Answer} answer=${completions} queryInfo=${queryInfo} />`
-      }
-
-      ${
-        !isModelLoaded &&
-        html`
-        <${LoadingButton} resourceId=${modelResourceId} label=${modelObj.model}>
-          <strong>${modelObj.model}</strong> — Click to load model
-        </${LoadingButton}>
-      `
       }
 
       <${ChatInputForm} ...${{ isFetching, handleSubmit, submitName }}>
