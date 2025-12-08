@@ -23,6 +23,13 @@ export async function* chat({
   model = config.webLlm.models.chatDefault,
   temperature = DEFAULT_TEMPERATURE,
 }) {
+  const start = new Date();
+  const elapsed = {};
+
+  // TODO(CHAT): Add search
+  // TODO(CHAT): Add context from chunks
+  // TODO(CHAT): Add elapsed for chunks.
+
   // Use shared engine loader (handles caching and progress)
   const engine = await getLlmEngine(model);
 
@@ -42,10 +49,26 @@ export async function* chat({
   // Process streamed chunks
   for await (const chunk of stream) {
     if (chunk.choices[0]?.delta?.content) {
+      elapsed.tokensFirst = elapsed.tokensFirst ?? new Date() - start;
       yield { type: "data", message: chunk.choices[0].delta.content };
     }
     if (chunk.usage) {
-      yield { type: "usage", message: chunk.usage };
+      // Transform from web-llm format: { prompt_tokens, completion_tokens, total_tokens }
+      // To expected format (costs omitted for local):
+      const usage = {
+        input: {
+          tokens: chunk.usage.prompt_tokens ?? 0,
+          cachedTokens: 0,
+        },
+        output: {
+          tokens: chunk.usage.completion_tokens ?? 0,
+          reasoningTokens: 0,
+        },
+      };
+      yield { type: "usage", message: usage };
     }
   }
+
+  elapsed.tokensLast = new Date() - start;
+  yield { type: "metadata", message: { elapsed } };
 }

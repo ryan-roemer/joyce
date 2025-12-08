@@ -31,21 +31,21 @@ const QueryInfo = ({
   chunks,
   internal,
 } = {}) => {
-  // TODO(CHAT): REENABlE
-  return null;
-
   if (!elapsed && !usage && !model && !chunks) return null;
 
   const totalElapsed = elapsed?.tokensLast
     ? formatElapsed(elapsed.tokensLast)
     : null;
-  const totalCost = usage
+
+  // Look up model config
+  const modelCfg = getModelCfg({ provider, model });
+  const maxTokens = modelCfg ? formatInt(modelCfg.maxTokens) : null;
+  // Infer cost availability from pricing config
+  const hasCost = modelCfg?.pricing && usage?.input?.cost != null;
+  const totalCost = hasCost
     ? (usage.input.cost + usage.output.cost).toFixed(2)
     : null;
 
-  // Look up maxTokens from shared config
-  const modelCfg = getModelCfg({ provider, model });
-  const maxTokens = modelCfg ? formatInt(modelCfg.maxTokens) : null;
   const ElapsedDelta = ({ delta }) =>
     html`<${Fragment}><i className="iconoir-triangle"></i> ${formatElapsed(delta)}</${Fragment}>`;
 
@@ -54,8 +54,8 @@ const QueryInfo = ({
       <summary>
         <em>Query Info</em> (
         ${model && html`${model}${(totalElapsed || usage) && ", "}`}
-        ${totalElapsed && html`${totalElapsed}${usage && ", "}`}
-        ${usage && html`$${totalCost}`})
+        ${totalElapsed && html`${totalElapsed}${hasCost && ", "}`}
+        ${hasCost && html`$${totalCost}`})
       </summary>
 
       <div>
@@ -113,11 +113,11 @@ const QueryInfo = ({
             </div>
             <ul>
               <li>
-                Input: $${formatFloat(usage.input.cost)}, ${formatInt(usage.input.tokens)} tokens
+                Input: ${hasCost && html`$${formatFloat(usage.input.cost)}, `}${formatInt(usage.input.tokens)} tokens
                 ${" "}(${formatInt(usage.input.cachedTokens)} cached)
               </li>
               <li>
-                Output: $${formatFloat(usage.output.cost)}, ${formatInt(usage.output.tokens)} tokens
+                Output: ${hasCost && html`$${formatFloat(usage.output.cost)}, `}${formatInt(usage.output.tokens)} tokens
                 ${" "}(${formatInt(usage.output.reasoningTokens)} reasoning)
               </li>
             </ul>
