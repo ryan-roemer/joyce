@@ -39,13 +39,19 @@ export const LoadingButton = ({
   forceStatus = null,
   children,
 }) => {
-  const { getStatus, getError, getElapsed, startLoading } = useLoading();
+  const { getStatus, getError, getElapsed, getProgress, startLoading } =
+    useLoading();
   const status = forceStatus || getStatus(resourceId);
   const error = getError(resourceId);
   const elapsed = getElapsed(resourceId);
+  const progress = getProgress(resourceId);
   const state = STATES[status] || STATES.not_loaded;
   const title =
     typeof state.title === "function" ? state.title(error) : state.title;
+
+  // Format progress percentage for display
+  const progressPercent =
+    progress?.progress != null ? Math.round(progress.progress * 100) : null;
 
   const handleStartLoading = () => {
     startLoading(resourceId);
@@ -55,11 +61,17 @@ export const LoadingButton = ({
 
   // TODO(CLEANUP): Move elapsed to right side in italics.
   // TODO(LOADING): Maybe add label name and description, separated in styles, then elapsed separately.
+  // TODO(LOADING): Add visual progress bar for future enhancement
   return html`
     <div className="pure-form pure-form-stacked">
       <div className="pure-control-group loading-status-row">
         <label className="loading-status-label">
           ${children || label}
+          ${status === "loading" && progressPercent !== null
+            ? html` <span className="loading-status-progress" key="progress"
+                >(${progressPercent}%)</span
+              >`
+            : null}
           ${elapsed
             ? html` <span className="loading-status-elapsed" key="elapsed"
                 >(${formatElapsed(elapsed)})</span

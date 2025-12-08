@@ -259,8 +259,9 @@ const optionToModelObj = (option) => {
 };
 
 // TODO REMOVE -- used? titles?
-const modelStats = ({ pricing, maxTokens }) =>
-  `Max Input: ${maxTokens.toLocaleString("en-US")} tokens, Cost: $${pricing.input}/M in, $${pricing.output}/M out`;
+// const modelStats = ({ pricing, maxTokens }) =>
+//   `Max Input: ${maxTokens.toLocaleString("en-US")} tokens, Cost: $${pricing.input}/M in, $${pricing.output}/M out`;
+const modelStats = () => "TODO: modelStats";
 
 export const ModelChatSelect = ({
   selected,
@@ -272,13 +273,18 @@ export const ModelChatSelect = ({
   const [settings] = useSettings();
   const { isDeveloperMode, displayModelStats } = settings;
 
-  const getLabel = (label, { provider, model }) => {
-    if (!displayModelStats) {
-      return label;
-    }
+  console.log("(I) providers: ", CHAT_MODELS_MAP);
 
-    const inputPricing = CHAT_MODELS_MAP[provider][model].pricing.input;
-    return `${label} ($${inputPricing}/M)`;
+  const getLabel = (label, { provider, model }) => {
+    // TODO(CHAT): REFACTOR
+    return label;
+
+    // if (!displayModelStats) {
+    //   return label;
+    // }
+
+    // const inputPricing = CHAT_MODELS_MAP[provider][model].pricing.input;
+    // return `${label} ($${inputPricing}/M)`;
   };
 
   let options = [];
@@ -295,20 +301,21 @@ export const ModelChatSelect = ({
       })),
     }));
   } else {
-    const provider = "openai";
+    const provider = "webLlm";
     options = [
       {
         label: "Fastest",
-        model: "gpt-4.1-nano",
-      },
-      {
-        label: "Fast",
-        model: "gpt-5-mini",
+        model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
       },
       {
         label: "Best",
-        model: "gpt-5.1",
+        model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
       },
+      // TODO(CHAT): ADD MORE OR REMOVE
+      // {
+      //   label: "Best",
+      //   model: "gpt-5.1",
+      // },
     ].map(({ label, model }) => ({
       id: `${provider}-${model}`,
       label: getLabel(label, { provider, model }),

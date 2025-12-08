@@ -8,7 +8,6 @@ const ALL_PAGES = [
   {
     name: "Chat",
     to: "/chat",
-    redirects: ["/openai/chat", "/openai/rag"],
     icon: "iconoir-chat-bubble",
   },
   { name: "Settings", to: "/settings", icon: "iconoir-tools" },
@@ -28,19 +27,35 @@ const config = {
     model: "Xenova/gte-small",
     maxTokens: 512, // https://huggingface.co/thenlper/gte-small#limitation
   },
+  // web-llm provides additional model info (vram_required_MB, low_resource_required) via prebuiltAppConfig
+  // See: https://github.com/mlc-ai/web-llm/blob/main/src/config.ts
+  webLlm: {
+    models: {
+      chatDefault: "SmolLM2-360M-Instruct-q4f16_1-MLC",
+      chat: [
+        {
+          model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
+          autoLoad: true, // Default model, auto-loaded on app start
+        },
+        {
+          model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+          autoLoad: false, // Manual load only
+        },
+      ],
+    },
+  },
 };
 
 export const ALL_PROVIDERS = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  groq: "Groq",
+  webLlm: "web-llm",
 };
 
 export const ALL_CHAT_MODELS = Object.keys(ALL_PROVIDERS).map((provider) => ({
   provider,
-  models: [], // TODO(CHAT): Add models.
+  models: config[provider].models.chat,
 }));
 
+console.log("(I) ALL_CHAT_MODELS: ", ALL_CHAT_MODELS);
 export const CHAT_MODELS_MAP = Object.fromEntries(
   ALL_CHAT_MODELS.map(({ provider, models }) => [
     provider,
@@ -48,7 +63,10 @@ export const CHAT_MODELS_MAP = Object.fromEntries(
   ]),
 );
 
-export const DEFAULT_CHAT_MODEL = { provider: "openai", model: "gpt-4.1-nano" };
+export const DEFAULT_CHAT_MODEL = {
+  provider: "webLlm",
+  model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
+};
 export const DEFAULT_DATASTORE = "postgresql";
 export const DEFAULT_API = "chat";
 export const DEFAULT_TEMPERATURE = 1;

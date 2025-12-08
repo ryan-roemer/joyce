@@ -1,10 +1,29 @@
 /* global performance:false */
 import { getPosts, getPostsEmbeddings } from "./api/posts.js";
 import { getDb, getExtractor } from "./api/search.js";
+import {
+  getLlmEngine,
+  setLlmProgressCallback,
+  isLlmCached,
+} from "./api/llm.js";
+import config from "../../shared-config.js";
 
 // ==============================
 // Loading Management
 // ==============================
+
+// Helper to create LLM resource entry for a model
+const createLlmResource = (modelId) => ({
+  id: `llm_${modelId}`,
+  get: async () => {
+    setLlmProgressCallback(modelId, (p) =>
+      setLoadingProgress(`llm_${modelId}`, p),
+    );
+    return getLlmEngine(modelId);
+  },
+  checkCached: () => isLlmCached(modelId),
+});
+
 export const RESOURCES = {
   POSTS_DATA: {
     id: "posts_data",
@@ -23,11 +42,15 @@ export const RESOURCES = {
     id: "extractor",
     get: getExtractor,
   },
+  LLM_SMOL: createLlmResource("SmolLM2-360M-Instruct-q4f16_1-MLC"),
+  LLM_LLAMA: createLlmResource("Llama-3.2-1B-Instruct-q4f16_1-MLC"),
 };
 
 const loadingStatus = new Map();
 const loadingCallbacks = new Map();
 const loadedData = new Map();
+const loadingProgress = new Map();
+const progressCallbacks = new Map();
 
 /**
  * Get loading status for a resource
@@ -45,6 +68,47 @@ export const getLoadingStatus = (resourceId) => {
  */
 export const getLoadedData = (resourceId) => {
   return loadedData.get(resourceId) ?? null;
+};
+
+/**
+ * Get loading progress for a resource
+ * @param {string} resourceId
+ * @returns {{ text: string, progress: number } | null} Progress info or null
+ */
+export const getLoadingProgress = (resourceId) => {
+  return loadingProgress.get(resourceId) ?? null;
+};
+
+/**
+ * Set loading progress for a resource
+ * @param {string} resourceId
+ * @param {{ text: string, progress: number }} progress
+ */
+export const setLoadingProgress = (resourceId, progress) => {
+  loadingProgress.set(resourceId, progress);
+  // Notify progress subscribers
+  const callbacks = [...(progressCallbacks.get(resourceId) || [])];
+  callbacks.forEach((cb) => cb(progress));
+};
+
+/**
+ * Subscribe to loading progress changes
+ * @param {string} resourceId
+ * @param {Function} callback
+ * @returns {Function} Unsubscribe function
+ */
+export const subscribeLoadingProgress = (resourceId, callback) => {
+  if (!progressCallbacks.has(resourceId)) {
+    progressCallbacks.set(resourceId, []);
+  }
+  progressCallbacks.get(resourceId).push(callback);
+  return () => {
+    const callbacks = progressCallbacks.get(resourceId);
+    const index = (callbacks || []).indexOf(callback);
+    if (index > -1) {
+      callbacks.splice(index, 1);
+    }
+  };
 };
 
 /**
@@ -147,4 +211,15 @@ export const init = () => {
   startLoading(RESOURCES.POSTS_EMBEDDINGS);
   startLoading(RESOURCES.DB);
   startLoading(RESOURCES.EXTRACTOR);
+
+  // Auto-load LLM models that have autoLoad: true
+  config.webLlm.models.chat.forEach((modelCfg) => {
+    if (modelCfg.autoLoad) {
+      const resourceKey =
+        modelCfg.model === "SmolLM2-360M-Instruct-q4f16_1-MLC"
+          ? "LLM_SMOL"
+          : "LLM_LLAMA";
+      startLoading(RESOURCES[resourceKey]);
+    }
+  });
 };

@@ -84,6 +84,12 @@ export const Home = () => {
             <${LoadingButton} resourceId=${LOADING.EXTRACTOR}>
               <strong>Extractor</strong>: embeddings extraction model
             </${LoadingButton}>
+            <${LoadingButton} resourceId=${LOADING.LLM_SMOL}>
+              <strong>LLM</strong>: SmolLM2-360M (default)
+            </${LoadingButton}>
+            <${LoadingButton} resourceId=${LOADING.LLM_LLAMA}>
+              <strong>LLM</strong>: Llama-3.2-1B
+            </${LoadingButton}>
           </div>
           <div>
             <!-- TODO(LOCAL): Remove these demo buttons -->

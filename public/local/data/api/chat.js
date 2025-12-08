@@ -1,4 +1,5 @@
-import { CreateMLCEngine } from "@mlc-ai/web-llm";
+import { getLlmEngine } from "./llm.js";
+import config from "../../../shared-config.js";
 
 /**
  * Chat with AI using streaming responses.
@@ -16,38 +17,29 @@ import { CreateMLCEngine } from "@mlc-ai/web-llm";
  * @returns {AsyncGenerator} Streaming JSON response
  */
 // TODO(LOCAL): IMPLEMENT!!!
-export async function* chat({ query }) {
-  // Callback function to update model loading progress
-  const initProgressCallback = (initProgress) => {
-    console.log(initProgress);
-  };
-
-  // Supported models: https://github.com/mlc-ai/web-llm/blob/main/src/config.ts#L293
-  // TODO: LOAD MODELS FROM CONFIG! Note VRAM, etc.
-  // const selectedModel = "Llama-3.1-8B-Instruct-q4f32_1-MLC";
-  const selectedModel = "SmolLM2-360M-Instruct-q4f16_1-MLC";
-
-  const engine = await CreateMLCEngine(
-    selectedModel,
-    { initProgressCallback: initProgressCallback }, // engineConfig
-  );
-  console.log("(I) STARTED query: ", query);
+export async function* chat({
+  query,
+  model = config.webLlm.models.chatDefault,
+}) {
+  // Use shared engine loader (handles caching and progress)
+  const engine = await getLlmEngine(model);
 
   const messages = [
     { role: "system", content: "You are a helpful AI assistant." },
     { role: "user", content: query },
   ];
 
-  console.log("(I) messages: ", messages);
-
   const reply = await engine.chat.completions.create({
     messages,
   });
-  console.log(reply.choices[0].message);
-  console.log(reply.usage);
 
   yield {
     type: "data",
     message: reply.choices[0].message.content,
+  };
+
+  yield {
+    type: "usage",
+    message: reply.usage,
   };
 }

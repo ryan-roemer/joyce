@@ -22,6 +22,8 @@ import {
 } from "../components/posts-download.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { useConfig } from "../contexts/config.js";
+import { useLoading } from "../../local/app/context/loading.js";
+import { LoadingButton } from "../../local/app/components/loading/button.js";
 import { Alert } from "../components/alert.js";
 import { SuggestedQueries } from "../components/suggested-queries.js";
 import { LoadingBubble } from "../components/loading-bubble.js";
@@ -56,6 +58,7 @@ export const ShortDescription = () => html`
   </p>
 `;
 
+// TODO(CHAT): UPDATE FOR WEB-LLM!!!
 const DescriptionButton = () => {
   const [settings] = useSettings();
   const { isDeveloperMode, featureOpenAIToolEnabled } = settings;
@@ -136,13 +139,19 @@ export const Chat = () => {
 
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
-  // TODO(LOCAL): useConfig() depends on remote /api/config - needs local replacement
+  // TODO(CHAT): useConfig() depends on remote /api/config - needs local replacement
   const config = useConfig();
   const providers = new Set(
     Object.entries(config.providers)
       .filter(([, { enabled }]) => enabled)
       .map(([provider]) => provider),
   );
+
+  // Model loading status
+  const { getStatus } = useLoading();
+  const modelResourceId = `llm_${modelObj.model}`;
+  const modelStatus = getStatus(modelResourceId);
+  const isModelLoaded = modelStatus === "loaded";
 
   const resetOutputs = (query) => {
     setQueryValue("");
@@ -163,6 +172,7 @@ export const Chat = () => {
     }
 
     // Validation.
+    // TODO(CHAT): REMOVE DATASTORE and all "openai" references!!!
     if (datastore === "openai-tool") {
       if (api !== "responses") {
         return setErr("OpenAI Tool is only supported for Responses API");
@@ -265,6 +275,15 @@ export const Chat = () => {
       ${
         completions &&
         html`<${Answer} answer=${completions} queryInfo=${queryInfo} />`
+      }
+
+      ${
+        !isModelLoaded &&
+        html`
+        <${LoadingButton} resourceId=${modelResourceId} label=${modelObj.model}>
+          <strong>${modelObj.model}</strong> — Click to load model
+        </${LoadingButton}>
+      `
       }
 
       <${ChatInputForm} ...${{ isFetching, handleSubmit, submitName }}>

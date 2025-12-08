@@ -63,16 +63,11 @@
       init();
 
       // TODO(LOCAL): Add config or remove.
+      // TODO(CHAT): Move somewhere else?
       const config = {
         providers: {
-          openai: {
-            enabled: false,
-          },
-          anthropic: {
-            enabled: false,
-          },
-          groq: {
-            enabled: false,
+          webLlm: {
+            enabled: true,
           },
         },
       };
