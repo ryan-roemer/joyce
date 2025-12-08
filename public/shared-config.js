@@ -1,3 +1,5 @@
+import { prebuiltAppConfig } from "@mlc-ai/web-llm";
+
 /**
  * Shared client configuration. (No secrets).
  */
@@ -27,8 +29,8 @@ const config = {
     model: "Xenova/gte-small",
     maxTokens: 512, // https://huggingface.co/thenlper/gte-small#limitation
   },
-  // web-llm provides additional model info (vram_required_MB, low_resource_required) via prebuiltAppConfig
-  // See: https://github.com/mlc-ai/web-llm/blob/main/src/config.ts
+  // web-llm model metadata (vramMb, maxTokens) is mutated into model objects at load time
+  // from prebuiltAppConfig. See: https://github.com/mlc-ai/web-llm/blob/main/src/config.ts
   webLlm: {
     models: {
       chatDefault: "SmolLM2-360M-Instruct-q4f16_1-MLC",
@@ -70,6 +72,17 @@ export const DEFAULT_DATASTORE = "postgresql";
 export const DEFAULT_API = "chat";
 export const DEFAULT_TEMPERATURE = 1;
 
+// Mutate web-llm models to include metadata from prebuiltAppConfig
+for (const modelObj of config.webLlm.models.chat) {
+  const found = prebuiltAppConfig.model_list.find(
+    (m) => m.model_id === modelObj.model,
+  );
+  if (found) {
+    modelObj.maxTokens = found.overrides?.context_window_size ?? null;
+    modelObj.vramMb = found.vram_required_MB ?? null;
+  }
+}
+
 export const getModelCfg = ({ provider, model }) => {
   const modelCfg = config[provider].models.chat.find(
     (opt) => opt.model === model,
@@ -81,5 +94,7 @@ export const getModelCfg = ({ provider, model }) => {
   }
   return modelCfg;
 };
+
+console.log("TODO (I) config: ", config); // eslint-disable-line no-undef
 
 export default config;

@@ -6,7 +6,7 @@ import {
   ALL_CHAT_MODELS,
   DEFAULT_CHAT_MODEL,
   ALL_PROVIDERS,
-  // CHAT_MODELS_MAP, // TODO(CHAT): REMOVE?
+  getModelCfg,
   DEFAULT_DATASTORE,
   DEFAULT_API,
   DEFAULT_TEMPERATURE,
@@ -258,10 +258,8 @@ const optionToModelObj = (option) => {
   return { provider, model };
 };
 
-// TODO REMOVE -- used? titles?
-// const modelStats = ({ pricing, maxTokens }) =>
-//   `Max Input: ${maxTokens.toLocaleString("en-US")} tokens, Cost: $${pricing.input}/M in, $${pricing.output}/M out`;
-const modelStats = () => "TODO: modelStats";
+const modelStats = ({ vramMb, maxTokens }) =>
+  `Max Input: ${(maxTokens ?? 0).toLocaleString("en-US")} tokens, VRAM: ${(vramMb ?? 0).toLocaleString("en-US")} MB`;
 
 export const ModelChatSelect = ({
   selected,
@@ -291,12 +289,15 @@ export const ModelChatSelect = ({
       providers.has(provider),
     ).map(({ provider, models }) => ({
       label: ALL_PROVIDERS[provider],
-      options: models.map(({ model, pricing, maxTokens }) => ({
-        id: `${provider}-${model}`,
-        title: modelStats({ pricing, maxTokens }), // TODO REMOVE???
-        label: getLabel(model, { provider, model }),
-        value: modelObjToOption({ provider, model }),
-      })),
+      options: models.map(({ model }) => {
+        const cfg = getModelCfg({ provider, model });
+        return {
+          id: `${provider}-${model}`,
+          title: modelStats({ vramMb: cfg.vramMb, maxTokens: cfg.maxTokens }),
+          label: getLabel(model, { provider, model }),
+          value: modelObjToOption({ provider, model }),
+        };
+      }),
     }));
   } else {
     const provider = "webLlm";
