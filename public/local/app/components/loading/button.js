@@ -66,7 +66,7 @@ export const LoadingButton = ({
     <div className="pure-form pure-form-stacked">
       <div className="pure-control-group loading-status-row">
         <label className="loading-status-label">
-          ${children || label}
+          <span className="loading-status-text">${children || label}</span>
           ${status === "loading" && progressPercent !== null
             ? html` <span className="loading-status-progress" key="progress"
                 >(${progressPercent}%)</span

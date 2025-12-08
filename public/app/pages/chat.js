@@ -294,15 +294,15 @@ export const Chat = () => {
 
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
 
-      ${currentQuery && html`<${QueryDisplay} query=${currentQuery} />`}
       ${
         isLoadingModelForChat &&
         html`
         <${LoadingButton} resourceId=${modelResourceId} label=${modelObj.model}>
-          Loading model <strong>${modelObj.model}</strong>...
+          Loading model <strong>${modelObj.model}</strong>
         </${LoadingButton}>
       `
       }
+      ${currentQuery && html`<${QueryDisplay} query=${currentQuery} />`}
       ${isFetching && !completions && !isLoadingModelForChat && html`<${LoadingBubble} />`}
       ${
         completions &&
