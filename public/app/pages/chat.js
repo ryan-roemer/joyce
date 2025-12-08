@@ -145,7 +145,7 @@ export const Chat = () => {
   );
 
   // Model loading status
-  const { getStatus, startLoading } = useLoading();
+  const { getStatus, getError, startLoading } = useLoading();
   const modelResourceId = `llm_${modelObj.model}`;
   const modelStatus = getStatus(modelResourceId);
   const isModelLoaded = modelStatus === "loaded";
@@ -230,15 +230,21 @@ export const Chat = () => {
     }
   };
 
-  // Effect to execute pending query once model is loaded
+  // Effect to execute pending query once model is loaded, or handle load error
   useEffect(() => {
-    if (isModelLoaded && isLoadingModelForChat && pendingQueryRef.current) {
+    if (!isLoadingModelForChat) return;
+
+    if (isModelLoaded && pendingQueryRef.current) {
       setIsLoadingModelForChat(false);
       const queryParams = pendingQueryRef.current;
       pendingQueryRef.current = null;
       executeChatQuery(queryParams);
+    } else if (modelStatus === "error") {
+      // Keep isLoadingModelForChat true so LoadingButton stays visible
+      pendingQueryRef.current = null;
+      setErr(getError(modelResourceId));
     }
-  }, [isModelLoaded, isLoadingModelForChat]);
+  }, [isModelLoaded, isLoadingModelForChat, modelStatus, modelResourceId]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
