@@ -55,7 +55,6 @@ export const ALL_CHAT_MODELS = Object.keys(ALL_PROVIDERS).map((provider) => ({
   models: config[provider].models.chat,
 }));
 
-console.log("(I) ALL_CHAT_MODELS: ", ALL_CHAT_MODELS);
 export const CHAT_MODELS_MAP = Object.fromEntries(
   ALL_CHAT_MODELS.map(({ provider, models }) => [
     provider,

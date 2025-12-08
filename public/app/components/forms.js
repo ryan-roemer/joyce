@@ -271,9 +271,7 @@ export const ModelChatSelect = ({
   menuPlacement = "auto",
 }) => {
   const [settings] = useSettings();
-  const { isDeveloperMode, displayModelStats } = settings;
-
-  console.log("(I) providers: ", CHAT_MODELS_MAP);
+  const { isDeveloperMode } = settings;
 
   const getLabel = (label, { provider, model }) => {
     // TODO(CHAT): REFACTOR
