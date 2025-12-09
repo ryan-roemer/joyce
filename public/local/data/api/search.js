@@ -7,6 +7,7 @@ import config from "../../../shared-config.js";
 import { getPosts, getPostsEmbeddings } from "./posts.js";
 
 const MAX_CHUNKS = 50;
+const MIN_SIMILARITY = 0.8;
 
 const dateToNumber = (date) => Date.parse(date);
 
@@ -150,6 +151,7 @@ export const search = async ({
     mode: "vector",
     vector: { value: queryEmbedding, property: "embeddings" },
     limit: MAX_CHUNKS,
+    similarity: MIN_SIMILARITY,
     where: Object.keys(where).length > 0 ? where : undefined,
   });
   const databaseQuery = performance.now() - databaseStart;
