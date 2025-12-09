@@ -4,16 +4,6 @@ import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
-import {
-  LoadingButton,
-  LOADING,
-} from "../../local/app/components/loading/index.js";
-import { getModelCfg } from "../../shared-config.js";
-
-// TODO(CHAT): REFACTOR THIS -- brittle to get model short name from resource id.
-const modelShortName = (modelId) =>
-  getModelCfg({ provider: "webLlm", model: modelId.replace(/^llm_/, "") })
-    .modelShortName;
 
 // TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
@@ -36,6 +26,7 @@ export const Home = () => {
             <li id="posts"><${Link} to="/posts">Posts</${Link}>: Browse / filter all available content.</li>
             <li id="search"><${Link} to="/search">Search</${Link}>: Find / filter similar posts to a query.</li>
             <li id="chat"><${Link} to="/chat">Chat</${Link}>: Get answers from AI using our content.</li>
+            <li id="settings"><${Link} to="/settings">Settings</${Link}>: Enable hidden developer features.</li>
           </ul>
         </${Fragment}>
         `
@@ -70,40 +61,6 @@ export const Home = () => {
 
           <h2 className="content-subhead">Chat</h2>
           <${ChatShortDescription} />
-
-          <h2 className="content-subhead">Data Loading</h2>
-          <p>
-            We load data, databases, and models for use in the app.
-            Some we automatically load (like our posts data), while others can be loaded
-            manually. (If you see a gray circle, this is unloaded data that you can click to load.)
-          </p>
-          <div>
-            <${LoadingButton} resourceId=${LOADING.POSTS_DATA}>
-              <strong>Posts</strong>: posts data
-            </${LoadingButton}>
-            <${LoadingButton} resourceId=${LOADING.POSTS_EMBEDDINGS}>
-              <strong>Posts Embeddings</strong>: chunked embeddings for posts data
-            </${LoadingButton}>
-            <${LoadingButton} resourceId=${LOADING.DB}>
-              <strong>Database</strong>: search indexes
-            </${LoadingButton}>
-            <${LoadingButton} resourceId=${LOADING.EXTRACTOR}>
-              <strong>Extractor</strong>: embeddings extraction model
-            </${LoadingButton}>
-            <${LoadingButton} resourceId=${LOADING.LLM_SMOL}>
-              <strong>LLM</strong>: ${modelShortName(LOADING.LLM_SMOL)} (default)
-            </${LoadingButton}>
-            <${LoadingButton} resourceId=${LOADING.LLM_TINY_LLAMA}>
-              <strong>LLM</strong>: ${modelShortName(LOADING.LLM_TINY_LLAMA)}
-            </${LoadingButton}>
-          </div>
-          <div>
-            <!-- TODO(LOCAL): Remove these demo buttons -->
-            <${LoadingButton} resourceId="demo_not_loaded" label="Demo: Not loaded" forceStatus="not_loaded" />
-            <${LoadingButton} resourceId="demo_loading" label="Demo: Loading" forceStatus="loading" />
-            <${LoadingButton} resourceId="demo_loaded" label="Demo: Loaded" forceStatus="loaded" />
-            <${LoadingButton} resourceId="demo_error" label="Demo: Error" forceStatus="error" />
-          </div>
         </${Fragment}>
         `
       }

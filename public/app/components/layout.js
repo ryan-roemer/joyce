@@ -12,7 +12,7 @@ import { Home } from "../pages/home.js";
 import { Posts } from "../pages/posts.js";
 import { Search } from "../pages/search.js";
 import { Chat } from "../pages/chat.js";
-import { Models } from "../pages/models.js";
+import { Data } from "../pages/data.js";
 
 const PAGE_COMPONENTS = {
   Home,
@@ -20,7 +20,7 @@ const PAGE_COMPONENTS = {
   Search,
   Settings,
   Chat,
-  Models,
+  Data,
 };
 
 export const Layout = () => {

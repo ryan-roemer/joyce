@@ -27,7 +27,7 @@ const BASE_PAGES = [
   { name: "Settings", to: "/settings", icon: "iconoir-tools" },
 ];
 
-const DEV_ONLY_PAGES = [{ name: "Models", to: "/models", icon: "iconoir-cpu" }];
+const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 
 export const TOKEN_CUSHION_CHAT = 200;
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
