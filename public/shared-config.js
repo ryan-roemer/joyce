@@ -1,9 +1,10 @@
 import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 
-const MODELS = prebuiltAppConfig.model_list
+export const MODELS = prebuiltAppConfig.model_list
   .filter((model) => model.model_id.includes("-q4f16_1-"))
   .map((model) => ({
     model: model.model_id,
+    modelUrl: model.model,
     maxTokens: model.overrides?.context_window_size ?? null,
     vramMb: model.vram_required_MB ?? null,
   }))
@@ -14,7 +15,7 @@ console.log("TODO (I) MODELS: ", MODELS); // eslint-disable-line no-undef
 /**
  * Shared client configuration. (No secrets).
  */
-const ALL_PAGES = [
+const BASE_PAGES = [
   { name: "Home", naveName: "Joyce", to: "/", icon: "iconoir-post" },
   { name: "Posts", to: "/posts", icon: "iconoir-multiple-pages-empty" },
   { name: "Search", to: "/search", icon: "iconoir-doc-magnifying-glass-in" },
@@ -26,14 +27,15 @@ const ALL_PAGES = [
   { name: "Settings", to: "/settings", icon: "iconoir-tools" },
 ];
 
+const DEV_ONLY_PAGES = [{ name: "Models", to: "/models", icon: "iconoir-cpu" }];
+
 export const TOKEN_CUSHION_CHAT = 200;
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
 
 const config = {
   pages: {
-    all: ALL_PAGES,
-    // Note: presently all pages are simple. Keep for future use if need dev-only pages.
-    simple: ALL_PAGES,
+    all: [...BASE_PAGES, ...DEV_ONLY_PAGES],
+    simple: BASE_PAGES,
   },
   embeddings: {
     // Note: if you change the embedding model, you'll need to re-generate all post embeddings.
