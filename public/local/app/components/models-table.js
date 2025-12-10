@@ -97,48 +97,50 @@ export const ModelsTable = ({ models = [] }) => {
         filters=${filters}
         setFilters=${setFilters}
       />
-      <table className="pure-table pure-table-bordered">
-        <thead>
-          <tr>
-            ${Object.entries(HEADINGS).map(
-              ([key, label]) =>
-                html`<th
-                  key=${key}
-                  style=${{ whiteSpace: "nowrap", cursor: "pointer" }}
-                  onClick=${() => handleColumnSort(key)}
-                >
-                  ${label}${" "}${getSortSymbol(key)}
-                </th>`,
+      <div style=${{ overflowX: "auto" }}>
+        <table className="pure-table pure-table-bordered">
+          <thead>
+            <tr>
+              ${Object.entries(HEADINGS).map(
+                ([key, label]) =>
+                  html`<th
+                    key=${key}
+                    style=${{ whiteSpace: "nowrap", cursor: "pointer" }}
+                    onClick=${() => handleColumnSort(key)}
+                  >
+                    ${label}${" "}${getSortSymbol(key)}
+                  </th>`,
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            ${sortItems(filteredModels).map(
+              (
+                { model, modelUrl, quantization, maxTokens, vramMb, status },
+                i,
+              ) => {
+                return html`
+                  <tr key=${`model-item-${i}`}>
+                    <td>
+                      <a
+                        href="${modelUrl}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        ${model}
+                      </a>
+                    </td>
+                    <td>${quantization ?? "—"}</td>
+                    <td>${maxTokens ?? "—"}</td>
+                    <td>${vramMb ?? "—"}</td>
+                    <td><${StatusBadge} status=${status} /></td>
+                  </tr>
+                `;
+              },
             )}
-          </tr>
-        </thead>
-        <tbody>
-          ${sortItems(filteredModels).map(
-            (
-              { model, modelUrl, quantization, maxTokens, vramMb, status },
-              i,
-            ) => {
-              return html`
-                <tr key=${`model-item-${i}`}>
-                  <td>
-                    <a
-                      href="${modelUrl}"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      ${model}
-                    </a>
-                  </td>
-                  <td>${quantization ?? "—"}</td>
-                  <td>${maxTokens ?? "—"}</td>
-                  <td>${vramMb ?? "—"}</td>
-                  <td><${StatusBadge} status=${status} /></td>
-                </tr>
-              `;
-            },
-          )}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
   `;
 };
