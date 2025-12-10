@@ -1,7 +1,16 @@
+import { useState } from "react";
 import { html } from "../../../app/util/html.js";
 import { useTableSort } from "../../../app/hooks/use-table-sort.js";
 import { useLoading } from "../context/loading.js";
 import { LOADING } from "./loading/index.js";
+import { ModelsFilter } from "./models-filter.js";
+
+const DEFAULT_FILTERS = {
+  modelText: "",
+  quantization: [],
+  maxTokens: [],
+  vramMin: null,
+};
 
 const HEADINGS = {
   model: "Model",
@@ -39,6 +48,7 @@ const StatusBadge = ({ status }) => {
 export const ModelsTable = ({ models = [] }) => {
   const { getSortSymbol, handleColumnSort, sortItems } = useTableSort();
   const { getStatus } = useLoading();
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
   if (models.length === 0) {
     return html`<div />`;
@@ -61,8 +71,32 @@ export const ModelsTable = ({ models = [] }) => {
     return { ...m, status };
   });
 
+  // Apply filters
+  const filteredModels = enrichedModels
+    .filter(
+      (m) =>
+        !filters.modelText ||
+        m.model.toLowerCase().includes(filters.modelText.toLowerCase()),
+    )
+    .filter(
+      (m) =>
+        filters.quantization.length === 0 ||
+        filters.quantization.some((q) => q.value === m.quantization),
+    )
+    .filter(
+      (m) =>
+        filters.maxTokens.length === 0 ||
+        filters.maxTokens.some((t) => t.value === m.maxTokens),
+    )
+    .filter((m) => filters.vramMin == null || m.vramMb >= filters.vramMin);
+
   return html`
     <div>
+      <${ModelsFilter}
+        models=${models}
+        filters=${filters}
+        setFilters=${setFilters}
+      />
       <table className="pure-table pure-table-bordered">
         <thead>
           <tr>
@@ -79,7 +113,7 @@ export const ModelsTable = ({ models = [] }) => {
           </tr>
         </thead>
         <tbody>
-          ${sortItems(enrichedModels).map(
+          ${sortItems(filteredModels).map(
             (
               { model, modelUrl, quantization, maxTokens, vramMb, status },
               i,
