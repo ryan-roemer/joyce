@@ -35,12 +35,15 @@ export const Data = () => {
         <${LoadingButton} resourceId=${LOADING.EXTRACTOR}>
           <strong>Extractor</strong>: embeddings extraction model
         </${LoadingButton}>
-        <${LoadingButton} resourceId=${LOADING.LLM_SMOL}>
-          <strong>LLM</strong>: ${modelShortName(LOADING.LLM_SMOL)} (default)
-        </${LoadingButton}>
-        <${LoadingButton} resourceId=${LOADING.LLM_TINY_LLAMA}>
-          <strong>LLM</strong>: ${modelShortName(LOADING.LLM_TINY_LLAMA)}
-        </${LoadingButton}>
+        ${Object.keys(LOADING)
+          .filter((key) => key.startsWith("LLM_"))
+          .map(
+            (key, idx) => html`
+              <${LoadingButton} resourceId=${LOADING[key]} key=${key}>
+                <strong>LLM</strong>: ${modelShortName(LOADING[key])}${idx === 0 ? " (default)" : ""}
+              </${LoadingButton}>
+            `,
+          )}
       </div>
       <div>
         <!-- TODO(LOCAL): Remove these demo buttons -->

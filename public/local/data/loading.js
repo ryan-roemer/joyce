@@ -44,6 +44,7 @@ export const RESOURCES = {
   },
   LLM_SMOL: createLlmResource("SmolLM2-360M-Instruct-q4f16_1-MLC"),
   LLM_TINY_LLAMA: createLlmResource("TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC"),
+  LLM_SMOL_1_7B: createLlmResource("SmolLM2-1.7B-Instruct-q4f16_1-MLC"),
 };
 
 const loadingStatus = new Map();

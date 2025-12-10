@@ -1,6 +1,7 @@
 import { html } from "../../../app/util/html.js";
 import { useTableSort } from "../../../app/hooks/use-table-sort.js";
 import { useLoading } from "../context/loading.js";
+import { LOADING } from "./loading/index.js";
 
 const HEADINGS = {
   model: "Model",
@@ -9,12 +10,12 @@ const HEADINGS = {
   status: "Status",
 };
 
-// Map model IDs to their loading resource IDs
-const MODEL_RESOURCE_MAP = {
-  "SmolLM2-360M-Instruct-q4f16_1-MLC": "llm_SmolLM2-360M-Instruct-q4f16_1-MLC",
-  "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC":
-    "llm_TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
-};
+// Build MODEL_RESOURCE_MAP dynamically from LOADING LLM_ keys
+const MODEL_RESOURCE_MAP = Object.fromEntries(
+  Object.entries(LOADING)
+    .filter(([key]) => key.startsWith("LLM_"))
+    .map(([, resourceId]) => [resourceId.replace(/^llm_/, ""), resourceId]),
+);
 
 const StatusBadge = ({ status }) => {
   const styles = {

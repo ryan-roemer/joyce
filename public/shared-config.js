@@ -57,6 +57,12 @@ const config = {
         {
           model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
           modelShortName: "TinyLlama-1.1B",
+          shortOption: "Fast",
+          autoLoad: false, // Manual load only
+        },
+        {
+          model: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
+          modelShortName: "SmolLM2-1.7B",
           shortOption: "Best",
           autoLoad: false, // Manual load only
         },
