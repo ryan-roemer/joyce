@@ -21,7 +21,7 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
 
   return html`
     <div
-      className="pure-form"
+      className="pure-form form-filter-row"
       style=${{
         display: "flex",
         flexWrap: "wrap",
@@ -43,7 +43,7 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
 
       <label style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
         <span>Quantization</span>
-        <div className="form-multi-select" style=${{ top: 0, marginTop: 0 }}>
+        <div className="form-multi-select">
           <${Select}
             isMulti=${true}
             placeholder="Any..."
@@ -57,7 +57,7 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
 
       <label style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
         <span>Max Tokens</span>
-        <div className="form-multi-select" style=${{ top: 0, marginTop: 0 }}>
+        <div className="form-multi-select">
           <${Select}
             isMulti=${true}
             placeholder="Any..."

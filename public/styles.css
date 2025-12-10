@@ -312,6 +312,19 @@ table.pure-table-bordered tr:first-child th:last-child {
   margin-right: 8px;
 }
 
+/* Reset multi-select positioning for vertical filter layouts */
+.form-filter-row .form-multi-select {
+  margin-bottom: 6px;
+  min-height: 28px !important;
+  height: 28px !important;
+}
+
+/* Remove default margins from inputs in filter rows for proper alignment */
+.form-filter-row input {
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+}
+
 .form-multi-select-medium {
   min-width: 150px;
 }
