@@ -37,31 +37,27 @@ export const getSystemInfo = async () => {
   let ramGb = null;
 
   // Try WebGPU for GPU info
-  if (navigator.gpu) {
-    try {
-      const adapter = await navigator.gpu.requestAdapter();
-      if (adapter) {
-        // maxBufferSize is the largest buffer allocatable (rough VRAM proxy)
-        const maxBufferBytes = adapter.limits?.maxBufferSize;
-        if (maxBufferBytes) {
-          vramMb = Math.round(maxBufferBytes / (1024 * 1024));
-        }
-        // Get GPU description if available
-        const info = await adapter.requestAdapterInfo?.();
-        if (info) {
-          gpuInfo =
-            [info.vendor, info.architecture, info.device]
-              .filter(Boolean)
-              .join(" ") || null;
-        }
+  if ("gpu" in navigator) {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (adapter) {
+      // maxBufferSize is the largest buffer allocatable (rough VRAM proxy)
+      const maxBufferBytes = adapter.limits?.maxBufferSize;
+      if (maxBufferBytes) {
+        vramMb = Math.round(maxBufferBytes / (1024 * 1024));
       }
-    } catch (e) {
-      console.warn("WebGPU detection failed:", e); // eslint-disable-line no-undef
+      // Get GPU description if available
+      const info = await adapter.requestAdapterInfo?.();
+      if (info) {
+        gpuInfo =
+          [info.vendor, info.architecture, info.device]
+            .filter(Boolean)
+            .join(" ") || null;
+      }
     }
   }
 
-  // Fallback: Device Memory API (Chromium only, coarse values)
-  if (navigator.deviceMemory) {
+  // Device Memory API (Chromium only, coarse values)
+  if ("deviceMemory" in navigator) {
     ramGb = navigator.deviceMemory;
   }
 

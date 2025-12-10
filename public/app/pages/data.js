@@ -26,7 +26,7 @@ const SystemInfo = ({ info }) => {
 
   return html` <p>
     Reported system info:
-    ${parts
+    ${" "}${parts
       .reduce((acc, part, i) => (i === 0 ? part : [...acc, ", ", part]), [])
       .join("")}.
   </p>`;
