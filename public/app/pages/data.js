@@ -78,7 +78,7 @@ export const Data = () => {
 
       <h2 className="content-subhead">Models</h2>
       <p>
-        Available web-llm models (filtered to q4f16_1 quantization). Status
+        Available web-llm models. Status
         indicates whether the model is loaded in memory, currently loading, or
         available for download.
       </p>

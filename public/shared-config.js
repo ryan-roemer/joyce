@@ -1,16 +1,22 @@
 import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 
+// https://github.com/mlc-ai/web-llm/blob/main/src/config.ts
+// Quantization formats: q{bits}f{float_bits}[_{version}]
+// e.g., q4f16_1 = 4-bit quantization with float16, q0f32 = full precision float32
+const QUANTIZATION_REGEX = /q\d+f\d+(?:_\d+)?/;
+
 export const MODELS = prebuiltAppConfig.model_list
-  .filter((model) => model.model_id.includes("-q4f16_1-"))
   .map((model) => ({
     model: model.model_id,
     modelUrl: model.model,
+    quantization: model.model_id.match(QUANTIZATION_REGEX)?.[0] ?? null,
     maxTokens: model.overrides?.context_window_size ?? null,
     vramMb: model.vram_required_MB ?? null,
   }))
-  .sort((a, b) => a.vramMb - b.vramMb);
+  .sort((a, b) => (a.vramMb ?? 0) - (b.vramMb ?? 0));
 
-console.log("TODO (I) MODELS: ", MODELS); // eslint-disable-line no-undef
+// TODO: REMOVE
+// console.table(MODELS, ["model", "quantization", "maxTokens", "vramMb"]);
 
 /**
  * Shared client configuration. (No secrets).
@@ -147,7 +153,5 @@ export const getSimpleModelOptions = (provider) =>
   config[provider].models.chat
     .filter((m) => m.shortOption)
     .map(({ model, shortOption }) => ({ provider, model, label: shortOption }));
-
-console.log("TODO (I) config: ", config); // eslint-disable-line no-undef
 
 export default config;
