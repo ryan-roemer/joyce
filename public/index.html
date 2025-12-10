@@ -58,13 +58,16 @@
       import { html } from "/app/util/html.js";
       import { App } from "/app/index.js";
       import { init } from "/local/data/loading.js";
+      import { getSystemInfo } from "/local/data/util.js";
 
-      // Initialize download system early
+      // Initialize loaders early and get system info.
       init();
+      const systemInfo = await getSystemInfo();
 
       // TODO(LOCAL): Add config or remove.
-      // TODO(CHAT): Move somewhere else?
       const config = {
+        systemInfo,
+        // TODO(CHAT): Move somewhere else?
         providers: {
           webLlm: {
             enabled: true,

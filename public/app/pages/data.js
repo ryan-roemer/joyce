@@ -1,5 +1,6 @@
 import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
+import { useConfig } from "../contexts/config.js";
 import { MODELS } from "../../shared-config.js";
 import { ModelsTable } from "../../local/app/components/models-table.js";
 import {
@@ -13,7 +14,27 @@ const modelShortName = (modelId) =>
   getModelCfg({ provider: "webLlm", model: modelId.replace(/^llm_/, "") })
     .modelShortName;
 
+const SystemInfo = ({ info }) => {
+  const { vramMb, ramGb, gpuInfo } = info;
+  const parts = [
+    vramMb != null && `${vramMb} MB of VRAM`,
+    ramGb != null && `${ramGb} GB of RAM`,
+    gpuInfo && `GPU: ${gpuInfo}`,
+  ].filter(Boolean);
+
+  if (parts.length === 0) return null;
+
+  return html` <p>
+    Reported system info:
+    ${parts
+      .reduce((acc, part, i) => (i === 0 ? part : [...acc, ", ", part]), [])
+      .join("")}.
+  </p>`;
+};
+
 export const Data = () => {
+  const { systemInfo } = useConfig();
+
   return html`
     <${Page} name="Data & Models">
       <h2 className="content-subhead">Data</h2>
@@ -59,6 +80,7 @@ export const Data = () => {
         indicates whether the model is loaded in memory, currently loading, or
         available for download.
       </p>
+      <${SystemInfo} info=${systemInfo} />
       <${ModelsTable} models=${MODELS} />
     </${Page}>
   `;
