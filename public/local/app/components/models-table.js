@@ -5,8 +5,9 @@ import { LOADING } from "./loading/index.js";
 
 const HEADINGS = {
   model: "Model",
-  maxTokens: "Max Tokens",
-  vramMb: "VRAM (MB)",
+  quantization: "Quant",
+  maxTokens: "Tokens",
+  vramMb: "VRAM",
   status: "Status",
 };
 
@@ -79,7 +80,10 @@ export const ModelsTable = ({ models = [] }) => {
         </thead>
         <tbody>
           ${sortItems(enrichedModels).map(
-            ({ model, modelUrl, maxTokens, vramMb, status }, i) => {
+            (
+              { model, modelUrl, quantization, maxTokens, vramMb, status },
+              i,
+            ) => {
               return html`
                 <tr key=${`model-item-${i}`}>
                   <td>
@@ -91,6 +95,7 @@ export const ModelsTable = ({ models = [] }) => {
                       ${model}
                     </a>
                   </td>
+                  <td>${quantization ?? "—"}</td>
                   <td>${maxTokens ?? "—"}</td>
                   <td>${vramMb ?? "—"}</td>
                   <td><${StatusBadge} status=${status} /></td>
