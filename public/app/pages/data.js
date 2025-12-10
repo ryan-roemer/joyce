@@ -24,12 +24,14 @@ const SystemInfo = ({ info }) => {
 
   if (parts.length === 0) return null;
 
-  return html` <p>
-    Reported system info:
-    ${" "}${parts
-      .reduce((acc, part, i) => (i === 0 ? part : [...acc, ", ", part]), [])
-      .join("")}.
-  </p>`;
+  return html`<pre>${JSON.stringify(info, null, 2)}</pre>`;
+  // TODO(CHAT): Fix this and display nicely.
+  // return html` <p>
+  //   Reported system info:
+  //   ${" "}${parts
+  //     .reduce((acc, part, i) => (i === 0 ? part : [...acc, ", ", part]), [])
+  //     .join("")}.
+  // </p>`;
 };
 
 export const Data = () => {
