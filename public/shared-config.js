@@ -73,6 +73,16 @@ const config = {
           shortOption: "Best",
           autoLoad: false,
         },
+        {
+          model: "Llama-3.2-3B-Instruct-q4f16_1-MLC",
+          modelShortName: "Llama-3.2-3B",
+          autoLoad: false,
+        },
+        {
+          model: "Qwen3-4B-q4f16_1-MLC",
+          modelShortName: "Qwen3-4B",
+          autoLoad: false,
+        },
       ],
     },
   },
