@@ -46,25 +46,32 @@ const config = {
   // from prebuiltAppConfig. See: https://github.com/mlc-ai/web-llm/blob/main/src/config.ts
   webLlm: {
     models: {
-      chatDefault: "SmolLM2-360M-Instruct-q4f16_1-MLC",
       chat: [
         {
+          // TODO: REMOVE?
+          // Notes: prone to ongoing gibberish.
           model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
           modelShortName: "SmolLM2-360M",
-          shortOption: "Fastest",
-          autoLoad: true, // Default model, auto-loaded on app start
+          autoLoad: false,
         },
         {
           model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
           modelShortName: "TinyLlama-1.1B",
           shortOption: "Fast",
-          autoLoad: false, // Manual load only
+          default: true,
+          autoLoad: true,
         },
         {
           model: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
           modelShortName: "SmolLM2-1.7B",
+          shortOption: "Better",
+          autoLoad: false,
+        },
+        {
+          model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+          modelShortName: "Llama-3.2-1B",
           shortOption: "Best",
-          autoLoad: false, // Manual load only
+          autoLoad: false,
         },
       ],
     },
@@ -87,10 +94,18 @@ export const CHAT_MODELS_MAP = Object.fromEntries(
   ]),
 );
 
-export const DEFAULT_CHAT_MODEL = {
-  provider: "webLlm",
-  model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
-};
+// Find the default chat model by looking for `default: true` across all providers
+export const DEFAULT_CHAT_MODEL = (() => {
+  for (const { provider, models } of ALL_CHAT_MODELS) {
+    const defaultModel = models.find((m) => m.default);
+    if (defaultModel) {
+      return { provider, model: defaultModel.model };
+    }
+  }
+  throw new Error(
+    "No default chat model found (set `default: true` on a model)",
+  );
+})();
 export const DEFAULT_DATASTORE = "postgresql";
 export const DEFAULT_API = "chat";
 export const DEFAULT_TEMPERATURE = 1;

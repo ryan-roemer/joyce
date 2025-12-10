@@ -38,9 +38,9 @@ export const Data = () => {
         ${Object.keys(LOADING)
           .filter((key) => key.startsWith("LLM_"))
           .map(
-            (key, idx) => html`
+            (key) => html`
               <${LoadingButton} resourceId=${LOADING[key]} key=${key}>
-                <strong>Model</strong>: ${modelShortName(LOADING[key])}${idx === 0 ? " (default)" : ""}
+                <strong>Model</strong>: ${modelShortName(LOADING[key])}
               </${LoadingButton}>
             `,
           )}

@@ -2,9 +2,9 @@
 // Internally uses browser Cache API or IndexedDB depending on config
 // See: https://deepwiki.com/mlc-ai/web-llm/5.4-caching-and-performance
 import { CreateMLCEngine, hasModelInCache } from "@mlc-ai/web-llm";
-import config from "../../../shared-config.js";
+import { DEFAULT_CHAT_MODEL } from "../../../shared-config.js";
 
-const DEFAULT_MODEL = config.webLlm.models.chatDefault;
+const DEFAULT_MODEL = DEFAULT_CHAT_MODEL.model;
 
 // Map of model -> { enginePromise, progressCallback }
 const engines = new Map();

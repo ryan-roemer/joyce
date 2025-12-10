@@ -24,6 +24,20 @@ const createLlmResource = (modelId) => ({
   checkCached: () => isLlmCached(modelId),
 });
 
+// Generate LLM resource key from model ID (e.g., "SmolLM2-360M-Instruct-q4f16_1-MLC" -> "LLM_SMOLLM2_360M_INSTRUCT")
+const modelToResourceKey = (modelId) => {
+  const baseName = modelId.split("-q4f16")[0];
+  return "LLM_" + baseName.toUpperCase().replace(/-/g, "_").replace(/\./g, "_");
+};
+
+// Dynamically create LLM resources from config
+const LLM_RESOURCES = Object.fromEntries(
+  config.webLlm.models.chat.map((modelCfg) => [
+    modelToResourceKey(modelCfg.model),
+    createLlmResource(modelCfg.model),
+  ]),
+);
+
 export const RESOURCES = {
   POSTS_DATA: {
     id: "posts_data",
@@ -42,9 +56,7 @@ export const RESOURCES = {
     id: "extractor",
     get: getExtractor,
   },
-  LLM_SMOL: createLlmResource("SmolLM2-360M-Instruct-q4f16_1-MLC"),
-  LLM_TINY_LLAMA: createLlmResource("TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC"),
-  LLM_SMOL_1_7B: createLlmResource("SmolLM2-1.7B-Instruct-q4f16_1-MLC"),
+  ...LLM_RESOURCES,
 };
 
 const loadingStatus = new Map();
@@ -216,11 +228,7 @@ export const init = () => {
   // Auto-load LLM models that have autoLoad: true
   config.webLlm.models.chat.forEach((modelCfg) => {
     if (modelCfg.autoLoad) {
-      // TODO(CHAT): REFACTOR this.
-      const resourceKey =
-        modelCfg.model === "SmolLM2-360M-Instruct-q4f16_1-MLC"
-          ? "LLM_SMOL"
-          : "LLM_TINY_LLAMA";
+      const resourceKey = modelToResourceKey(modelCfg.model);
       startLoading(RESOURCES[resourceKey]);
     }
   });

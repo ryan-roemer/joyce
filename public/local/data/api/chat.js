@@ -1,6 +1,8 @@
 import { getLlmEngine } from "./llm.js";
-import config from "../../../shared-config.js";
-import { DEFAULT_TEMPERATURE } from "../../../shared-config.js";
+import {
+  DEFAULT_TEMPERATURE,
+  DEFAULT_CHAT_MODEL,
+} from "../../../shared-config.js";
 
 /**
  * Chat with AI using streaming responses.
@@ -20,7 +22,7 @@ import { DEFAULT_TEMPERATURE } from "../../../shared-config.js";
  */
 export async function* chat({
   query,
-  model = config.webLlm.models.chatDefault,
+  model = DEFAULT_CHAT_MODEL.model,
   temperature = DEFAULT_TEMPERATURE,
 }) {
   const start = new Date();
