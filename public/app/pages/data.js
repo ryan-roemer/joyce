@@ -40,7 +40,7 @@ export const Data = () => {
           .map(
             (key, idx) => html`
               <${LoadingButton} resourceId=${LOADING[key]} key=${key}>
-                <strong>LLM</strong>: ${modelShortName(LOADING[key])}${idx === 0 ? " (default)" : ""}
+                <strong>Model</strong>: ${modelShortName(LOADING[key])}${idx === 0 ? " (default)" : ""}
               </${LoadingButton}>
             `,
           )}
