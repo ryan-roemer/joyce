@@ -981,3 +981,14 @@ button.loading-status-icon-button {
 .loading-status-error i {
   color: var(--color-status-error);
 }
+
+/* VRAM Filter Inputs */
+.form-filter-row .vram-input {
+  width: 100px;
+}
+
+.form-filter-row .filter-validation-error {
+  color: var(--color-error-text);
+  font-size: 12px;
+  align-self: center;
+}

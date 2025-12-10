@@ -10,6 +10,7 @@ const DEFAULT_FILTERS = {
   quantization: [],
   maxTokens: [],
   vramMin: null,
+  vramMax: null,
 };
 
 const HEADINGS = {
@@ -88,7 +89,8 @@ export const ModelsTable = ({ models = [] }) => {
         filters.maxTokens.length === 0 ||
         filters.maxTokens.some((t) => t.value === m.maxTokens),
     )
-    .filter((m) => filters.vramMin == null || m.vramMb >= filters.vramMin);
+    .filter((m) => filters.vramMin == null || m.vramMb >= filters.vramMin)
+    .filter((m) => filters.vramMax == null || m.vramMb <= filters.vramMax);
 
   return html`
     <div>

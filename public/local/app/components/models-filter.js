@@ -70,7 +70,7 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
       </label>
 
       <label style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
-        <span>VRAM (min MB)</span>
+        <span>VRAM (MB)</span>
         <input
           type="number"
           placeholder="Min..."
@@ -79,10 +79,34 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
             updateFilter("vramMin")(
               e.target.value ? Number(e.target.value) : null,
             )}
-          style=${{ width: "100px" }}
+          className="vram-input"
           min="0"
         />
       </label>
+
+      <label style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        <span>VRAM (MB)</span>
+        <input
+          type="number"
+          placeholder="Max..."
+          value=${filters.vramMax ?? ""}
+          onInput=${(e) =>
+            updateFilter("vramMax")(
+              e.target.value ? Number(e.target.value) : null,
+            )}
+          className="vram-input"
+          min="0"
+        />
+      </label>
+
+      ${filters.vramMin != null &&
+      filters.vramMax != null &&
+      filters.vramMax <= filters.vramMin &&
+      html`
+        <span className="filter-validation-error">
+          Max must be greater than min
+        </span>
+      `}
     </div>
   `;
 };
