@@ -58,6 +58,13 @@ export const LoadingButton = ({
   };
 
   const isClickable = status === "not_loaded" && !forceStatus;
+  const isModel = resourceId?.toLowerCase().startsWith("llm_");
+
+  const handleInfoClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("TODO: MODAL");
+  };
 
   // TODO(CLEANUP): Move elapsed to right side in italics.
   // TODO(LOADING): Maybe add label name and description, separated in styles, then elapsed separately.
@@ -67,6 +74,15 @@ export const LoadingButton = ({
       <div className="pure-control-group loading-status-row">
         <label className="loading-status-label">
           <span className="loading-status-text">${children || label}</span>
+          ${isModel
+            ? html`<span
+                className="loading-status-info"
+                title="TODO: TOOLTIP"
+                onClick=${handleInfoClick}
+                key="info"
+              ><i className="iconoir-info-circle"></i
+            ></span>`
+            : null}
           ${status === "loading" && progressPercent !== null
             ? html` <span className="loading-status-progress" key="progress"
                 >(${progressPercent}%)</span

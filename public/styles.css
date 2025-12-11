@@ -982,6 +982,23 @@ button.loading-status-icon-button {
   color: var(--color-status-error);
 }
 
+.loading-status-info {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4em;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease;
+}
+
+.loading-status-info:hover {
+  color: var(--color-text-primary);
+}
+
+.loading-status-info i {
+  font-size: 0.9em;
+}
+
 /* VRAM Filter Inputs */
 .form-filter-row .vram-input {
   width: 100px;
