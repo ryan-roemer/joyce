@@ -24,14 +24,9 @@ const SystemInfo = ({ info }) => {
 
   if (parts.length === 0) return null;
 
-  return html`<pre>${JSON.stringify(info, null, 2)}</pre>`;
-  // TODO(CHAT): Fix this and display nicely.
-  // return html` <p>
-  //   Reported system info:
-  //   ${" "}${parts
-  //     .reduce((acc, part, i) => (i === 0 ? part : [...acc, ", ", part]), [])
-  //     .join("")}.
-  // </p>`;
+  return html` <p key="system-info">
+    Reported system info: ${parts.join(", ")}.
+  </p>`;
 };
 
 export const Data = () => {
