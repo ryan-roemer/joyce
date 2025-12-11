@@ -3,6 +3,7 @@ import { html } from "../../../../app/util/html.js";
 import { useLoading } from "../../context/loading.js";
 import { formatElapsed } from "../../../../app/components/answer.js";
 import { Modal } from "../../../../app/components/modal.js";
+import { MODELS } from "../../../../shared-config.js";
 
 const STATES = {
   not_loaded: {
@@ -63,6 +64,10 @@ export const LoadingButton = ({
   const isClickable = status === "not_loaded" && !forceStatus;
   const isModel = resourceId?.toLowerCase().startsWith("llm_");
 
+  // Look up model metadata for LLM resources
+  const modelId = isModel ? resourceId.replace(/^llm_/i, "") : null;
+  const modelMeta = modelId ? MODELS.find((m) => m.model === modelId) : null;
+
   const handleInfoClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -81,7 +86,9 @@ export const LoadingButton = ({
             isModel
               ? html`<span
                   className="loading-status-info"
-                  title="TODO: TOOLTIP"
+                  title=${modelMeta
+                    ? `${modelMeta.quantization || "—"} · ${modelMeta.vramMb ? `${modelMeta.vramMb} MB VRAM` : "—"}`
+                    : "Model info"}
                   onClick=${handleInfoClick}
                   key="info"
                   ><i className="iconoir-info-circle"></i
@@ -131,9 +138,54 @@ export const LoadingButton = ({
     <${Modal}
       isOpen=${isModalOpen}
       onClose=${() => setIsModalOpen(false)}
-      title="TODO: TITLE"
+      title=${
+        modelMeta
+          ? html`<a
+              href=${modelMeta.modelUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              ${modelMeta.model} <i className="iconoir-open-new-window"></i>
+            </a>`
+          : "Model Info"
+      }
     >
-      <p>TODO: Body</p>
+      ${
+        modelMeta
+          ? html`
+              <div className="modal-stat-cards">
+                <div className="modal-stat-card">
+                  <i className="iconoir-cpu"></i>
+                  <span className="modal-stat-label">Quantization</span>
+                  <span className="modal-stat-value">
+                    ${modelMeta.quantization || "—"}
+                  </span>
+                </div>
+                <div className="modal-stat-card">
+                  <i className="iconoir-align-left"></i>
+                  <span className="modal-stat-label">Max Tokens</span>
+                  <span className="modal-stat-value">
+                    ${modelMeta.maxTokens?.toLocaleString() || "—"}
+                  </span>
+                </div>
+                <div className="modal-stat-card">
+                  <i className="iconoir-database"></i>
+                  <span className="modal-stat-label">VRAM Required</span>
+                  <span className="modal-stat-value">
+                    ${modelMeta.vramMb
+                      ? `${modelMeta.vramMb.toLocaleString()} MB`
+                      : "—"}
+                  </span>
+                </div>
+                <div className="modal-stat-card">
+                  <i className=${state.icon}></i>
+                  <span className="modal-stat-label">Status</span>
+                  <span className="modal-stat-value">${title}</span>
+                </div>
+              </div>
+            `
+          : html`<p>Model information not available.</p>`
+      }
     </${Modal}>
   `;
 };
