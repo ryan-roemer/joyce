@@ -103,7 +103,7 @@ export const ALL_CHAT_MODELS = Object.keys(ALL_PROVIDERS).map((provider) => ({
   models: config[provider].models.chat,
 }));
 
-export const CHAT_MODELS_MAP = Object.fromEntries(
+const CHAT_MODELS_MAP = Object.fromEntries(
   ALL_CHAT_MODELS.map(({ provider, models }) => [
     provider,
     Object.fromEntries(models.map((modelObj) => [modelObj.model, modelObj])),
@@ -138,9 +138,7 @@ for (const modelObj of config.webLlm.models.chat) {
 }
 
 export const getModelCfg = ({ provider, model }) => {
-  const modelCfg = config[provider].models.chat.find(
-    (opt) => opt.model === model,
-  );
+  const modelCfg = CHAT_MODELS_MAP[provider][model];
   if (!modelCfg) {
     throw new Error(
       `Could not find config options for model "${model}". Incorrect configuration?`,
