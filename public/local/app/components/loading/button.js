@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { html } from "../../../../app/util/html.js";
 import { useLoading } from "../../context/loading.js";
 import { formatElapsed } from "../../../../app/components/answer.js";
@@ -78,114 +78,116 @@ export const LoadingButton = ({
   // TODO(LOADING): Maybe add label name and description, separated in styles, then elapsed separately.
   // TODO(LOADING): Add visual progress bar for future enhancement
   return html`
-    <div className="pure-form pure-form-stacked">
-      <div className="pure-control-group loading-status-row">
-        <label className="loading-status-label">
-          <span className="loading-status-text">${children || label}</span>
-          ${
-            isModel
-              ? html`<span
-                  className="loading-status-info"
-                  title=${modelMeta
-                    ? `${modelMeta.quantization || "—"} · ${modelMeta.vramMb ? `${modelMeta.vramMb} MB VRAM` : "—"}`
-                    : "Model info"}
-                  onClick=${handleInfoClick}
-                  key="info"
-                  ><i className="iconoir-info-circle"></i
-                ></span>`
-              : null
-          }
-          ${
-            status === "loading" && progressPercent !== null
-              ? html` <span className="loading-status-progress" key="progress"
-                  >(${progressPercent}%)</span
-                >`
-              : null
-          }
-          ${
-            elapsed
-              ? html` <span className="loading-status-elapsed" key="elapsed"
-                  >(${formatElapsed(elapsed)})</span
-                >`
-              : null
-          }
-        </label>
-        <div className="loading-status-icon-container">
-          ${
-            isClickable
-              ? html`
-                  <button
-                    className=${`loading-status-icon-button ${state.cls}`}
-                    onClick=${handleStartLoading}
-                    type="button"
-                    title=${title}
-                  >
-                    <i className=${state.icon}></i>
-                  </button>
-                `
-              : html`
-                  <span
-                    className=${`loading-status-icon ${state.cls}`}
-                    title=${title}
-                  >
-                    <i className=${state.icon}></i>
-                  </span>
-                `
-          }
+    <${Fragment}>
+      <div className="pure-form pure-form-stacked">
+        <div className="pure-control-group loading-status-row">
+          <label className="loading-status-label">
+            <span className="loading-status-text">${children || label}</span>
+            ${
+              isModel
+                ? html`<span
+                    className="loading-status-info"
+                    title=${modelMeta
+                      ? `${modelMeta.quantization || "—"} · ${modelMeta.vramMb ? `${modelMeta.vramMb} MB VRAM` : "—"}`
+                      : "Model info"}
+                    onClick=${handleInfoClick}
+                    key="info"
+                    ><i className="iconoir-info-circle"></i
+                  ></span>`
+                : null
+            }
+            ${
+              status === "loading" && progressPercent !== null
+                ? html` <span className="loading-status-progress" key="progress"
+                    >(${progressPercent}%)</span
+                  >`
+                : null
+            }
+            ${
+              elapsed
+                ? html` <span className="loading-status-elapsed" key="elapsed"
+                    >(${formatElapsed(elapsed)})</span
+                  >`
+                : null
+            }
+          </label>
+          <div className="loading-status-icon-container">
+            ${
+              isClickable
+                ? html`
+                    <button
+                      className=${`loading-status-icon-button ${state.cls}`}
+                      onClick=${handleStartLoading}
+                      type="button"
+                      title=${title}
+                    >
+                      <i className=${state.icon}></i>
+                    </button>
+                  `
+                : html`
+                    <span
+                      className=${`loading-status-icon ${state.cls}`}
+                      title=${title}
+                    >
+                      <i className=${state.icon}></i>
+                    </span>
+                  `
+            }
+          </div>
         </div>
       </div>
-    </div>
-    <${Modal}
-      isOpen=${isModalOpen}
-      onClose=${() => setIsModalOpen(false)}
-      title=${
-        modelMeta
-          ? html`<a
-              href=${modelMeta.modelUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              ${modelMeta.model} <i className="iconoir-open-new-window"></i>
-            </a>`
-          : "Model Info"
-      }
-    >
-      ${
-        modelMeta
-          ? html`
-              <div className="modal-stat-cards">
-                <div className="modal-stat-card">
-                  <i className="iconoir-cpu"></i>
-                  <span className="modal-stat-label">Quantization</span>
-                  <span className="modal-stat-value">
-                    ${modelMeta.quantization || "—"}
-                  </span>
+      <${Modal}
+        isOpen=${isModalOpen}
+        onClose=${() => setIsModalOpen(false)}
+        title=${
+          modelMeta
+            ? html`<a
+                href=${modelMeta.modelUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ${modelMeta.model} <i className="iconoir-open-new-window"></i>
+              </a>`
+            : "Model Info"
+        }
+      >
+        ${
+          modelMeta
+            ? html`
+                <div className="modal-stat-cards">
+                  <div className="modal-stat-card">
+                    <i className="iconoir-cpu"></i>
+                    <span className="modal-stat-label">Quantization</span>
+                    <span className="modal-stat-value">
+                      ${modelMeta.quantization || "—"}
+                    </span>
+                  </div>
+                  <div className="modal-stat-card">
+                    <i className="iconoir-align-left"></i>
+                    <span className="modal-stat-label">Max Tokens</span>
+                    <span className="modal-stat-value">
+                      ${modelMeta.maxTokens?.toLocaleString() || "—"}
+                    </span>
+                  </div>
+                  <div className="modal-stat-card">
+                    <i className="iconoir-database"></i>
+                    <span className="modal-stat-label">VRAM Required</span>
+                    <span className="modal-stat-value">
+                      ${modelMeta.vramMb
+                        ? `${modelMeta.vramMb.toLocaleString()} MB`
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="modal-stat-card">
+                    <i className=${state.icon}></i>
+                    <span className="modal-stat-label">Status</span>
+                    <span className="modal-stat-value">${title}</span>
+                  </div>
                 </div>
-                <div className="modal-stat-card">
-                  <i className="iconoir-align-left"></i>
-                  <span className="modal-stat-label">Max Tokens</span>
-                  <span className="modal-stat-value">
-                    ${modelMeta.maxTokens?.toLocaleString() || "—"}
-                  </span>
-                </div>
-                <div className="modal-stat-card">
-                  <i className="iconoir-database"></i>
-                  <span className="modal-stat-label">VRAM Required</span>
-                  <span className="modal-stat-value">
-                    ${modelMeta.vramMb
-                      ? `${modelMeta.vramMb.toLocaleString()} MB`
-                      : "—"}
-                  </span>
-                </div>
-                <div className="modal-stat-card">
-                  <i className=${state.icon}></i>
-                  <span className="modal-stat-label">Status</span>
-                  <span className="modal-stat-value">${title}</span>
-                </div>
-              </div>
-            `
-          : html`<p>Model information not available.</p>`
-      }
-    </${Modal}>
+              `
+            : html`<p>Model information not available.</p>`
+        }
+      </${Modal}>
+    </${Fragment}>
   `;
 };
