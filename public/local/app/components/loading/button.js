@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { html } from "../../../../app/util/html.js";
 import { useLoading } from "../../context/loading.js";
 import { formatElapsed } from "../../../../app/components/answer.js";
+import { Modal } from "../../../../app/components/modal.js";
 
 const STATES = {
   not_loaded: {
@@ -41,6 +43,7 @@ export const LoadingButton = ({
 }) => {
   const { getStatus, getError, getElapsed, getProgress, startLoading } =
     useLoading();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const status = forceStatus || getStatus(resourceId);
   const error = getError(resourceId);
   const elapsed = getElapsed(resourceId);
@@ -63,7 +66,7 @@ export const LoadingButton = ({
   const handleInfoClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("TODO: MODAL");
+    setIsModalOpen(true);
   };
 
   // TODO(CLEANUP): Move elapsed to right side in italics.
@@ -74,48 +77,63 @@ export const LoadingButton = ({
       <div className="pure-control-group loading-status-row">
         <label className="loading-status-label">
           <span className="loading-status-text">${children || label}</span>
-          ${isModel
-            ? html`<span
-                className="loading-status-info"
-                title="TODO: TOOLTIP"
-                onClick=${handleInfoClick}
-                key="info"
-              ><i className="iconoir-info-circle"></i
-            ></span>`
-            : null}
-          ${status === "loading" && progressPercent !== null
-            ? html` <span className="loading-status-progress" key="progress"
-                >(${progressPercent}%)</span
-              >`
-            : null}
-          ${elapsed
-            ? html` <span className="loading-status-elapsed" key="elapsed"
-                >(${formatElapsed(elapsed)})</span
-              >`
-            : null}
+          ${
+            isModel
+              ? html`<span
+                  className="loading-status-info"
+                  title="TODO: TOOLTIP"
+                  onClick=${handleInfoClick}
+                  key="info"
+                  ><i className="iconoir-info-circle"></i
+                ></span>`
+              : null
+          }
+          ${
+            status === "loading" && progressPercent !== null
+              ? html` <span className="loading-status-progress" key="progress"
+                  >(${progressPercent}%)</span
+                >`
+              : null
+          }
+          ${
+            elapsed
+              ? html` <span className="loading-status-elapsed" key="elapsed"
+                  >(${formatElapsed(elapsed)})</span
+                >`
+              : null
+          }
         </label>
         <div className="loading-status-icon-container">
-          ${isClickable
-            ? html`
-                <button
-                  className=${`loading-status-icon-button ${state.cls}`}
-                  onClick=${handleStartLoading}
-                  type="button"
-                  title=${title}
-                >
-                  <i className=${state.icon}></i>
-                </button>
-              `
-            : html`
-                <span
-                  className=${`loading-status-icon ${state.cls}`}
-                  title=${title}
-                >
-                  <i className=${state.icon}></i>
-                </span>
-              `}
+          ${
+            isClickable
+              ? html`
+                  <button
+                    className=${`loading-status-icon-button ${state.cls}`}
+                    onClick=${handleStartLoading}
+                    type="button"
+                    title=${title}
+                  >
+                    <i className=${state.icon}></i>
+                  </button>
+                `
+              : html`
+                  <span
+                    className=${`loading-status-icon ${state.cls}`}
+                    title=${title}
+                  >
+                    <i className=${state.icon}></i>
+                  </span>
+                `
+          }
         </div>
       </div>
     </div>
+    <${Modal}
+      isOpen=${isModalOpen}
+      onClose=${() => setIsModalOpen(false)}
+      title="TODO: TITLE"
+    >
+      <p>TODO: Body</p>
+    </${Modal}>
   `;
 };
