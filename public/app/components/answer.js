@@ -46,8 +46,10 @@ const QueryInfo = ({
     ? (usage.input.cost + usage.output.cost).toFixed(2)
     : null;
 
-  const ElapsedDelta = ({ delta }) =>
-    html`<${Fragment}><i className="iconoir-triangle"></i> ${formatElapsed(delta)}</${Fragment}>`;
+  const ElapsedDelta = ({ delta }) => {
+    if (delta == null || Number.isNaN(delta)) return null;
+    return html`<${Fragment}>(<i className="iconoir-triangle"></i> ${formatElapsed(delta)})</${Fragment}>`;
+  };
 
   return html`
     <details className="query-info">
@@ -84,23 +86,22 @@ const QueryInfo = ({
                 elapsed.embeddingQuery && elapsed.embeddingQuery
                   ? html`
                   <${Fragment}>
-                    <li>Embeddings: ${formatElapsed(elapsed.embeddingQuery)} (<${ElapsedDelta} delta=${elapsed.embeddingQuery} />)</li>
-                    <li>DB chunks: ${formatElapsed(elapsed.databaseQuery)} (<${ElapsedDelta} delta=${elapsed.databaseQuery - elapsed.embeddingQuery} />)</li>
+                    <li>Embeddings: ${formatElapsed(elapsed.embeddingQuery)} <${ElapsedDelta} delta=${elapsed.embeddingQuery} /></li>
+                    <li>DB chunks: ${formatElapsed(elapsed.databaseQuery)} <${ElapsedDelta} delta=${elapsed.databaseQuery - elapsed.embeddingQuery} /></li>
                   </${Fragment}>
                 `
                   : html`<li>
-                      Chunks: ${formatElapsed(elapsed.chunks)} (<${ElapsedDelta}
-                        delta=${elapsed.chunks}
-                      />)
+                      Chunks: ${formatElapsed(elapsed.chunks)}
+                      <${ElapsedDelta} delta=${elapsed.chunks} />
                     </li>`
               }
               <li>
                 First Token: ${formatElapsed(elapsed.tokensFirst)}
-                ${" "}(<${ElapsedDelta} delta=${elapsed.tokensFirst - elapsed.chunks} />)
+                ${" "}<${ElapsedDelta} delta=${elapsed.tokensFirst - elapsed.chunks} />
               </li>
               <li>
                 Last Token: ${formatElapsed(elapsed.tokensLast)}
-                ${" "}(<${ElapsedDelta} delta=${elapsed.tokensLast - elapsed.tokensFirst} />)
+                ${" "}<${ElapsedDelta} delta=${elapsed.tokensLast - elapsed.tokensFirst} />
               </li>
             </ul>
           </${Fragment}>
