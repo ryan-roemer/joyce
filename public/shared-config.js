@@ -50,41 +50,28 @@ const config = {
   webLlm: {
     models: {
       chat: [
-        {
-          // TODO: REMOVE?
-          // Notes: prone to ongoing gibberish.
-          model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
-          modelShortName: "SmolLM2-360M",
-          autoLoad: false,
-        },
+        // {
+        //   // TODO: REMOVE?
+        //   // Notes: prone to ongoing gibberish.
+        //   model: "SmolLM2-360M-Instruct-q4f16_1-MLC",
+        //   modelShortName: "SmolLM2-360M",
+        //   autoLoad: false,
+        // },
         {
           model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
           modelShortName: "TinyLlama-1.1B",
           shortOption: "Fast",
           default: true,
-          autoLoad: true,
         },
         {
           model: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
           modelShortName: "SmolLM2-1.7B",
           shortOption: "Better",
-          autoLoad: false,
         },
         {
           model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
           modelShortName: "Llama-3.2-1B",
           shortOption: "Best",
-          autoLoad: false,
-        },
-        {
-          model: "Llama-3.2-3B-Instruct-q4f16_1-MLC",
-          modelShortName: "Llama-3.2-3B",
-          autoLoad: false,
-        },
-        {
-          model: "Qwen3-4B-q4f16_1-MLC",
-          modelShortName: "Qwen3-4B",
-          autoLoad: false,
         },
       ],
     },
