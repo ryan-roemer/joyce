@@ -5,7 +5,7 @@ import { html } from "../util/html.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ALL_PROVIDERS, getModelCfg } from "../../shared-config.js";
 
-const formatInt = (num) =>
+export const formatInt = (num) =>
   (num ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 const formatFloat = (num) =>
   (num ?? 0).toLocaleString("en-US", {

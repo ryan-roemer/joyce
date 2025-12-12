@@ -15,9 +15,6 @@ export const MODELS = prebuiltAppConfig.model_list
   }))
   .sort((a, b) => (a.vramMb ?? 0) - (b.vramMb ?? 0));
 
-// TODO: REMOVE
-// console.table(MODELS, ["model", "quantization", "maxTokens", "vramMb"]);
-
 /**
  * Shared client configuration. (No secrets).
  */
@@ -134,6 +131,8 @@ for (const modelObj of config.webLlm.models.chat) {
   if (found) {
     modelObj.maxTokens = found.overrides?.context_window_size ?? null;
     modelObj.vramMb = found.vram_required_MB ?? null;
+    modelObj.quantization =
+      found.model_id.match(QUANTIZATION_REGEX)?.[0] ?? null;
   }
 }
 

@@ -15,6 +15,7 @@ import {
 import { useSettings } from "../hooks/use-settings.js";
 import { useState, createContext, useContext } from "react";
 import { useClickOutside } from "../hooks/use-click-outside.js";
+import { formatInt } from "./answer.js";
 
 const CATEGORY_OPTIONS = CATEGORIES_LIST.map((category) => ({
   label: category,
@@ -270,18 +271,18 @@ export const ModelChatSelect = ({
   menuPlacement = "auto",
 }) => {
   const [settings] = useSettings();
-  const { isDeveloperMode } = settings;
+  const { isDeveloperMode, displayModelStats } = settings;
 
-  const getLabel = (label /*, { provider, model }*/) => {
-    // TODO(CHAT): REFACTOR to include VRAM size and download size (?)
-    return label;
+  const getLabel = (label, { provider, model }) => {
+    if (!displayModelStats) {
+      return label;
+    }
 
-    // if (!displayModelStats) {
-    //   return label;
-    // }
-
-    // const inputPricing = CHAT_MODELS_MAP[provider][model].pricing.input;
-    // return `${label} ($${inputPricing}/M)`;
+    const { modelShortName, quantization, vramMb, maxTokens } = getModelCfg({
+      provider,
+      model,
+    });
+    return `${modelShortName} (MB: ${formatInt(vramMb)}, T: ${formatInt(maxTokens)}, Q: ${quantization})`;
   };
 
   let options = [];
@@ -294,7 +295,7 @@ export const ModelChatSelect = ({
         const cfg = getModelCfg({ provider, model });
         return {
           id: `${provider}-${model}`,
-          title: modelStats({ vramMb: cfg.vramMb, maxTokens: cfg.maxTokens }),
+          title: modelStats(cfg),
           label: getLabel(model, { provider, model }),
           value: modelObjToOption({ provider, model }),
         };

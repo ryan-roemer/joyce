@@ -11,9 +11,6 @@ const SETTINGS_CHANGE_EVENT = "app-settings-change";
 const DEFAULT_SETTINGS = {
   isDeveloperMode: false,
   displayModelStats: false,
-  // TODO(REMOVE): Old fields to remove.
-  // displayAnalytics: false,
-  // featureOpenAIToolEnabled: false,
 };
 
 /**
