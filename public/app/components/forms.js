@@ -14,6 +14,7 @@ import {
 } from "../../shared-config.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { useState, createContext, useContext } from "react";
+import { useLoading } from "../../local/app/context/loading.js";
 import { useClickOutside } from "../hooks/use-click-outside.js";
 import { formatInt } from "./answer.js";
 
@@ -260,6 +261,48 @@ const optionToModelObj = (option) => {
   return { provider, model };
 };
 
+// Status icon configuration for model loading states (using solid/filled icons)
+const MODEL_STATUS_CONFIG = {
+  not_loaded: {
+    icon: "iconoir-circle",
+    cls: "loading-status-not-loaded",
+    title: "Not loaded",
+  },
+  loading: {
+    icon: "iconoir-refresh-circle-solid",
+    cls: "loading-status-loading",
+    title: "Loading...",
+  },
+  loaded: {
+    icon: "iconoir-check-circle-solid",
+    cls: "loading-status-loaded",
+    title: "Loaded",
+  },
+  error: {
+    icon: "iconoir-warning-circle-solid",
+    cls: "loading-status-error",
+    title: "Error",
+  },
+};
+
+// Simple status icon for model select options (non-interactive)
+const ModelStatusIcon = ({ status }) => {
+  const config = MODEL_STATUS_CONFIG[status] || MODEL_STATUS_CONFIG.not_loaded;
+  return html`
+    <span
+      className=${`model-status-icon ${config.cls}`}
+      title=${config.title}
+      style=${{
+        marginRight: "6px",
+        display: "inline-flex",
+        alignItems: "center",
+      }}
+    >
+      <i className=${config.icon}></i>
+    </span>
+  `;
+};
+
 const modelStats = ({ vramMb, maxTokens }) =>
   `Max Input: ${(maxTokens ?? 0).toLocaleString("en-US")} tokens, VRAM: ${(vramMb ?? 0).toLocaleString("en-US")} MB`;
 
@@ -272,6 +315,7 @@ export const ModelChatSelect = ({
 }) => {
   const [settings] = useSettings();
   const { isDeveloperMode, displayModelStats } = settings;
+  const { getStatus } = useLoading();
 
   const getLabel = (label, { provider, model }) => {
     if (!displayModelStats) {
@@ -298,6 +342,7 @@ export const ModelChatSelect = ({
           title: modelStats(cfg),
           label: getLabel(model, { provider, model }),
           value: modelObjToOption({ provider, model }),
+          model, // Store model ID for status lookup
         };
       }),
     }));
@@ -307,12 +352,25 @@ export const ModelChatSelect = ({
       id: `${provider}-${model}`,
       label: getLabel(label, { provider, model }),
       value: modelObjToOption({ provider, model }),
+      model, // Store model ID for status lookup
     }));
   }
 
   // Manually set the selected state. (From doing object values).
   const isOptionSelected = ({ value }) => value === modelObjToOption(selected);
   const divClass = `form-multi-select-${isDeveloperMode ? "wide" : "medium"}`;
+
+  // Custom format for options showing status icon
+  const formatOptionLabel = (option) => {
+    const modelId = option.model;
+    const status = modelId ? getStatus(`llm_${modelId}`) : "not_loaded";
+    return html`
+      <span style=${{ display: "flex", alignItems: "center" }}>
+        <${ModelStatusIcon} status=${status} />
+        <span>${option.label}</span>
+      </span>
+    `;
+  };
 
   return html`
     <label htmlFor="model" style=${{ whiteSpace: "nowrap" }}>
@@ -327,6 +385,7 @@ export const ModelChatSelect = ({
           isOptionSelected=${isOptionSelected}
           value=${modelObjToOption(selected)}
           onChange=${({ value }) => setSelected(optionToModelObj(value))}
+          formatOptionLabel=${formatOptionLabel}
         />
       </div>
     </label>
