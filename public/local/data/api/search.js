@@ -184,7 +184,6 @@ export const search = async ({
           title: post.title,
           href: post.href,
           date: post.date,
-          // TODO(ORG): No Org Presently -- org: post.org,
           postType: post.postType,
           categories: post.categories,
           ...(withContent ? { content: post.content } : {}),
