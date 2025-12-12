@@ -151,4 +151,42 @@ export const getSimpleModelOptions = (provider) =>
     .filter((m) => m.shortOption)
     .map(({ model, shortOption }) => ({ provider, model, label: shortOption }));
 
+/**
+ * Dynamically add a model to the chat models list (session only, not persisted).
+ * Used when loading unconfigured models from the models table.
+ * @param {string} modelId - The model ID to add
+ * @returns {Object} The model config object (existing or newly created)
+ */
+export const addChatModel = (modelId) => {
+  // Check if already exists
+  const existing = config.webLlm.models.chat.find((m) => m.model === modelId);
+  if (existing) return existing;
+
+  // Look up metadata from prebuiltAppConfig
+  const prebuilt = prebuiltAppConfig.model_list.find(
+    (m) => m.model_id === modelId,
+  );
+
+  // Create new model config
+  const newModel = {
+    model: modelId,
+    modelShortName: modelId.split("-q")[0], // Strip quantization suffix for short name
+    autoLoad: false,
+    maxTokens: prebuilt?.overrides?.context_window_size ?? null,
+    vramMb: prebuilt?.vram_required_MB ?? null,
+    quantization: modelId.match(QUANTIZATION_REGEX)?.[0] ?? null,
+  };
+
+  // Add to config array (ALL_CHAT_MODELS references this, so it auto-updates)
+  config.webLlm.models.chat.push(newModel);
+
+  // Update CHAT_MODELS_MAP
+  if (!CHAT_MODELS_MAP.webLlm) {
+    CHAT_MODELS_MAP.webLlm = {};
+  }
+  CHAT_MODELS_MAP.webLlm[modelId] = newModel;
+
+  return newModel;
+};
+
 export default config;

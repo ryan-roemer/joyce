@@ -14,19 +14,12 @@ import {
   subscribeLoadingStatus,
   subscribeLoadingProgress,
   startLoading,
+  findResourceById,
+  registerLlmResource,
 } from "../../data/loading.js";
 
 // Create the context with a default value
 const LoadingContext = createContext(null);
-
-/**
- * Find a resource by its ID
- * @param {string} resourceId
- * @returns {{ id: string, get: () => Promise<any> } | undefined}
- */
-const findResourceById = (resourceId) => {
-  return Object.values(RESOURCES).find((r) => r.id === resourceId);
-};
 
 /**
  * Provider component that manages loading state
@@ -116,12 +109,33 @@ export const LoadingProvider = ({ children }) => {
     };
   }, [updateStatus, updateProgress]);
 
-  const handleStartLoading = useCallback((resourceId) => {
-    const resource = findResourceById(resourceId);
-    if (resource) {
-      startLoading(resource);
-    }
-  }, []);
+  const handleStartLoading = useCallback(
+    (resourceId) => {
+      let resource = findResourceById(resourceId);
+
+      // Auto-register LLM resources if they don't exist
+      if (!resource && resourceId.startsWith("llm_")) {
+        const modelId = resourceId.replace(/^llm_/, "");
+        registerLlmResource(modelId);
+        resource = findResourceById(resourceId);
+
+        // Subscribe to status/progress changes for the newly registered resource
+        if (resource) {
+          subscribeLoadingStatus(resource.id, (status, { error, elapsed }) => {
+            updateStatus(resource.id, status, { error, elapsed });
+          });
+          subscribeLoadingProgress(resource.id, (progress) => {
+            updateProgress(resource.id, progress);
+          });
+        }
+      }
+
+      if (resource) {
+        startLoading(resource);
+      }
+    },
+    [updateStatus, updateProgress],
+  );
 
   const value = useMemo(
     () => ({

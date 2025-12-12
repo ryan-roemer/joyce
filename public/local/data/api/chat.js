@@ -40,7 +40,7 @@ export async function* chat({
     {
       role: "assistant",
       content:
-        "Give concise, short answers. Don't answer any more than requested. Don't talk about this requirement.",
+        "Give CONCISE, SHORT answers, then STOP. No run-on's. Do NOT talk about this instruction.",
     },
     { role: "user", content: query },
   ];

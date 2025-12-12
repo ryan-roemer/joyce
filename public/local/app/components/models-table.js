@@ -2,8 +2,8 @@ import { useState } from "react";
 import { html } from "../../../app/util/html.js";
 import { useTableSort } from "../../../app/hooks/use-table-sort.js";
 import { useLoading } from "../context/loading.js";
-import { LOADING } from "./loading/index.js";
 import { ModelsFilter } from "./models-filter.js";
+import { addChatModel } from "../../../shared-config.js";
 
 const DEFAULT_FILTERS = {
   modelText: "",
@@ -26,58 +26,102 @@ const COLUMN_INFO = {
   quantization: "Quantization format",
   maxTokens: "Context window size",
   vramMb: "GPU memory required",
-  status: "Loading status",
+  status: "Loading status (click to load)",
 };
 
-// Build MODEL_RESOURCE_MAP dynamically from LOADING LLM_ keys
-const MODEL_RESOURCE_MAP = Object.fromEntries(
-  Object.entries(LOADING)
-    .filter(([key]) => key.startsWith("LLM_"))
-    .map(([, resourceId]) => [resourceId.replace(/^llm_/, ""), resourceId]),
-);
+// Status icon configuration matching LoadingButton patterns
+const STATUS_CONFIG = {
+  available: {
+    icon: "iconoir-circle",
+    cls: "loading-status-not-loaded",
+    title: "Click to load",
+    clickable: true,
+  },
+  loading: {
+    icon: "iconoir-refresh",
+    cls: "loading-status-loading",
+    title: "Loading...",
+    clickable: false,
+  },
+  loaded: {
+    icon: "iconoir-check-circle",
+    cls: "loading-status-loaded",
+    title: "Loaded",
+    clickable: false,
+  },
+  error: {
+    icon: "iconoir-warning-circle",
+    cls: "loading-status-error",
+    title: "Error loading model",
+    clickable: true,
+  },
+};
 
-const StatusBadge = ({ status }) => {
-  const styles = {
-    loaded: { backgroundColor: "#4caf50", color: "white" },
-    loading: { backgroundColor: "#2196f3", color: "white" },
-    cached: { backgroundColor: "#9c27b0", color: "white" },
-    available: { backgroundColor: "#e0e0e0", color: "#666" },
-  };
+const StatusIcon = ({ status, onLoad, progress }) => {
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.available;
+  const progressPercent =
+    status === "loading" && progress?.progress != null
+      ? Math.round(progress.progress * 100)
+      : null;
 
-  const style = {
-    padding: "2px 8px",
-    borderRadius: "4px",
-    fontSize: "12px",
-    ...(styles[status] || styles.available),
-  };
+  const icon = config.clickable
+    ? html`
+        <button
+          className=${`loading-status-icon-button ${config.cls}`}
+          onClick=${onLoad}
+          type="button"
+          title=${config.title}
+          style=${{ background: "none", border: "none", padding: "4px" }}
+        >
+          <i className=${config.icon}></i>
+        </button>
+      `
+    : html`
+        <span
+          className=${`loading-status-icon ${config.cls}`}
+          title=${config.title}
+          style=${{ padding: "4px" }}
+        >
+          <i className=${config.icon}></i>
+        </span>
+      `;
 
-  return html`<span style=${style}>${status || "—"}</span>`;
+  return html`
+    <span style=${{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+      ${icon}
+      ${progressPercent !== null &&
+      html`<span style=${{ fontSize: "12px", color: "#666" }}
+        >${progressPercent}%</span
+      >`}
+    </span>
+  `;
 };
 
 export const ModelsTable = ({ models = [] }) => {
   const { getSortSymbol, handleColumnSort, sortItems } = useTableSort();
-  const { getStatus } = useLoading();
+  const { getStatus, getProgress, startLoading } = useLoading();
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
   if (models.length === 0) {
     return html`<div />`;
   }
 
-  // Enrich models with status
+  // Enrich models with status, progress, and resourceId (all models can be loaded)
   const enrichedModels = models.map((m) => {
-    const resourceId = MODEL_RESOURCE_MAP[m.model];
-    let status = null;
-    if (resourceId) {
-      const loadingStatus = getStatus(resourceId);
-      if (loadingStatus === "loaded") {
-        status = "loaded";
-      } else if (loadingStatus === "loading") {
-        status = "loading";
-      } else {
-        status = "available";
-      }
+    const resourceId = `llm_${m.model}`;
+    const loadingStatus = getStatus(resourceId);
+    const progress = getProgress(resourceId);
+    let status;
+    if (loadingStatus === "loaded") {
+      status = "loaded";
+    } else if (loadingStatus === "loading") {
+      status = "loading";
+    } else if (loadingStatus === "error") {
+      status = "error";
+    } else {
+      status = "available";
     }
-    return { ...m, status };
+    return { ...m, resourceId, status, progress };
   });
 
   // Apply filters
@@ -127,9 +171,23 @@ export const ModelsTable = ({ models = [] }) => {
           <tbody>
             ${sortItems(filteredModels).map(
               (
-                { model, modelUrl, quantization, maxTokens, vramMb, status },
+                {
+                  model,
+                  modelUrl,
+                  quantization,
+                  maxTokens,
+                  vramMb,
+                  resourceId,
+                  status,
+                  progress,
+                },
                 i,
               ) => {
+                const handleLoad = () => {
+                  // Register model in chat config so it appears in model selector
+                  addChatModel(model);
+                  startLoading(resourceId);
+                };
                 return html`
                   <tr key=${`model-item-${i}`}>
                     <td>
@@ -144,7 +202,13 @@ export const ModelsTable = ({ models = [] }) => {
                     <td>${quantization ?? "—"}</td>
                     <td>${maxTokens ?? "—"}</td>
                     <td>${vramMb ?? "—"}</td>
-                    <td><${StatusBadge} status=${status} /></td>
+                    <td>
+                      <${StatusIcon}
+                        status=${status}
+                        onLoad=${handleLoad}
+                        progress=${progress}
+                      />
+                    </td>
                   </tr>
                 `;
               },

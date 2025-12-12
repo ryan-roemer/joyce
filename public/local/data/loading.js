@@ -59,6 +59,25 @@ export const RESOURCES = {
   ...LLM_RESOURCES,
 };
 
+/**
+ * Find a resource by its ID
+ * @param {string} resourceId
+ * @returns {{ id: string, get: () => Promise<any> } | undefined}
+ */
+export const findResourceById = (resourceId) => {
+  return Object.values(RESOURCES).find((r) => r.id === resourceId);
+};
+
+/**
+ * Register an LLM resource dynamically for any model ID
+ * @param {string} modelId - The model ID to register
+ */
+export const registerLlmResource = (modelId) => {
+  const resourceId = `llm_${modelId}`;
+  if (findResourceById(resourceId)) return; // Already exists
+  RESOURCES[modelToResourceKey(modelId)] = createLlmResource(modelId);
+};
+
 const loadingStatus = new Map();
 const loadingCallbacks = new Map();
 const loadedData = new Map();
