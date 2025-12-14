@@ -72,13 +72,18 @@ export const Data = () => {
       </div>
 
       <h2 className="content-subhead">Models</h2>
+
+      <${SystemInfo} info=${systemInfo} />
+
+      <h3>web-llm</h3>
       <p>
-        Available web-llm models. Status
+        Available web-llm models for local inference. Status
         indicates whether the model is loaded in memory, currently loading, or
         available for download.
       </p>
-      <${SystemInfo} info=${systemInfo} />
       <${ModelsTable} models=${MODELS} />
+
+      <!-- TODO(GOOGLE): Add Google AI models section when provider is enabled -->
     </${Page}>
   `;
 };

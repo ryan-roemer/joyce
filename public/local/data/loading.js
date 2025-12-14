@@ -12,16 +12,17 @@ import config from "../../shared-config.js";
 // Loading Management
 // ==============================
 
-// Helper to create LLM resource entry for a model
-const createLlmResource = (modelId) => ({
+// Helper to create LLM resource entry for a model (web-llm specific)
+// TODO(GOOGLE): Add Google-specific resource creation when provider is implemented
+const createLlmResource = (provider, modelId) => ({
   id: `llm_${modelId}`,
   get: async () => {
-    setLlmProgressCallback(modelId, (p) =>
+    setLlmProgressCallback(provider, modelId, (p) =>
       setLoadingProgress(`llm_${modelId}`, p),
     );
-    return getLlmEngine(modelId);
+    return getLlmEngine({ provider, model: modelId });
   },
-  checkCached: () => isLlmCached(modelId),
+  checkCached: () => isLlmCached(provider, modelId),
 });
 
 // Generate LLM resource key from model ID (e.g., "SmolLM2-360M-Instruct-q4f16_1-MLC" -> "LLM_SMOLLM2_360M_INSTRUCT")
@@ -30,11 +31,12 @@ const modelToResourceKey = (modelId) => {
   return "LLM_" + baseName.toUpperCase().replace(/-/g, "_").replace(/\./g, "_");
 };
 
-// Dynamically create LLM resources from config
+// Dynamically create LLM resources from config (web-llm only for now)
+// TODO(GOOGLE): Add Google models to LLM_RESOURCES when provider is implemented
 const LLM_RESOURCES = Object.fromEntries(
   config.webLlm.models.chat.map((modelCfg) => [
     modelToResourceKey(modelCfg.model),
-    createLlmResource(modelCfg.model),
+    createLlmResource("webLlm", modelCfg.model),
   ]),
 );
 
@@ -70,12 +72,13 @@ export const findResourceById = (resourceId) => {
 
 /**
  * Register an LLM resource dynamically for any model ID
+ * @param {string} provider - The provider key (e.g., "webLlm", "google")
  * @param {string} modelId - The model ID to register
  */
-export const registerLlmResource = (modelId) => {
+export const registerLlmResource = (provider, modelId) => {
   const resourceId = `llm_${modelId}`;
   if (findResourceById(resourceId)) return; // Already exists
-  RESOURCES[modelToResourceKey(modelId)] = createLlmResource(modelId);
+  RESOURCES[modelToResourceKey(modelId)] = createLlmResource(provider, modelId);
 };
 
 const loadingStatus = new Map();

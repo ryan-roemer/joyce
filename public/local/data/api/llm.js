@@ -1,54 +1,57 @@
-// Check if model is cached using web-llm's built-in utility
-// Internally uses browser Cache API or IndexedDB depending on config
-// See: https://deepwiki.com/mlc-ai/web-llm/5.4-caching-and-performance
-import { CreateMLCEngine, hasModelInCache } from "@mlc-ai/web-llm";
+// LLM Provider Aggregator
+// Routes to provider-specific implementations based on provider parameter
+import * as webLlm from "./providers/web-llm.js";
+import * as google from "./providers/google.js";
 import { DEFAULT_CHAT_MODEL } from "../../../shared-config.js";
 
-const DEFAULT_MODEL = DEFAULT_CHAT_MODEL.model;
+const PROVIDERS = {
+  webLlm,
+  google,
+};
 
-// Map of model -> { enginePromise, progressCallback }
-const engines = new Map();
+/**
+ * Get the provider module for a given provider key
+ * @param {string} provider - The provider key (e.g., "webLlm", "google")
+ * @returns {Object} The provider module
+ */
+const getProvider = (provider) => {
+  const providerModule = PROVIDERS[provider];
+  if (!providerModule) {
+    throw new Error(`Unknown LLM provider: ${provider}`);
+  }
+  return providerModule;
+};
 
 /**
  * Set a progress callback for a specific model
+ * @param {string} provider - The provider key
  * @param {string} model - The model ID
  * @param {Function} cb - Progress callback function
  */
-export const setLlmProgressCallback = (model, cb) => {
-  if (!engines.has(model)) {
-    engines.set(model, { enginePromise: null, progressCallback: null });
-  }
-  engines.get(model).progressCallback = cb;
+export const setLlmProgressCallback = (provider, model, cb) => {
+  getProvider(provider).setLlmProgressCallback(model, cb);
 };
 
 /**
  * Get or create an LLM engine for a specific model
- * @param {string} model - The model ID
- * @returns {Promise<MLCEngine>} The engine instance
+ * @param {Object} params - Parameters
+ * @param {string} params.provider - The provider key
+ * @param {string} params.model - The model ID
+ * @returns {Promise<Object>} The engine instance (provider-specific)
  */
-export const getLlmEngine = async (model = DEFAULT_MODEL) => {
-  if (!engines.has(model)) {
-    engines.set(model, { enginePromise: null, progressCallback: null });
-  }
-
-  const entry = engines.get(model);
-  if (!entry.enginePromise) {
-    entry.enginePromise = CreateMLCEngine(model, {
-      initProgressCallback: (progress) => {
-        if (entry.progressCallback) {
-          entry.progressCallback(progress);
-        }
-      },
-    });
-  }
-  return entry.enginePromise;
+export const getLlmEngine = async ({
+  provider = DEFAULT_CHAT_MODEL.provider,
+  model = DEFAULT_CHAT_MODEL.model,
+} = {}) => {
+  return getProvider(provider).getLlmEngine(model);
 };
 
 /**
  * Check if a model is cached
+ * @param {string} provider - The provider key
  * @param {string} model - The model ID
  * @returns {Promise<boolean>} Whether the model is cached
  */
-export const isLlmCached = async (model = DEFAULT_MODEL) => {
-  return hasModelInCache(model);
+export const isLlmCached = async (provider, model) => {
+  return getProvider(provider).isLlmCached(model);
 };

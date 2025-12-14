@@ -114,9 +114,10 @@ export const LoadingProvider = ({ children }) => {
       let resource = findResourceById(resourceId);
 
       // Auto-register LLM resources if they don't exist
+      // Note: Currently defaults to webLlm provider for auto-registered models
       if (!resource && resourceId.startsWith("llm_")) {
         const modelId = resourceId.replace(/^llm_/, "");
-        registerLlmResource(modelId);
+        registerLlmResource("webLlm", modelId);
         resource = findResourceById(resourceId);
 
         // Subscribe to status/progress changes for the newly registered resource

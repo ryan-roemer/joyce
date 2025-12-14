@@ -76,10 +76,17 @@ const config = {
       ],
     },
   },
+  // TODO(GOOGLE): Add Google AI models when API is configured
+  google: {
+    models: {
+      chat: [],
+    },
+  },
 };
 
 export const ALL_PROVIDERS = {
   webLlm: "web-llm",
+  google: "Google",
 };
 
 export const ALL_CHAT_MODELS = Object.keys(ALL_PROVIDERS).map((provider) => ({
@@ -141,18 +148,25 @@ export const getSimpleModelOptions = (provider) =>
 /**
  * Dynamically add a model to the chat models list (session only, not persisted).
  * Used when loading unconfigured models from the models table.
+ * @param {string} provider - The provider key (e.g., "webLlm", "google")
  * @param {string} modelId - The model ID to add
  * @returns {Object} The model config object (existing or newly created)
  */
-export const addChatModel = (modelId) => {
+export const addChatModel = (provider, modelId) => {
   // Check if already exists
-  const existing = config.webLlm.models.chat.find((m) => m.model === modelId);
+  const providerConfig = config[provider];
+  if (!providerConfig) {
+    throw new Error(`Unknown provider: ${provider}`);
+  }
+
+  const existing = providerConfig.models.chat.find((m) => m.model === modelId);
   if (existing) return existing;
 
-  // Look up metadata from prebuiltAppConfig
-  const prebuilt = prebuiltAppConfig.model_list.find(
-    (m) => m.model_id === modelId,
-  );
+  // Look up metadata from prebuiltAppConfig (web-llm specific)
+  const prebuilt =
+    provider === "webLlm"
+      ? prebuiltAppConfig.model_list.find((m) => m.model_id === modelId)
+      : null;
 
   // Create new model config
   const newModel = {
@@ -165,13 +179,13 @@ export const addChatModel = (modelId) => {
   };
 
   // Add to config array (ALL_CHAT_MODELS references this, so it auto-updates)
-  config.webLlm.models.chat.push(newModel);
+  providerConfig.models.chat.push(newModel);
 
   // Update CHAT_MODELS_MAP
-  if (!CHAT_MODELS_MAP.webLlm) {
-    CHAT_MODELS_MAP.webLlm = {};
+  if (!CHAT_MODELS_MAP[provider]) {
+    CHAT_MODELS_MAP[provider] = {};
   }
-  CHAT_MODELS_MAP.webLlm[modelId] = newModel;
+  CHAT_MODELS_MAP[provider][modelId] = newModel;
 
   return newModel;
 };

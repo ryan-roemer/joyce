@@ -185,7 +185,8 @@ export const ModelsTable = ({ models = [] }) => {
               ) => {
                 const handleLoad = () => {
                   // Register model in chat config so it appears in model selector
-                  addChatModel(model);
+                  // Note: models-table is currently web-llm specific
+                  addChatModel("webLlm", model);
                   startLoading(resourceId);
                 };
                 return html`

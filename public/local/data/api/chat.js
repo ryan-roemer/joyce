@@ -8,7 +8,8 @@ import {
  * Chat with AI using streaming responses.
  * @param {Object} params
  * @param {string} params.query
- * @param {string} params.model
+ * @param {string} params.provider - The LLM provider key (e.g., "webLlm", "google")
+ * @param {string} params.model - The model ID
  * @param {number} params.temperature
  * @returns {AsyncGenerator} Streaming JSON response yielding { type, message }
  *
@@ -22,6 +23,7 @@ import {
  */
 export async function* chat({
   query,
+  provider = DEFAULT_CHAT_MODEL.provider,
   model = DEFAULT_CHAT_MODEL.model,
   temperature = DEFAULT_TEMPERATURE,
 }) {
@@ -33,7 +35,7 @@ export async function* chat({
   // TODO(CHAT): Add elapsed for chunks.
 
   // Use shared engine loader (handles caching and progress)
-  const engine = await getLlmEngine(model);
+  const engine = await getLlmEngine({ provider, model });
 
   const messages = [
     { role: "system", content: "You are a helpful AI assistant." },
@@ -45,7 +47,7 @@ export async function* chat({
     { role: "user", content: query },
   ];
 
-  // Stream response from web-llm
+  // Stream response from LLM engine (OpenAI-compatible API)
   const stream = await engine.chat.completions.create({
     messages,
     temperature,
