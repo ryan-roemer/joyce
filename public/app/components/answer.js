@@ -4,23 +4,7 @@ import DOMPurify from "dompurify";
 import { html } from "../util/html.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ALL_PROVIDERS, getModelCfg } from "../../shared-config.js";
-
-export const formatInt = (num) =>
-  (num ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
-const formatFloat = (num) =>
-  (num ?? 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-
-export const formatElapsed = (elapsed) => {
-  if (elapsed === null || elapsed === undefined) {
-    return "";
-  } else if (elapsed < 1000) {
-    return `${elapsed.toFixed(0)}ms`;
-  }
-  return `${(elapsed / 1000).toFixed(2)}s`;
-};
+import { formatInt, formatFloat, formatElapsed } from "../../shared-util.js";
 
 const QueryInfo = ({
   elapsed,

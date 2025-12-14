@@ -1,29 +1,18 @@
 import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useConfig } from "../contexts/config.js";
-import { MODELS } from "../../shared-config.js";
+import { MODELS, getModelCfg } from "../../shared-config.js";
+import { formatBytes } from "../../shared-util.js";
 import { ModelsTable } from "../../local/app/components/models-table.js";
 import {
   LoadingButton,
   LOADING,
 } from "../../local/app/components/loading/index.js";
-import { getModelCfg } from "../../shared-config.js";
 
 // TODO(CHAT): REFACTOR THIS -- brittle to get model short name from resource id.
 const modelShortName = (modelId) =>
   getModelCfg({ provider: "webLlm", model: modelId.replace(/^llm_/, "") })
     .modelShortName;
-
-/**
- * Format bytes to human-readable size (e.g., 4294967296 -> "4 GB")
- */
-const formatBytes = (bytes) => {
-  if (bytes == null) return "N/A";
-  const gb = bytes / (1024 * 1024 * 1024);
-  if (gb >= 1) return `${gb.toFixed(1)} GB`;
-  const mb = bytes / (1024 * 1024);
-  return `${mb.toFixed(0)} MB`;
-};
 
 const SystemInfo = ({ info }) => {
   const { webgpu, limits, gpuInfo, ramGb } = info;

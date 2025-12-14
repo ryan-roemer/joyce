@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { html } from "../../../../app/util/html.js";
 import { useLoading } from "../../context/loading.js";
-import { formatElapsed } from "../../../../app/components/answer.js";
+import { formatElapsed } from "../../../../shared-util.js";
 import { Modal } from "../../../../app/components/modal.js";
 import { MODELS } from "../../../../shared-config.js";
 

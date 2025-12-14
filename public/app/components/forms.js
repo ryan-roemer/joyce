@@ -16,7 +16,7 @@ import { useSettings } from "../hooks/use-settings.js";
 import { useState, createContext, useContext } from "react";
 import { useLoading } from "../../local/app/context/loading.js";
 import { useClickOutside } from "../hooks/use-click-outside.js";
-import { formatInt } from "./answer.js";
+import { formatInt } from "../../shared-util.js";
 
 const CATEGORY_OPTIONS = CATEGORIES_LIST.map((category) => ({
   label: category,
