@@ -14,19 +14,73 @@ const modelShortName = (modelId) =>
   getModelCfg({ provider: "webLlm", model: modelId.replace(/^llm_/, "") })
     .modelShortName;
 
+/**
+ * Format bytes to human-readable size (e.g., 4294967296 -> "4 GB")
+ */
+const formatBytes = (bytes) => {
+  if (bytes == null) return "N/A";
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(0)} MB`;
+};
+
 const SystemInfo = ({ info }) => {
-  const { vramMb, ramGb, gpuInfo } = info;
-  const parts = [
-    vramMb != null && `${vramMb} MB of VRAM`,
-    ramGb != null && `${ramGb} GB of RAM`,
-    gpuInfo && `GPU: ${gpuInfo}`,
-  ].filter(Boolean);
+  const { webgpu, limits, gpuInfo, ramGb } = info;
 
-  if (parts.length === 0) return null;
+  // WebGPU status determination
+  const webgpuStatus = !webgpu.supported
+    ? { label: "Not Supported", className: "status-unsupported" }
+    : !webgpu.adapterAvailable
+      ? { label: "No Adapter", className: "status-warning" }
+      : webgpu.isFallback
+        ? { label: "Fallback (Software)", className: "status-warning" }
+        : { label: "Available", className: "status-supported" };
 
-  return html` <p key="system-info">
-    Reported system info: ${parts.join(", ")}.
-  </p>`;
+  return html`
+    <div className="system-info">
+      <div className="system-info-row">
+        <strong>WebGPU:</strong>
+        <span className=${`status-badge ${webgpuStatus.className}`}>
+          ${webgpuStatus.label}
+        </span>
+        ${gpuInfo && html`<span className="gpu-info">${gpuInfo}</span>`}
+      </div>
+
+      <div className="system-info-row">
+        <strong>System RAM:</strong> ${ramGb != null ? `${ramGb} GB` : "N/A"}
+      </div>
+      ${webgpu.adapterAvailable &&
+      html`
+        <details className="system-info-limits">
+          <summary>WebGPU Limits</summary>
+          <table className="limits-table">
+            <tbody>
+              <tr>
+                <td>Max Buffer Size</td>
+                <td>${formatBytes(limits.maxBufferSize)}</td>
+              </tr>
+              <tr>
+                <td>Max Storage Buffer Binding</td>
+                <td>${formatBytes(limits.maxStorageBufferBindingSize)}</td>
+              </tr>
+              <tr>
+                <td>Max Compute Workgroup Storage</td>
+                <td>${formatBytes(limits.maxComputeWorkgroupStorageSize)}</td>
+              </tr>
+              ${webgpu.preferredFormat &&
+              html`
+                <tr>
+                  <td>Preferred Canvas Format</td>
+                  <td>${webgpu.preferredFormat}</td>
+                </tr>
+              `}
+            </tbody>
+          </table>
+        </details>
+      `}
+    </div>
+  `;
 };
 
 export const Data = () => {

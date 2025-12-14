@@ -19,34 +19,59 @@ export const fetchWrapper = async (url) => {
 };
 
 /**
- * Detect available GPU/system memory.
+ * Detect WebGPU status, GPU capabilities, and system memory.
  *
  * Browser Capabilities & Constraints:
  * - WebGPU (navigator.gpu): Chrome 113+, Edge 113+, Safari 17+. Requires HTTPS.
- *   Provides maxBufferSize but not actual VRAM amount.
+ *   Provides limits like maxBufferSize but not actual VRAM amount.
  * - Device Memory (navigator.deviceMemory): Chromium-only (not Firefox/Safari).
  *   Returns coarse RAM values (0.25, 0.5, 1, 2, 4, 8 GB) to prevent fingerprinting.
  * - WebGL: Can identify GPU vendor/renderer, but no VRAM reporting.
  * - No browser exposes exact VRAM for privacy/security reasons.
  *
- * @returns {Promise<{vramMb: number|null, ramGb: number|null, gpuInfo: string|null}>}
+ * @returns {Promise<{
+ *   webgpu: {supported: boolean, adapterAvailable: boolean, isFallback: boolean, preferredFormat: string|null},
+ *   limits: {maxBufferSize: number|null, maxStorageBufferBindingSize: number|null, maxComputeWorkgroupStorageSize: number|null},
+ *   gpuInfo: string|null,
+ *   ramGb: number|null
+ * }>}
  */
 export const getSystemInfo = async () => {
-  let vramMb = null;
+  const webgpu = {
+    supported: false,
+    adapterAvailable: false,
+    isFallback: false,
+    preferredFormat: null,
+  };
+  const limits = {
+    maxBufferSize: null,
+    maxStorageBufferBindingSize: null,
+    maxComputeWorkgroupStorageSize: null,
+  };
   let gpuInfo = null;
   let ramGb = null;
 
-  // Try WebGPU for GPU info
+  // Check WebGPU support and get adapter info
   if ("gpu" in navigator) {
+    webgpu.supported = true;
+    webgpu.preferredFormat = navigator.gpu.getPreferredCanvasFormat?.() ?? null;
+
     const adapter = await navigator.gpu.requestAdapter();
     if (adapter) {
-      // maxBufferSize is the largest buffer allocatable (rough VRAM proxy)
-      const maxBufferBytes = adapter.limits?.maxBufferSize;
-      if (maxBufferBytes) {
-        vramMb = Math.round(maxBufferBytes / (1024 * 1024));
+      webgpu.adapterAvailable = true;
+      webgpu.isFallback = adapter.info?.isFallbackAdapter ?? false;
+
+      // Key limits for LLM inference
+      if (adapter.limits) {
+        limits.maxBufferSize = adapter.limits.maxBufferSize ?? null;
+        limits.maxStorageBufferBindingSize =
+          adapter.limits.maxStorageBufferBindingSize ?? null;
+        limits.maxComputeWorkgroupStorageSize =
+          adapter.limits.maxComputeWorkgroupStorageSize ?? null;
       }
+
       // Get GPU description if available
-      const info = await adapter.requestAdapterInfo?.();
+      const info = adapter.info;
       if (info) {
         gpuInfo =
           [info.vendor, info.architecture, info.device]
@@ -61,5 +86,7 @@ export const getSystemInfo = async () => {
     ramGb = navigator.deviceMemory;
   }
 
-  return { vramMb, ramGb, gpuInfo };
+  // TODO(WORKERS): Add worker WebGPU support detection
+
+  return { webgpu, limits, gpuInfo, ramGb };
 };
