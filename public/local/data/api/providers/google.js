@@ -23,27 +23,32 @@ const modelState = new Map();
  * @param {ReadableStream} stream - Chrome AI streaming response (async iterable)
  * @yields {{ choices: [{ delta: { content: string } }] }}
  */
-async function* streamToAsyncIterator(stream) {
-  let previousTextLength = 0;
+async function* streamToAsyncIterator({ stream, session }) {
+  let content = "";
+
   for await (const chunk of stream) {
     if (chunk) {
       yield { choices: [{ delta: { content: chunk } }] };
-      previousTextLength += chunk.length;
+      content += chunk;
     }
   }
 
-  // Emit final usage stats (Chrome doesn't provide detailed usage, so we estimate)
-  // TODO(TOKENS): Wrap up estimation work (1) single estimator, (2) add to stats info vs. real
-  const estimatedTokens = Math.ceil(previousTextLength / 4);
   yield {
     choices: [{ delta: {} }],
-    usage: {
-      prompt_tokens: 0, // Chrome doesn't expose this
-      completion_tokens: estimatedTokens,
-      total_tokens: estimatedTokens,
-    },
+    usage: getUsage({ session, content }),
   };
 }
+
+const getUsage = ({ session, content }) => {
+  // TODO(TOKENS): Figure overall token estimation / counting strategy.
+  const completionTokensEst = Math.ceil((content.length ?? 0) / 4);
+
+  return {
+    prompt_tokens: session?.inputUsage ?? 0,
+    completion_tokens: completionTokensEst,
+    total_tokens: completionTokensEst,
+  };
+};
 
 /**
  * Check Chrome AI availability for a specific API type.
@@ -107,6 +112,7 @@ const getApiType = (model) => {
  */
 const convertMessages = (messages) => {
   // Find the last user message - this will be the prompt
+  // TODO(GOOGLE): Double check this one...
   const lastUserIndex = messages.map((m) => m.role).lastIndexOf("user");
   if (lastUserIndex === -1) {
     throw new Error("No user message found in messages array");
@@ -148,6 +154,8 @@ const createPromptEngine = (options = {}) => {
           const session = await LanguageModel.create({
             initialPrompts:
               initialPrompts.length > 0 ? initialPrompts : undefined,
+            expectedInputs: [{ type: "text", languages: ["en"] }],
+            expectedOutputs: [{ type: "text", languages: ["en"] }],
             monitor(m) {
               m.addEventListener("downloadprogress", (e) => {
                 if (options.progressCallback) {
@@ -163,10 +171,10 @@ const createPromptEngine = (options = {}) => {
           try {
             if (stream) {
               // For streaming, return an async generator that cleans up the session
-              const readableStream = session.promptStreaming(lastUserMessage);
+              const stream = session.promptStreaming(lastUserMessage);
               return (async function* () {
                 try {
-                  yield* streamToAsyncIterator(readableStream);
+                  yield* streamToAsyncIterator({ stream, session });
                 } finally {
                   session.destroy();
                 }
@@ -176,6 +184,7 @@ const createPromptEngine = (options = {}) => {
               session.destroy();
               return {
                 choices: [{ message: { content: response } }],
+                usage: getUsage({ session, content: response }),
               };
             }
           } catch (err) {
@@ -238,10 +247,10 @@ const createWriterEngine = (options = {}) => {
           try {
             if (stream) {
               // For streaming, return an async generator that cleans up the writer
-              const readableStream = writer.writeStreaming(writingTask);
+              const stream = writer.writeStreaming(writingTask);
               return (async function* () {
                 try {
-                  yield* streamToAsyncIterator(readableStream);
+                  yield* streamToAsyncIterator({ stream });
                 } finally {
                   writer.destroy();
                 }
