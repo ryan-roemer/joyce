@@ -1,18 +1,32 @@
+import { useState, useEffect } from "react";
 import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useConfig } from "../contexts/config.js";
-import { MODELS, getModelCfg } from "../../shared-config.js";
+import {
+  MODELS,
+  getModelCfg,
+  getProviderForModel,
+} from "../../shared-config.js";
 import { formatBytes } from "../../shared-util.js";
 import { ModelsTable } from "../../local/app/components/models-table.js";
 import {
   LoadingButton,
   LOADING,
 } from "../../local/app/components/loading/index.js";
+import {
+  ANY_GOOGLE_API_POSSIBLE,
+  HAS_PROMPT_API,
+  HAS_WRITER_API,
+  checkAvailability,
+} from "../../local/data/api/providers/google.js";
 
-// TODO(CHAT): REFACTOR THIS -- brittle to get model short name from resource id.
-const modelShortName = (modelId) =>
-  getModelCfg({ provider: "webLlm", model: modelId.replace(/^llm_/, "") })
-    .modelShortName;
+// Get model short name from resource id (provider-agnostic)
+const modelShortName = (modelId) => {
+  const cleanId = modelId.replace(/^llm_/, "");
+  const provider = getProviderForModel(cleanId);
+  if (!provider) return cleanId;
+  return getModelCfg({ provider, model: cleanId }).modelShortName;
+};
 
 const SystemInfo = ({ info }) => {
   const { webgpu, limits, gpuInfo, ramGb } = info;
@@ -72,6 +86,71 @@ const SystemInfo = ({ info }) => {
   `;
 };
 
+// Status badge helper for Chrome AI APIs
+const getApiStatusBadge = (hasApi, availability) => {
+  if (!hasApi) {
+    return { label: "Not Supported", className: "status-unsupported" };
+  }
+  if (!availability) {
+    return { label: "Checking...", className: "status-warning" };
+  }
+  if (availability.available) {
+    return { label: "Available", className: "status-supported" };
+  }
+  if (availability.downloading) {
+    return { label: availability.reason, className: "status-warning" };
+  }
+  return {
+    label: availability.reason || "Unavailable",
+    className: "status-unsupported",
+  };
+};
+
+const ChromeAIInfo = () => {
+  const [promptStatus, setPromptStatus] = useState(null);
+  const [writerStatus, setWriterStatus] = useState(null);
+
+  useEffect(() => {
+    // Check availability for both APIs
+    if (HAS_PROMPT_API) {
+      checkAvailability("prompt").then(setPromptStatus);
+    }
+    if (HAS_WRITER_API) {
+      checkAvailability("writer").then(setWriterStatus);
+    }
+  }, []);
+
+  const overallStatus = ANY_GOOGLE_API_POSSIBLE
+    ? { label: "Available", className: "status-supported" }
+    : { label: "Not Supported", className: "status-unsupported" };
+
+  const promptBadge = getApiStatusBadge(HAS_PROMPT_API, promptStatus);
+  const writerBadge = getApiStatusBadge(HAS_WRITER_API, writerStatus);
+
+  return html`
+    <div className="system-info">
+      <div className="system-info-row">
+        <strong>Chrome AI:</strong>
+        <span className=${`status-badge ${overallStatus.className}`}>
+          ${overallStatus.label}
+        </span>
+      </div>
+      <div className="system-info-row">
+        <strong>Prompt API:</strong>
+        <span className=${`status-badge ${promptBadge.className}`}>
+          ${promptBadge.label}
+        </span>
+      </div>
+      <div className="system-info-row">
+        <strong>Writer API:</strong>
+        <span className=${`status-badge ${writerBadge.className}`}>
+          ${writerBadge.label}
+        </span>
+      </div>
+    </div>
+  `;
+};
+
 export const Data = () => {
   const { systemInfo } = useConfig();
 
@@ -118,6 +197,21 @@ export const Data = () => {
 
       <${SystemInfo} info=${systemInfo} />
 
+      <h3>Google Chrome Built-in AI</h3>
+      <p>
+        Chrome provides built-in AI powered by Gemini Nano. The browser manages
+        model downloads and updates automatically. Requires Chrome 138+ with AI
+        features enabled.
+        See the Chrome AI <a
+          href="https://developer.chrome.com/docs/ai/built-in-apis"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          documentation
+        </a> for more.
+      </p>
+      <${ChromeAIInfo} />
+
       <h3>web-llm</h3>
       <p>
         Available web-llm models for local inference. Status
@@ -125,8 +219,6 @@ export const Data = () => {
         available for download.
       </p>
       <${ModelsTable} models=${MODELS} />
-
-      <!-- TODO(GOOGLE): Add Google AI models section when provider is enabled -->
     </${Page}>
   `;
 };

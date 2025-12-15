@@ -6,8 +6,8 @@
 // ## Enabling in Chrome
 // - Prompt: https://developer.chrome.com/docs/ai/prompt-api#use_on_localhost
 // - Writer: https://developer.chrome.com/docs/ai/writer-api#add_support_to_localhost
-const HAS_PROMPT_API = "LanguageModel" in window;
-const HAS_WRITER_API = "Writer" in window;
+export const HAS_PROMPT_API = "LanguageModel" in window;
+export const HAS_WRITER_API = "Writer" in window;
 export const ANY_GOOGLE_API_POSSIBLE = HAS_PROMPT_API || HAS_WRITER_API;
 
 const MODEL_OPTIONS = {
@@ -61,7 +61,7 @@ const getUsage = ({ session, content }) => {
  * @param {"prompt" | "writer"} apiType - The API to check
  * @returns {Promise<{ available: boolean, downloading?: boolean, reason: string }>}
  */
-const checkAvailability = async (apiType) => {
+export const checkAvailability = async (apiType) => {
   let status;
   try {
     if (apiType === "prompt") {
