@@ -306,6 +306,8 @@ const ModelStatusIcon = ({ status }) => {
 const modelStats = ({ vramMb, maxTokens }) =>
   `Max Input: ${(maxTokens ?? 0).toLocaleString("en-US")} tokens, VRAM: ${(vramMb ?? 0).toLocaleString("en-US")} MB`;
 
+const isNullish = (value) => value == null;
+
 export const ModelChatSelect = ({
   selected,
   setSelected,
@@ -326,7 +328,17 @@ export const ModelChatSelect = ({
       provider,
       model,
     });
-    return `${modelShortName} (MB: ${formatInt(vramMb)}, T: ${formatInt(maxTokens)}, Q: ${quantization})`;
+    const vramString = !isNullish(vramMb) ? `M: ${formatInt(vramMb)} MB` : "";
+    const maxTokensString = !isNullish(maxTokens)
+      ? `T: ${formatInt(maxTokens)}`
+      : "";
+    const quantizationString = !isNullish(quantization)
+      ? `Q: ${quantization}`
+      : "";
+    const statsString = [maxTokensString, vramString, quantizationString]
+      .filter(Boolean)
+      .join(", ");
+    return `${modelShortName} ${statsString ? `(${statsString})` : ""}`;
   };
 
   let options = [];

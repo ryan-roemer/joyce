@@ -59,6 +59,7 @@
       import { App } from "/app/index.js";
       import { init } from "/local/data/loading.js";
       import { getSystemInfo } from "/local/data/util.js";
+      import { ANY_GOOGLE_API_POSSIBLE } from "/local/data/api/providers/google.js";
 
       // Initialize loaders early and get system info.
       init();
@@ -73,7 +74,7 @@
             enabled: true,
           },
           google: {
-            enabled: true,
+            enabled: ANY_GOOGLE_API_POSSIBLE,
           },
         },
       };

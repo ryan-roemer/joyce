@@ -6,9 +6,9 @@
 // ## Enabling in Chrome
 // - Prompt: https://developer.chrome.com/docs/ai/prompt-api#use_on_localhost
 // - Writer: https://developer.chrome.com/docs/ai/writer-api#add_support_to_localhost
-
 const HAS_PROMPT_API = "LanguageModel" in window;
 const HAS_WRITER_API = "Writer" in window;
+export const ANY_GOOGLE_API_POSSIBLE = HAS_PROMPT_API || HAS_WRITER_API;
 
 // Map of model -> { progressCallback }
 // Note: Unlike web-llm, we don't cache engines because Chrome AI sessions
