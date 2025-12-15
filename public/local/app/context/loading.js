@@ -17,6 +17,7 @@ import {
   findResourceById,
   registerLlmResource,
 } from "../../data/loading.js";
+import { getProviderForModel } from "../../../shared-config.js";
 
 // Create the context with a default value
 const LoadingContext = createContext(null);
@@ -114,20 +115,26 @@ export const LoadingProvider = ({ children }) => {
       let resource = findResourceById(resourceId);
 
       // Auto-register LLM resources if they don't exist
-      // Note: Currently defaults to webLlm provider for auto-registered models
+      // Look up the correct provider for the model
       if (!resource && resourceId.startsWith("llm_")) {
         const modelId = resourceId.replace(/^llm_/, "");
-        registerLlmResource("webLlm", modelId);
-        resource = findResourceById(resourceId);
+        const provider = getProviderForModel(modelId);
+        if (provider) {
+          registerLlmResource(provider, modelId);
+          resource = findResourceById(resourceId);
 
-        // Subscribe to status/progress changes for the newly registered resource
-        if (resource) {
-          subscribeLoadingStatus(resource.id, (status, { error, elapsed }) => {
-            updateStatus(resource.id, status, { error, elapsed });
-          });
-          subscribeLoadingProgress(resource.id, (progress) => {
-            updateProgress(resource.id, progress);
-          });
+          // Subscribe to status/progress changes for the newly registered resource
+          if (resource) {
+            subscribeLoadingStatus(
+              resource.id,
+              (status, { error, elapsed }) => {
+                updateStatus(resource.id, status, { error, elapsed });
+              },
+            );
+            subscribeLoadingProgress(resource.id, (progress) => {
+              updateProgress(resource.id, progress);
+            });
+          }
         }
       }
 

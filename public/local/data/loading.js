@@ -6,14 +6,13 @@ import {
   setLlmProgressCallback,
   isLlmCached,
 } from "./api/llm.js";
-import config from "../../shared-config.js";
+import { ALL_CHAT_MODELS } from "../../shared-config.js";
 
 // ==============================
 // Loading Management
 // ==============================
 
-// Helper to create LLM resource entry for a model (web-llm specific)
-// TODO(GOOGLE): Add Google-specific resource creation when provider is implemented
+// Helper to create LLM resource entry for a model (works with any provider)
 const createLlmResource = (provider, modelId) => ({
   id: `llm_${modelId}`,
   get: async () => {
@@ -31,13 +30,14 @@ const modelToResourceKey = (modelId) => {
   return "LLM_" + baseName.toUpperCase().replace(/-/g, "_").replace(/\./g, "_");
 };
 
-// Dynamically create LLM resources from config (web-llm only for now)
-// TODO(GOOGLE): Add Google models to LLM_RESOURCES when provider is implemented
+// Dynamically create LLM resources from ALL providers (web-llm AND google)
 const LLM_RESOURCES = Object.fromEntries(
-  config.webLlm.models.chat.map((modelCfg) => [
-    modelToResourceKey(modelCfg.model),
-    createLlmResource("webLlm", modelCfg.model),
-  ]),
+  ALL_CHAT_MODELS.flatMap(({ provider, models }) =>
+    models.map((modelCfg) => [
+      modelToResourceKey(modelCfg.model),
+      createLlmResource(provider, modelCfg.model),
+    ]),
+  ),
 );
 
 export const RESOURCES = {
@@ -247,11 +247,13 @@ export const init = () => {
   startLoading(RESOURCES.DB);
   startLoading(RESOURCES.EXTRACTOR);
 
-  // Auto-load LLM models that have autoLoad: true
-  config.webLlm.models.chat.forEach((modelCfg) => {
-    if (modelCfg.autoLoad) {
-      const resourceKey = modelToResourceKey(modelCfg.model);
-      startLoading(RESOURCES[resourceKey]);
-    }
+  // Auto-load LLM models that have autoLoad: true (from all providers)
+  ALL_CHAT_MODELS.forEach(({ models }) => {
+    models.forEach((modelCfg) => {
+      if (modelCfg.autoLoad) {
+        const resourceKey = modelToResourceKey(modelCfg.model);
+        startLoading(RESOURCES[resourceKey]);
+      }
+    });
   });
 };

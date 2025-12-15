@@ -76,10 +76,28 @@ const config = {
       ],
     },
   },
-  // TODO(GOOGLE): Add Google AI models when API is configured
+  // Chrome Built-in AI (Gemini Nano) - available in Chrome with AI features enabled
+  // See: https://developer.chrome.com/docs/ai/built-in-apis
   google: {
     models: {
-      chat: [],
+      chat: [
+        {
+          model: "gemini-nano-prompt",
+          modelShortName: "Gemini Nano (Prompt)",
+          shortOption: "Flexible",
+          api: "prompt",
+          // Gemini Nano context window is ~32k tokens
+          maxTokens: 32768,
+        },
+        {
+          model: "gemini-nano-writer",
+          modelShortName: "Gemini Nano (Writer)",
+          shortOption: "Writing",
+          api: "writer",
+          // Writer API has same underlying model
+          maxTokens: 32768,
+        },
+      ],
     },
   },
 };
@@ -144,6 +162,20 @@ export const getSimpleModelOptions = (provider) =>
   config[provider].models.chat
     .filter((m) => m.shortOption)
     .map(({ model, shortOption }) => ({ provider, model, label: shortOption }));
+
+/**
+ * Find which provider owns a given model ID.
+ * @param {string} modelId - The model ID to look up
+ * @returns {string | null} The provider key or null if not found
+ */
+export const getProviderForModel = (modelId) => {
+  for (const { provider, models } of ALL_CHAT_MODELS) {
+    if (models.some((m) => m.model === modelId)) {
+      return provider;
+    }
+  }
+  return null;
+};
 
 /**
  * Dynamically add a model to the chat models list (session only, not persisted).
