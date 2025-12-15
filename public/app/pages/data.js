@@ -2,11 +2,7 @@ import { useState, useEffect } from "react";
 import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useConfig } from "../contexts/config.js";
-import {
-  MODELS,
-  getModelCfg,
-  getProviderForModel,
-} from "../../shared-config.js";
+import { MODELS, getModelCfg, getProviderForModel } from "../../config.js";
 import { formatBytes } from "../../shared-util.js";
 import { ModelsTable } from "../../local/app/components/models-table.js";
 import {

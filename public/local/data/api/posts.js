@@ -1,3 +1,4 @@
+import { getEmbeddingsPath } from "../../../config.js";
 import { getAndCache } from "../../../shared-util.js";
 import { fetchWrapper } from "../util.js";
 
@@ -6,7 +7,7 @@ export const getPosts = getAndCache(async () => {
 });
 
 export const getPostsEmbeddings = getAndCache(async () => {
-  return fetchWrapper("/data/posts-embeddings.json");
+  return fetchWrapper(getEmbeddingsPath());
 });
 
 const filterPosts = async ({

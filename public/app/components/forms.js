@@ -11,7 +11,7 @@ import {
   DEFAULT_DATASTORE,
   DEFAULT_API,
   DEFAULT_TEMPERATURE,
-} from "../../shared-config.js";
+} from "../../config.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { useState, createContext, useContext } from "react";
 import { useLoading } from "../../local/app/context/loading.js";

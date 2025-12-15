@@ -17,7 +17,7 @@ import {
   findResourceById,
   registerLlmResource,
 } from "../../data/loading.js";
-import { getProviderForModel } from "../../../shared-config.js";
+import { getProviderForModel } from "../../../config.js";
 
 // Create the context with a default value
 const LoadingContext = createContext(null);

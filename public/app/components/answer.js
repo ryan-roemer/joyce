@@ -3,7 +3,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { html } from "../util/html.js";
 import { useSettings } from "../hooks/use-settings.js";
-import { ALL_PROVIDERS, getModelCfg } from "../../shared-config.js";
+import { ALL_PROVIDERS, getModelCfg } from "../../config.js";
 import { formatInt, formatFloat, formatElapsed } from "../../shared-util.js";
 
 const QueryInfo = ({

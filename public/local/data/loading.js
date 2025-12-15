@@ -6,7 +6,7 @@ import {
   setLlmProgressCallback,
   isLlmCached,
 } from "./api/llm.js";
-import { ALL_CHAT_MODELS } from "../../shared-config.js";
+import { ALL_CHAT_MODELS } from "../../config.js";
 
 // ==============================
 // Loading Management

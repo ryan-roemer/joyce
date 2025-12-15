@@ -3,7 +3,7 @@ import { html } from "../../../../app/util/html.js";
 import { useLoading } from "../../context/loading.js";
 import { formatElapsed } from "../../../../shared-util.js";
 import { Modal } from "../../../../app/components/modal.js";
-import { MODELS } from "../../../../shared-config.js";
+import { MODELS } from "../../../../config.js";
 
 const STATES = {
   not_loaded: {

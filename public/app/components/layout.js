@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router";
 
-import config from "../../shared-config.js";
+import config from "../../config.js";
 import { Menu } from "./menu.js";
 import { html } from "../util/html.js";
 import { useSettings } from "../hooks/use-settings.js";

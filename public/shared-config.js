@@ -1,20 +1,3 @@
-import { prebuiltAppConfig } from "@mlc-ai/web-llm";
-
-// https://github.com/mlc-ai/web-llm/blob/main/src/config.ts
-// Quantization formats: q{bits}f{float_bits}[_{version}]
-// e.g., q4f16_1 = 4-bit quantization with float16, q0f32 = full precision float32
-const QUANTIZATION_REGEX = /q\d+f\d+(?:_\d+)?/;
-
-export const MODELS = prebuiltAppConfig.model_list
-  .map((model) => ({
-    model: model.model_id,
-    modelUrl: model.model,
-    quantization: model.model_id.match(QUANTIZATION_REGEX)?.[0] ?? null,
-    maxTokens: model.overrides?.context_window_size ?? null,
-    vramMb: model.vram_required_MB ?? null,
-  }))
-  .sort((a, b) => (a.vramMb ?? 0) - (b.vramMb ?? 0));
-
 /**
  * Shared client configuration. (No secrets).
  */
@@ -35,6 +18,14 @@ const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 export const TOKEN_CUSHION_CHAT = 200;
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
 
+/**
+ * Get the path to the embeddings file for a given chunk size.
+ * @param {number} size - The chunk size (e.g., 256, 512)
+ * @returns {string} - The path to the embeddings file
+ */
+export const getEmbeddingsPath = (size = DEFAULT_EMBEDDING_CHUNK_SIZE) =>
+  `/data/posts-embeddings-${size}.json`;
+
 const config = {
   pages: {
     all: [...BASE_PAGES, ...DEV_ONLY_PAGES],
@@ -44,6 +35,10 @@ const config = {
     // Note: if you change the embedding model, you'll need to re-generate all post embeddings.
     model: "Xenova/gte-small",
     maxTokens: 512, // https://huggingface.co/thenlper/gte-small#limitation
+    dataChunkSizes: {
+      MEDIUM: 256,
+      LARGE: 512,
+    },
   },
   // web-llm model metadata (vramMb, maxTokens) is mutated into model objects at load time
   // from prebuiltAppConfig. See: https://github.com/mlc-ai/web-llm/blob/main/src/config.ts
@@ -102,6 +97,10 @@ const config = {
   },
 };
 
+// Default embedding chunk size (uses the MEDIUM size from dataChunkSizes)
+export const DEFAULT_EMBEDDING_CHUNK_SIZE =
+  config.embeddings.dataChunkSizes.MEDIUM;
+
 export const ALL_PROVIDERS = {
   webLlm: "web-llm",
   chrome: "Chrome",
@@ -112,7 +111,7 @@ export const ALL_CHAT_MODELS = Object.keys(ALL_PROVIDERS).map((provider) => ({
   models: config[provider].models.chat,
 }));
 
-const CHAT_MODELS_MAP = Object.fromEntries(
+export const CHAT_MODELS_MAP = Object.fromEntries(
   ALL_CHAT_MODELS.map(({ provider, models }) => [
     provider,
     Object.fromEntries(models.map((modelObj) => [modelObj.model, modelObj])),
@@ -134,19 +133,6 @@ export const DEFAULT_CHAT_MODEL = (() => {
 export const DEFAULT_DATASTORE = "postgresql";
 export const DEFAULT_API = "chat";
 export const DEFAULT_TEMPERATURE = 1;
-
-// Mutate web-llm models to include metadata from prebuiltAppConfig
-for (const modelObj of config.webLlm.models.chat) {
-  const found = prebuiltAppConfig.model_list.find(
-    (m) => m.model_id === modelObj.model,
-  );
-  if (found) {
-    modelObj.maxTokens = found.overrides?.context_window_size ?? null;
-    modelObj.vramMb = found.vram_required_MB ?? null;
-    modelObj.quantization =
-      found.model_id.match(QUANTIZATION_REGEX)?.[0] ?? null;
-  }
-}
 
 export const getModelCfg = ({ provider, model }) => {
   const modelCfg = CHAT_MODELS_MAP[provider][model];
@@ -175,51 +161,6 @@ export const getProviderForModel = (modelId) => {
     }
   }
   return null;
-};
-
-/**
- * Dynamically add a model to the chat models list (session only, not persisted).
- * Used when loading unconfigured models from the models table.
- * @param {string} provider - The provider key (e.g., "webLlm", "chrome")
- * @param {string} modelId - The model ID to add
- * @returns {Object} The model config object (existing or newly created)
- */
-export const addChatModel = (provider, modelId) => {
-  // Check if already exists
-  const providerConfig = config[provider];
-  if (!providerConfig) {
-    throw new Error(`Unknown provider: ${provider}`);
-  }
-
-  const existing = providerConfig.models.chat.find((m) => m.model === modelId);
-  if (existing) return existing;
-
-  // Look up metadata from prebuiltAppConfig (web-llm specific)
-  const prebuilt =
-    provider === "webLlm"
-      ? prebuiltAppConfig.model_list.find((m) => m.model_id === modelId)
-      : null;
-
-  // Create new model config
-  const newModel = {
-    model: modelId,
-    modelShortName: modelId.split("-q")[0], // Strip quantization suffix for short name
-    autoLoad: false,
-    maxTokens: prebuilt?.overrides?.context_window_size ?? null,
-    vramMb: prebuilt?.vram_required_MB ?? null,
-    quantization: modelId.match(QUANTIZATION_REGEX)?.[0] ?? null,
-  };
-
-  // Add to config array (ALL_CHAT_MODELS references this, so it auto-updates)
-  providerConfig.models.chat.push(newModel);
-
-  // Update CHAT_MODELS_MAP
-  if (!CHAT_MODELS_MAP[provider]) {
-    CHAT_MODELS_MAP[provider] = {};
-  }
-  CHAT_MODELS_MAP[provider][modelId] = newModel;
-
-  return newModel;
 };
 
 export default config;

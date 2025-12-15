@@ -34,7 +34,7 @@ import {
   DEFAULT_CHAT_MODEL,
   DEFAULT_TEMPERATURE,
   getModelCfg,
-} from "../../shared-config.js";
+} from "../../config.js";
 import { chat } from "../data/index.js";
 
 // TODO: REFACTOR TO PUT IN SUBMIT???

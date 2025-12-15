@@ -3,7 +3,7 @@ import { html } from "../../../app/util/html.js";
 import { useTableSort } from "../../../app/hooks/use-table-sort.js";
 import { useLoading } from "../context/loading.js";
 import { ModelsFilter } from "./models-filter.js";
-import { addChatModel } from "../../../shared-config.js";
+import { addChatModel } from "../../../config.js";
 
 const DEFAULT_FILTERS = {
   modelText: "",

@@ -3,7 +3,7 @@ import { create, insertMultiple, search as oramaSearch } from "@orama/orama";
 import { pipeline } from "@xenova/transformers";
 
 import { getAndCache } from "../../../shared-util.js";
-import config from "../../../shared-config.js";
+import config from "../../../config.js";
 import { getPosts, getPostsEmbeddings } from "./posts.js";
 
 const MAX_CHUNKS = 50;
