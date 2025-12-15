@@ -10,6 +10,11 @@ const HAS_PROMPT_API = "LanguageModel" in window;
 const HAS_WRITER_API = "Writer" in window;
 export const ANY_GOOGLE_API_POSSIBLE = HAS_PROMPT_API || HAS_WRITER_API;
 
+const MODEL_OPTIONS = {
+  expectedInputs: [{ type: "text", languages: ["en"] }],
+  expectedOutputs: [{ type: "text", languages: ["en"] }],
+};
+
 // Map of model -> { progressCallback }
 // Note: Unlike web-llm, we don't cache engines because Chrome AI sessions
 // maintain internal conversation history. Each chat.completions.create()
@@ -67,7 +72,7 @@ const checkAvailability = async (apiType) => {
           reason: "Prompt API not supported in this browser",
         };
       }
-      status = await LanguageModel.availability();
+      status = await LanguageModel.availability(MODEL_OPTIONS);
     } else if (apiType === "writer") {
       // Feature detection using global Writer
       if (!HAS_WRITER_API) {
@@ -76,7 +81,7 @@ const checkAvailability = async (apiType) => {
           reason: "Writer API not supported in this browser",
         };
       }
-      status = await Writer.availability();
+      status = await Writer.availability(MODEL_OPTIONS);
     }
   } catch (err) {
     return { available: false, reason: err.message };
@@ -152,10 +157,9 @@ const createPromptEngine = (options = {}) => {
           // Create a fresh session for each request with proper initialPrompts
           // This matches OpenAI's stateless behavior where each call is independent
           const session = await LanguageModel.create({
+            ...MODEL_OPTIONS,
             initialPrompts:
               initialPrompts.length > 0 ? initialPrompts : undefined,
-            expectedInputs: [{ type: "text", languages: ["en"] }],
-            expectedOutputs: [{ type: "text", languages: ["en"] }],
             monitor(m) {
               m.addEventListener("downloadprogress", (e) => {
                 if (options.progressCallback) {
@@ -229,8 +233,7 @@ const createWriterEngine = (options = {}) => {
             length: options.length || "medium",
             format: options.format || "markdown",
             sharedContext: sharedContext || undefined,
-            expectedInputLanguages: ["en"],
-            expectedContextLanguages: ["en"],
+            ...MODEL_OPTIONS,
             outputLanguage: "en",
             monitor(m) {
               m.addEventListener("downloadprogress", (e) => {
