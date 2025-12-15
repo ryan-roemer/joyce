@@ -8,7 +8,7 @@ import {
  * Chat with AI using streaming responses.
  * @param {Object} params
  * @param {string} params.query
- * @param {string} params.provider - The LLM provider key (e.g., "webLlm", "google")
+ * @param {string} params.provider - The LLM provider key (e.g., "webLlm", "chrome")
  * @param {string} params.model - The model ID
  * @param {number} params.temperature
  * @returns {AsyncGenerator} Streaming JSON response yielding { type, message }

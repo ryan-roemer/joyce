@@ -59,7 +59,7 @@
       import { App } from "/app/index.js";
       import { init } from "/local/data/loading.js";
       import { getSystemInfo } from "/local/data/util.js";
-      import { ANY_GOOGLE_API_POSSIBLE } from "/local/data/api/providers/google.js";
+      import { ANY_CHROME_API_POSSIBLE } from "/local/data/api/providers/chrome.js";
 
       // Initialize loaders early and get system info.
       init();
@@ -73,8 +73,8 @@
           webLlm: {
             enabled: true,
           },
-          google: {
-            enabled: ANY_GOOGLE_API_POSSIBLE,
+          chrome: {
+            enabled: ANY_CHROME_API_POSSIBLE,
           },
         },
       };

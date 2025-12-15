@@ -1,5 +1,5 @@
 /* global window:false,LanguageModel:false,Writer:false */
-// Google AI provider implementation using Chrome Built-in AI APIs
+// Chrome AI provider implementation using Chrome Built-in AI APIs
 // Supports both Prompt API and Writer API via pseudo-models
 // See: https://developer.chrome.com/docs/ai/built-in-apis
 //
@@ -8,7 +8,7 @@
 // - Writer: https://developer.chrome.com/docs/ai/writer-api#add_support_to_localhost
 export const HAS_PROMPT_API = "LanguageModel" in window;
 export const HAS_WRITER_API = "Writer" in window;
-export const ANY_GOOGLE_API_POSSIBLE = HAS_PROMPT_API || HAS_WRITER_API;
+export const ANY_CHROME_API_POSSIBLE = HAS_PROMPT_API || HAS_WRITER_API;
 
 const MODEL_OPTIONS = {
   expectedInputs: [{ type: "text", languages: ["en"] }],
@@ -117,7 +117,7 @@ const getApiType = (model) => {
  */
 const convertMessages = (messages) => {
   // Find the last user message - this will be the prompt
-  // TODO(GOOGLE): Double check this one...
+  // TODO(CHROME): Double check this one...
   const lastUserIndex = messages.map((m) => m.role).lastIndexOf("user");
   if (lastUserIndex === -1) {
     throw new Error("No user message found in messages array");
@@ -150,7 +150,7 @@ const createPromptEngine = (options = {}) => {
     chat: {
       completions: {
         create: async ({ messages, stream }) => {
-          // TODO(GOOGLE): Add temperature
+          // TODO(CHROME): Add temperature
           // Convert OpenAI messages to Chrome AI format
           const { initialPrompts, lastUserMessage } = convertMessages(messages);
 

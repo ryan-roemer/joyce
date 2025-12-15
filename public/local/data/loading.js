@@ -30,7 +30,7 @@ const modelToResourceKey = (modelId) => {
   return "LLM_" + baseName.toUpperCase().replace(/-/g, "_").replace(/\./g, "_");
 };
 
-// Dynamically create LLM resources from ALL providers (web-llm AND google)
+// Dynamically create LLM resources from ALL providers (web-llm AND chrome)
 const LLM_RESOURCES = Object.fromEntries(
   ALL_CHAT_MODELS.flatMap(({ provider, models }) =>
     models.map((modelCfg) => [
@@ -72,7 +72,7 @@ export const findResourceById = (resourceId) => {
 
 /**
  * Register an LLM resource dynamically for any model ID
- * @param {string} provider - The provider key (e.g., "webLlm", "google")
+ * @param {string} provider - The provider key (e.g., "webLlm", "chrome")
  * @param {string} modelId - The model ID to register
  */
 export const registerLlmResource = (provider, modelId) => {

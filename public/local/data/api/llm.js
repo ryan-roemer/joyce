@@ -1,17 +1,17 @@
 // LLM Provider Aggregator
 // Routes to provider-specific implementations based on provider parameter
 import * as webLlm from "./providers/web-llm.js";
-import * as google from "./providers/google.js";
+import * as chrome from "./providers/chrome.js";
 import { DEFAULT_CHAT_MODEL } from "../../../shared-config.js";
 
 const PROVIDERS = {
   webLlm,
-  google,
+  chrome,
 };
 
 /**
  * Get the provider module for a given provider key
- * @param {string} provider - The provider key (e.g., "webLlm", "google")
+ * @param {string} provider - The provider key (e.g., "webLlm", "chrome")
  * @returns {Object} The provider module
  */
 const getProvider = (provider) => {

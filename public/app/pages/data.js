@@ -14,11 +14,11 @@ import {
   LOADING,
 } from "../../local/app/components/loading/index.js";
 import {
-  ANY_GOOGLE_API_POSSIBLE,
+  ANY_CHROME_API_POSSIBLE,
   HAS_PROMPT_API,
   HAS_WRITER_API,
   checkAvailability,
-} from "../../local/data/api/providers/google.js";
+} from "../../local/data/api/providers/chrome.js";
 
 // Get model short name from resource id (provider-agnostic)
 const modelShortName = (modelId) => {
@@ -120,7 +120,7 @@ const ChromeAIInfo = () => {
     }
   }, []);
 
-  const overallStatus = ANY_GOOGLE_API_POSSIBLE
+  const overallStatus = ANY_CHROME_API_POSSIBLE
     ? { label: "Available", className: "status-supported" }
     : { label: "Not Supported", className: "status-unsupported" };
 

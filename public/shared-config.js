@@ -78,7 +78,7 @@ const config = {
   },
   // Chrome Built-in AI (Gemini Nano) - available in Chrome with AI features enabled
   // See: https://developer.chrome.com/docs/ai/built-in-apis
-  google: {
+  chrome: {
     models: {
       chat: [
         {
@@ -104,7 +104,7 @@ const config = {
 
 export const ALL_PROVIDERS = {
   webLlm: "web-llm",
-  google: "Google",
+  chrome: "Chrome",
 };
 
 export const ALL_CHAT_MODELS = Object.keys(ALL_PROVIDERS).map((provider) => ({
@@ -180,7 +180,7 @@ export const getProviderForModel = (modelId) => {
 /**
  * Dynamically add a model to the chat models list (session only, not persisted).
  * Used when loading unconfigured models from the models table.
- * @param {string} provider - The provider key (e.g., "webLlm", "google")
+ * @param {string} provider - The provider key (e.g., "webLlm", "chrome")
  * @param {string} modelId - The model ID to add
  * @returns {Object} The model config object (existing or newly created)
  */
