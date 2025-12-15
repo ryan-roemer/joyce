@@ -24,18 +24,17 @@ const modelState = new Map();
  * @yields {{ choices: [{ delta: { content: string } }] }}
  */
 async function* streamToAsyncIterator(stream) {
-  let previousText = "";
+  let previousTextLength = 0;
   for await (const chunk of stream) {
-    // Chrome streams full accumulated text, extract the delta
-    const delta = chunk.slice(previousText.length);
-    previousText = chunk;
-    if (delta) {
-      yield { choices: [{ delta: { content: delta } }] };
+    if (chunk) {
+      yield { choices: [{ delta: { content: chunk } }] };
+      previousTextLength += chunk.length;
     }
   }
+
   // Emit final usage stats (Chrome doesn't provide detailed usage, so we estimate)
   // TODO(TOKENS): Wrap up estimation work (1) single estimator, (2) add to stats info vs. real
-  const estimatedTokens = Math.ceil(previousText.length / 4);
+  const estimatedTokens = Math.ceil(previousTextLength / 4);
   yield {
     choices: [{ delta: {} }],
     usage: {
