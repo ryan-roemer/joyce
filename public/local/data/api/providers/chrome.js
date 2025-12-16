@@ -168,11 +168,19 @@ const createPromptEngine = (options = {}) => ({
         const { initialPrompts, lastUserMessage } =
           createPromptMessages(messages);
 
+        console.log("TODO: PROMPT MESSAGES", {
+          initialPrompts,
+          lastUserMessage,
+        });
+
         const session = await LanguageModel.create({
           ...MODEL_OPTIONS,
           initialPrompts:
             initialPrompts.length > 0 ? initialPrompts : undefined,
           monitor: createDownloadMonitor(options.progressCallback),
+        }).catch((err) => {
+          console.error("ERROR: PROMPT SESSION CREATE", err);
+          throw err;
         });
 
         const stream = session.promptStreaming(lastUserMessage);

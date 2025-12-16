@@ -41,9 +41,8 @@ import { chat } from "../data/index.js";
 const setQueryValue = getQuerySetter("query");
 
 const SUGGESTIONS = [
-  "Write a 3 bullet point list with links and 1-2 sentence descriptions of Nearform's expertise in using AI for software development.",
-  "Write a short email blurb about Nearform's commerce and retail expertise. Use examples and citations.",
-  "Write an elevator pitch about Nearform's design systems expertise. Limit to 100 words and use examples and citations.",
+  "Tell me 2 sentences about Nearform's expertise in using AI for software development.",
+  "Give me a single paragraph about Nearform's React and React Native expertise.",
 ];
 
 export const ShortDescription = () => html`

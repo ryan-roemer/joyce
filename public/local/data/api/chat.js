@@ -98,7 +98,6 @@ export async function* chat({
   temperature = DEFAULT_TEMPERATURE,
 }) {
   const start = new Date();
-  const elapsed = {};
 
   // Get chunks
   const searchResults = await search({
@@ -108,7 +107,10 @@ export async function* chat({
     categoryPrimary,
     withContent,
   });
-  elapsed.chunks = new Date() - start;
+
+  // Start metadata based off search results.
+  const metadata = { ...searchResults.metadata };
+  metadata.elapsed.chunks = new Date() - start;
 
   // Start assembling prompt, starting with the query.
   const modelCfg = getModelCfg({ provider, model });
@@ -117,8 +119,6 @@ export async function* chat({
   if (totalContextTokens > maxContextTokens) {
     throw new Error(`Query is too long: ${query}`);
   }
-
-  console.log("TODO HERE", { maxContextTokens, totalContextTokens });
 
   // Add chunks to context.
   let context = "";
@@ -140,6 +140,12 @@ export async function* chat({
     context += contextChunk;
   }
 
+  console.log("TODO: CONTEXT", { totalContextTokens, maxContextTokens });
+
+  // Yield search info.
+  yield { type: "posts", message: searchResults.posts };
+  yield { type: "chunks", message: searchResults.chunks };
+
   // Use shared engine loader (handles caching and progress)
   const engine = await getLlmEngine({ provider, model });
   const messages = createMessages({ query, context });
@@ -155,7 +161,8 @@ export async function* chat({
   // Process streamed chunks
   for await (const chunk of stream) {
     if (chunk.choices[0]?.delta?.content) {
-      elapsed.tokensFirst = elapsed.tokensFirst ?? new Date() - start;
+      metadata.elapsed.tokensFirst =
+        metadata.elapsed.tokensFirst ?? new Date() - start;
       yield { type: "data", message: chunk.choices[0].delta.content };
     }
     if (chunk.usage) {
@@ -175,6 +182,7 @@ export async function* chat({
     }
   }
 
-  elapsed.tokensLast = new Date() - start;
-  yield { type: "metadata", message: { elapsed } };
+  metadata.elapsed.tokensLast = new Date() - start;
+
+  yield { type: "metadata", message: metadata };
 }

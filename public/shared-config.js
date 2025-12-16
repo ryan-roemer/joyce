@@ -15,8 +15,11 @@ const BASE_PAGES = [
 
 const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 
-export const TOKEN_CUSHION_CHAT = 250;
+export const TOKEN_CUSHION_CHAT = 512; // 250 ok for web-llm
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
+
+export const GEMMA_NANO_MAX_TOKENS = 32768;
+export const GEMMA_NANO_MAX_TOKENS_ADJUSTED = 8192; // Session max input is much smaller, like around 9K on my mac.
 
 /**
  * Get the path to the embeddings file for a given chunk size.
@@ -81,16 +84,14 @@ const config = {
           modelShortName: "Gemini Nano (Prompt)",
           shortOption: "Flexible",
           api: "prompt",
-          // Gemini Nano context window is ~32k tokens
-          maxTokens: 32768,
+          maxTokens: GEMMA_NANO_MAX_TOKENS_ADJUSTED,
         },
         {
           model: "gemini-nano-writer",
           modelShortName: "Gemini Nano (Writer)",
           shortOption: "Writing",
           api: "writer",
-          // Writer API has same underlying model
-          maxTokens: 32768,
+          maxTokens: GEMMA_NANO_MAX_TOKENS_ADJUSTED,
         },
       ],
     },
