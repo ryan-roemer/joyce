@@ -18,6 +18,7 @@ const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 export const TOKEN_CUSHION_CHAT = 512; // 250 ok for web-llm
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
 
+// TODO(CHAT): Can we programmatically get these values?
 export const GEMMA_NANO_MAX_TOKENS = 32768;
 export const GEMMA_NANO_MAX_TOKENS_ADJUSTED = 8192; // Session max input is much smaller, like around 9K on my mac.
 
