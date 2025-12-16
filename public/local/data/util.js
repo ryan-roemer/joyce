@@ -90,3 +90,11 @@ export const getSystemInfo = async () => {
 
   return { webgpu, limits, gpuInfo, ramGb };
 };
+
+// Rough estimate is 0.75 so we go a little conservative.
+const TOKENS_PER_WORD = 0.55;
+
+// Token estimator.
+export const estimateTokens = (content = "") => {
+  return Math.ceil(content.split(/[\s\n]+/).length / TOKENS_PER_WORD); // 4 tokens per word
+};

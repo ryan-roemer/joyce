@@ -15,7 +15,7 @@ const BASE_PAGES = [
 
 const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 
-export const TOKEN_CUSHION_CHAT = 200;
+export const TOKEN_CUSHION_CHAT = 250;
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
 
 /**

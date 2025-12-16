@@ -10,6 +10,16 @@ export const getPostsEmbeddings = getAndCache(async () => {
   return fetchWrapper(getEmbeddingsPath());
 });
 
+export const getPost = async (slug) => {
+  const postsObj = await getPosts();
+  const post = postsObj[slug];
+  if (!post) {
+    throw new Error(`Post not found: ${slug}`);
+  }
+
+  return post;
+};
+
 const filterPosts = async ({
   postType = [],
   minDate,
