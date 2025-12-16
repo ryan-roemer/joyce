@@ -125,13 +125,13 @@ export const search = async ({
   const chunksData = await getPostsEmbeddings();
 
   // Generate query embedding
-  const embeddingStart = performance.now();
+  const start = performance.now();
   const queryExtracted = await extractor(query, {
     pooling: "mean",
     normalize: true,
   });
   const queryEmbedding = Array.from(queryExtracted.data);
-  const embeddingQuery = performance.now() - embeddingStart;
+  const embeddingQuery = performance.now() - start;
 
   // Build where clause for filtering
   const where = {};
@@ -146,7 +146,6 @@ export const search = async ({
   }
 
   // Vector search on chunks DB
-  const databaseStart = performance.now();
   const results = await oramaSearch(chunksDb, {
     mode: "vector",
     vector: { value: queryEmbedding, property: "embeddings" },
@@ -154,7 +153,7 @@ export const search = async ({
     similarity: MIN_SIMILARITY,
     where: Object.keys(where).length > 0 ? where : undefined,
   });
-  const databaseQuery = performance.now() - databaseStart;
+  const databaseQuery = performance.now() - start;
 
   // Build posts map and chunks array
   const postsMap = {};
