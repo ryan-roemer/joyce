@@ -1,3 +1,4 @@
+import { search } from "./search.js";
 import { getLlmEngine } from "./llm.js";
 import { DEFAULT_TEMPERATURE, DEFAULT_CHAT_MODEL } from "../../../config.js";
 
@@ -5,37 +6,54 @@ import { DEFAULT_TEMPERATURE, DEFAULT_CHAT_MODEL } from "../../../config.js";
  * Chat with AI using streaming responses.
  * @param {Object} params
  * @param {string} params.query
- * @param {string} params.provider - The LLM provider key (e.g., "webLlm", "chrome")
+ * @param {string[]} params.postType
+ * @param {string} params.minDate
+ * @param {string[]} params.categoryPrimary
+ * @param {boolean} params.withContent
  * @param {string} params.model - The model ID
- * @param {number} params.temperature
+ * @param {string} params.provider - The LLM provider key (e.g., "webLlm", "chrome")
+ * @param {number} params.temperature // TODO(CHAT): Add temperature
  * @returns {AsyncGenerator} Streaming JSON response yielding { type, message }
  *
  * Yield types:
  * - { type: "data", message: string } - Streamed content delta
  * - { type: "usage", message: object } - Token usage stats (final)
- *
- * TODO(RAG): Integrate with search() to get relevant chunks
- * TODO(RAG): Build context from chunks using post content
- * TODO(RAG): Yield { type: "chunks" }, { type: "posts" }, { type: "metadata" }
+ * - { type: "chunks", message: Array } - Chunks metadata
+ * - { type: "posts", message: Object } - Posts metadata
+ * - { type: "metadata", message: Object } - Metadata
  */
 export async function* chat({
   query,
-  provider = DEFAULT_CHAT_MODEL.provider,
+  postType,
+  minDate,
+  categoryPrimary,
+  withContent,
   model = DEFAULT_CHAT_MODEL.model,
+  provider = DEFAULT_CHAT_MODEL.provider,
   temperature = DEFAULT_TEMPERATURE,
 }) {
   const start = new Date();
   const elapsed = {};
 
-  // TODO(CHAT): Add search
-  // TODO(CHAT): Add context from chunks
-  // TODO(CHAT): Add elapsed for chunks.
+  // Get chunks
+  const chunks = await search({
+    query,
+    postType,
+    minDate,
+    categoryPrimary,
+    withContent,
+  });
+  elapsed.chunks = new Date() - start;
+
+  // TODO: HERE -- get chunks and add to context!
+  // TODO: Figure out math for how many chunks to add to context.
+  console.log("TODO: chunks", chunks);
 
   // Use shared engine loader (handles caching and progress)
   const engine = await getLlmEngine({ provider, model });
-
   const messages = [
     { role: "system", content: "You are a helpful AI assistant." },
+    // TODO(CHAT): REVIEW THIS MESSAGE. REMOVE?
     {
       role: "assistant",
       content:
