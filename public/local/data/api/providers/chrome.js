@@ -46,6 +46,7 @@ async function* streamToAsyncIterator({ stream, session }) {
 
 const getUsage = ({ session, content }) => {
   // TODO(TOKENS): Figure overall token estimation / counting strategy.
+  // TODO(TOKENS): There `inputQuota` that's smaller than maxTokens. Figure this out too.
   const completionTokensEst = Math.ceil((content.length ?? 0) / 4);
 
   return {
@@ -129,7 +130,7 @@ const getApiType = (model) => {
  * @param {Array<{role: string, content: string}>} messages
  * @returns {{ initialPrompts: Array, lastUserMessage: string }}
  */
-const convertMessages = (messages) => {
+const createPromptMessages = (messages) => {
   // Find the last user message - this will be the prompt
   // TODO(CHROME): Double check this one...
   const lastUserIndex = messages.map((m) => m.role).lastIndexOf("user");
@@ -164,7 +165,8 @@ const createPromptEngine = (options = {}) => ({
     completions: {
       create: async ({ messages }) => {
         // TODO(CHROME): Add temperature
-        const { initialPrompts, lastUserMessage } = convertMessages(messages);
+        const { initialPrompts, lastUserMessage } =
+          createPromptMessages(messages);
 
         const session = await LanguageModel.create({
           ...MODEL_OPTIONS,
@@ -187,6 +189,27 @@ const createPromptEngine = (options = {}) => ({
 });
 
 /**
+ * Convert OpenAI-style messages to Chrome Writer API format.
+ * Returns { sharedContext, writingTask, context } for Writer.create() and write().
+ * @param {Array<{role: string, content: string}>} messages
+ * @returns {{ sharedContext: string, writingTask: string, context: string }}
+ */
+const createWriterMessages = (messages) => {
+  // Last user message becomes the writing task
+  const userMessages = messages.filter((m) => m.role === "user");
+  const writingTask =
+    userMessages.length > 0
+      ? userMessages[userMessages.length - 1].content
+      : "";
+
+  // Non-user messages (system, assistant) become shared context
+  const contextMessages = messages.filter((m) => m.role !== "user");
+  const sharedContext = contextMessages.map((m) => m.content).join("\n\n");
+
+  return { sharedContext, writingTask, context: "" };
+};
+
+/**
  * Create a Writer API engine wrapper with OpenAI-compatible interface.
  * Writer API is for content generation, not chat - we adapt it by using
  * the last user message as the writing task and other messages as context. Streaming-only.
@@ -198,28 +221,20 @@ const createWriterEngine = (options = {}) => ({
   chat: {
     completions: {
       create: async ({ messages }) => {
-        const userMessages = messages.filter((m) => m.role === "user");
-        const writingTask =
-          userMessages.length > 0
-            ? userMessages[userMessages.length - 1].content
-            : "";
-
-        const contextMessages = messages.filter((m) => m.role !== "user");
-        const sharedContext = contextMessages
-          .map((m) => m.content)
-          .join("\n\n");
+        const { sharedContext, writingTask, context } =
+          createWriterMessages(messages);
 
         const writer = await Writer.create({
           tone: options.tone || "neutral",
           length: options.length || "medium",
           format: options.format || "markdown",
-          sharedContext: sharedContext || undefined,
+          sharedContext,
           ...MODEL_OPTIONS,
           outputLanguage: "en",
           monitor: createDownloadMonitor(options.progressCallback),
         });
 
-        const stream = writer.writeStreaming(writingTask);
+        const stream = writer.writeStreaming(writingTask, { context });
         return (async function* () {
           try {
             yield* streamToAsyncIterator({ stream });
