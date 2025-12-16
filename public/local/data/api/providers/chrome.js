@@ -56,6 +56,20 @@ const getUsage = ({ session, content }) => {
 };
 
 /**
+ * Create a download progress monitor for Chrome AI APIs.
+ * @param {Function|null} progressCallback - Optional callback for download progress
+ * @returns {Function} Monitor function for Chrome AI create() options
+ */
+const createDownloadMonitor = (progressCallback) => (m) => {
+  m.addEventListener("downloadprogress", (e) => {
+    progressCallback?.({
+      text: `Downloading model: ${Math.round(e.loaded * 100)}%`,
+      progress: e.loaded,
+    });
+  });
+};
+
+/**
  * Check Chrome AI availability for a specific API type.
  * Uses correct global access and availability values per Chrome documentation.
  * @param {"prompt" | "writer"} apiType - The API to check
@@ -140,140 +154,83 @@ const convertMessages = (messages) => {
 /**
  * Create a Prompt API engine wrapper with OpenAI-compatible interface.
  * Each chat.completions.create() call creates a fresh session with initialPrompts
- * to match OpenAI's stateless API behavior.
+ * to match OpenAI's stateless API behavior. Streaming-only.
  * @param {Object} options - Engine options
  * @param {Function} options.progressCallback - Optional callback for download progress
  * @returns {Object} Engine with chat.completions.create method
  */
-const createPromptEngine = (options = {}) => {
-  return {
-    chat: {
-      completions: {
-        create: async ({ messages, stream }) => {
-          // TODO(CHROME): Add temperature
-          // Convert OpenAI messages to Chrome AI format
-          const { initialPrompts, lastUserMessage } = convertMessages(messages);
+const createPromptEngine = (options = {}) => ({
+  chat: {
+    completions: {
+      create: async ({ messages }) => {
+        // TODO(CHROME): Add temperature
+        const { initialPrompts, lastUserMessage } = convertMessages(messages);
 
-          // Create a fresh session for each request with proper initialPrompts
-          // This matches OpenAI's stateless behavior where each call is independent
-          const session = await LanguageModel.create({
-            ...MODEL_OPTIONS,
-            initialPrompts:
-              initialPrompts.length > 0 ? initialPrompts : undefined,
-            monitor(m) {
-              m.addEventListener("downloadprogress", (e) => {
-                if (options.progressCallback) {
-                  options.progressCallback({
-                    text: `Downloading model: ${Math.round(e.loaded * 100)}%`,
-                    progress: e.loaded,
-                  });
-                }
-              });
-            },
-          });
+        const session = await LanguageModel.create({
+          ...MODEL_OPTIONS,
+          initialPrompts:
+            initialPrompts.length > 0 ? initialPrompts : undefined,
+          monitor: createDownloadMonitor(options.progressCallback),
+        });
 
+        const stream = session.promptStreaming(lastUserMessage);
+        return (async function* () {
           try {
-            if (stream) {
-              // For streaming, return an async generator that cleans up the session
-              const stream = session.promptStreaming(lastUserMessage);
-              return (async function* () {
-                try {
-                  yield* streamToAsyncIterator({ stream, session });
-                } finally {
-                  session.destroy();
-                }
-              })();
-            } else {
-              const response = await session.prompt(lastUserMessage);
-              session.destroy();
-              return {
-                choices: [{ message: { content: response } }],
-                usage: getUsage({ session, content: response }),
-              };
-            }
-          } catch (err) {
+            yield* streamToAsyncIterator({ stream, session });
+          } finally {
             session.destroy();
-            throw err;
           }
-        },
+        })();
       },
     },
-  };
-};
+  },
+});
 
 /**
  * Create a Writer API engine wrapper with OpenAI-compatible interface.
  * Writer API is for content generation, not chat - we adapt it by using
- * the last user message as the writing task and other messages as context.
+ * the last user message as the writing task and other messages as context. Streaming-only.
  * @param {Object} options - Writer options
  * @param {Function} options.progressCallback - Optional callback for download progress
  * @returns {Object} Engine with chat.completions.create method
  */
-const createWriterEngine = (options = {}) => {
-  return {
-    chat: {
-      completions: {
-        create: async ({ messages, stream }) => {
-          // For Writer API, the last user message is the writing task
-          const userMessages = messages.filter((m) => m.role === "user");
-          const writingTask =
-            userMessages.length > 0
-              ? userMessages[userMessages.length - 1].content
-              : "";
+const createWriterEngine = (options = {}) => ({
+  chat: {
+    completions: {
+      create: async ({ messages }) => {
+        const userMessages = messages.filter((m) => m.role === "user");
+        const writingTask =
+          userMessages.length > 0
+            ? userMessages[userMessages.length - 1].content
+            : "";
 
-          // Build context from system and assistant messages
-          const contextMessages = messages.filter((m) => m.role !== "user");
-          const sharedContext = contextMessages
-            .map((m) => m.content)
-            .join("\n\n");
+        const contextMessages = messages.filter((m) => m.role !== "user");
+        const sharedContext = contextMessages
+          .map((m) => m.content)
+          .join("\n\n");
 
-          // Create a fresh writer for each request
-          const writer = await Writer.create({
-            tone: options.tone || "neutral",
-            length: options.length || "medium",
-            format: options.format || "markdown",
-            sharedContext: sharedContext || undefined,
-            ...MODEL_OPTIONS,
-            outputLanguage: "en",
-            monitor(m) {
-              m.addEventListener("downloadprogress", (e) => {
-                if (options.progressCallback) {
-                  options.progressCallback({
-                    text: `Downloading model: ${Math.round(e.loaded * 100)}%`,
-                    progress: e.loaded,
-                  });
-                }
-              });
-            },
-          });
+        const writer = await Writer.create({
+          tone: options.tone || "neutral",
+          length: options.length || "medium",
+          format: options.format || "markdown",
+          sharedContext: sharedContext || undefined,
+          ...MODEL_OPTIONS,
+          outputLanguage: "en",
+          monitor: createDownloadMonitor(options.progressCallback),
+        });
 
+        const stream = writer.writeStreaming(writingTask);
+        return (async function* () {
           try {
-            if (stream) {
-              // For streaming, return an async generator that cleans up the writer
-              const stream = writer.writeStreaming(writingTask);
-              return (async function* () {
-                try {
-                  yield* streamToAsyncIterator({ stream });
-                } finally {
-                  writer.destroy();
-                }
-              })();
-            } else {
-              const response = await writer.write(writingTask);
-              writer.destroy();
-              return {
-                choices: [{ message: { content: response } }],
-              };
-            }
-          } catch (err) {
+            yield* streamToAsyncIterator({ stream });
+          } finally {
             writer.destroy();
-            throw err;
           }
-        },
+        })();
       },
     },
-  };
-};
+  },
+});
 
 /**
  * Set a progress callback for a specific model.
