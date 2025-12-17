@@ -32,6 +32,7 @@ import { parseArgs } from "node:util";
 import { pipeline, AutoTokenizer } from "@xenova/transformers";
 import { split } from "llm-splitter";
 import config, { TOKEN_CUSHION_EMBEDDINGS } from "../public/shared-config.js";
+import { quantizeEmbedding } from "../public/local/data/embeddings.js";
 
 const { dirname } = import.meta;
 
@@ -134,7 +135,8 @@ const generateEmbeddings = async (extractor, lines) => {
 };
 
 /**
- * Convert result object to JSON string with pretty print, but keep embeddings arrays compact
+ * Convert result object to JSON string with pretty print, but keep embeddings compact.
+ * Handles quantized embeddings format: { values: number[], min: number, max: number }
  * @param {Object} result - The embeddings result object
  * @returns {string} - JSON string
  */
@@ -142,14 +144,25 @@ const formatOutput = (result) => {
   const jsonString = JSON.stringify(
     result,
     (key, value) => {
-      if (key === "embeddings" && Array.isArray(value)) {
+      // Handle quantized embeddings object: { values, min, max }
+      if (
+        key === "embeddings" &&
+        value &&
+        typeof value === "object" &&
+        "values" in value
+      ) {
         return `__EMBEDDINGS_${JSON.stringify(value)}__`;
       }
       return value;
     },
     2,
   );
-  return jsonString.replace(/"__EMBEDDINGS_(\[.*?\])__"/g, "$1");
+  // Replace the placeholder with compact JSON (no extra quotes)
+  // The inner JSON has escaped quotes from double-stringify, so we match and unescape
+  return jsonString.replace(/"__EMBEDDINGS_(.*?)__"/g, (_, inner) => {
+    // Unescape the double-stringified JSON
+    return inner.replace(/\\"/g, '"');
+  });
 };
 
 /**
@@ -186,7 +199,8 @@ const generateEmbeddingsForSize = async (
       for (const chunk of chunks) {
         const embeddings = await generateEmbeddings(extractor, chunk.text);
         delete chunk.text;
-        chunk.embeddings = embeddings;
+        // Quantize embeddings to uint8 for ~75% storage reduction
+        chunk.embeddings = quantizeEmbedding(embeddings);
       }
     } catch (error) {
       console.error("(E) getChunks: ", slug);

@@ -4,6 +4,7 @@ import { pipeline } from "@xenova/transformers";
 
 import { getAndCache } from "../../../shared-util.js";
 import config from "../../../config.js";
+import { dequantizeEmbedding } from "../embeddings.js";
 import { getPosts, getPostsEmbeddings } from "./posts.js";
 
 const MAX_CHUNKS = 50;
@@ -55,6 +56,7 @@ export const getChunksDb = getAndCache(async () => {
   ]);
 
   // Flatten chunks: each chunk becomes a document with slug reference and post metadata
+  // Dequantize embeddings from uint8 back to floats for Orama vector search
   const chunks = Object.entries(embeddingsObj).flatMap(([slug, { chunks }]) => {
     const post = postsObj[slug];
     return chunks.map((chunk) => ({
@@ -63,6 +65,8 @@ export const getChunksDb = getAndCache(async () => {
       postType: post?.postType,
       categories: post?.categories,
       ...chunk,
+      // Dequantize embeddings: { values, min, max } -> float[]
+      embeddings: dequantizeEmbedding(chunk.embeddings),
     }));
   });
 
