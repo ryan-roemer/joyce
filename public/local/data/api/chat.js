@@ -66,7 +66,7 @@ const BASE_TOKEN_ESTIMATE = estimateTokens(
   JSON.stringify(createMessages({ query: "" })),
 );
 
-console.log("BASE_TOKEN_ESTIMATE", BASE_TOKEN_ESTIMATE);
+// console.log("TODO: BASE_TOKEN_ESTIMATE", BASE_TOKEN_ESTIMATE);
 
 /**
  * Chat with AI using streaming responses.
@@ -141,7 +141,7 @@ export async function* chat({
     context += contextChunk;
   }
 
-  console.log("TODO: CONTEXT", { totalContextTokens, maxContextTokens });
+  // console.log("TODO: CONTEXT", { totalContextTokens, maxContextTokens });
 
   // Yield search info.
   yield { type: "posts", message: searchResults.posts };

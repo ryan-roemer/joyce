@@ -166,10 +166,10 @@ const createPromptEngine = (options = {}) => ({
         const { initialPrompts, lastUserMessage } =
           createPromptMessages(messages);
 
-        console.log("TODO: PROMPT MESSAGES", {
-          initialPrompts,
-          lastUserMessage,
-        });
+        // console.log("TODO: PROMPT MESSAGES", {
+        //   initialPrompts,
+        //   lastUserMessage,
+        // });
 
         const session = await LanguageModel.create({
           ...MODEL_OPTIONS,
@@ -177,7 +177,7 @@ const createPromptEngine = (options = {}) => ({
             initialPrompts.length > 0 ? initialPrompts : undefined,
           monitor: createDownloadMonitor(options.progressCallback),
         }).catch((err) => {
-          console.error("ERROR: PROMPT SESSION CREATE", err);
+          // console.error("ERROR: PROMPT SESSION CREATE", err);
           throw err;
         });
 
