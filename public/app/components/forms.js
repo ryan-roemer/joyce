@@ -17,6 +17,7 @@ import { useState, createContext, useContext } from "react";
 import { useLoading } from "../../local/app/context/loading.js";
 import { useClickOutside } from "../hooks/use-click-outside.js";
 import { formatInt } from "../../shared-util.js";
+import { OfflineIndicator } from "../../local/app/components/offline-status.js";
 
 const CATEGORY_OPTIONS = CATEGORIES_LIST.map((category) => ({
   label: category,
@@ -317,7 +318,7 @@ export const ModelChatSelect = ({
 }) => {
   const [settings] = useSettings();
   const { isDeveloperMode, displayModelStats } = settings;
-  const { getStatus } = useLoading();
+  const { getStatus, getCached } = useLoading();
 
   const getLabel = (label, { provider, model }) => {
     if (!displayModelStats) {
@@ -372,13 +373,21 @@ export const ModelChatSelect = ({
   const isOptionSelected = ({ value }) => value === modelObjToOption(selected);
   const divClass = `form-multi-select-${isDeveloperMode ? "wide" : "medium"}`;
 
-  // Custom format for options showing status icon
+  // Custom format for options showing status and offline icons
   const formatOptionLabel = (option) => {
     const modelId = option.model;
-    const status = modelId ? getStatus(`llm_${modelId}`) : "not_loaded";
+    const resourceId = modelId ? `llm_${modelId}` : null;
+    const status = resourceId ? getStatus(resourceId) : "not_loaded";
+    const isCached = resourceId ? getCached(resourceId) : false;
     return html`
       <span style=${{ display: "flex", alignItems: "center" }}>
         <${ModelStatusIcon} status=${status} />
+        <span style=${{ marginRight: "6px" }}>
+          <${OfflineIndicator}
+            isCached=${isCached === true}
+            isLoading=${status === "loading"}
+          />
+        </span>
         <span>${option.label}</span>
       </span>
     `;

@@ -4,6 +4,11 @@ import { useTableSort } from "../../../app/hooks/use-table-sort.js";
 import { useLoading } from "../context/loading.js";
 import { ModelsFilter } from "./models-filter.js";
 import { addChatModel } from "../../../config.js";
+import {
+  OfflineIndicator,
+  getOfflineStatus,
+  OFFLINE_STATUS_CONFIG,
+} from "./offline-status.js";
 
 const DEFAULT_FILTERS = {
   modelText: "",
@@ -18,6 +23,7 @@ const HEADINGS = {
   quantization: "Quant",
   maxTokens: "Tokens",
   vramMb: "VRAM",
+  offline: "Offline",
   status: "Status",
 };
 
@@ -26,6 +32,7 @@ const COLUMN_INFO = {
   quantization: "Quantization format",
   maxTokens: "Context window size",
   vramMb: "GPU memory required",
+  offline: "Cached for offline use",
   status: "Loading status (click to load)",
 };
 
@@ -97,20 +104,43 @@ const StatusIcon = ({ status, onLoad, progress }) => {
   `;
 };
 
+// Offline status cell with icon and tooltip
+const OfflineCell = ({ loadingStatus, isCached }) => {
+  const status = getOfflineStatus({ loadingStatus, isCached });
+  const config = OFFLINE_STATUS_CONFIG[status];
+
+  return html`
+    <span
+      style=${{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+      title=${config?.title || "Unknown"}
+    >
+      <${OfflineIndicator}
+        isCached=${isCached === true}
+        isLoading=${loadingStatus === "loading"}
+      />
+    </span>
+  `;
+};
+
 export const ModelsTable = ({ models = [] }) => {
   const { getSortSymbol, handleColumnSort, sortItems } = useTableSort();
-  const { getStatus, getProgress, startLoading } = useLoading();
+  const { getStatus, getProgress, getCached, startLoading } = useLoading();
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
   if (models.length === 0) {
     return html`<div />`;
   }
 
-  // Enrich models with status, progress, and resourceId (all models can be loaded)
+  // Enrich models with status, progress, cached, and resourceId (all models can be loaded)
   const enrichedModels = models.map((m) => {
     const resourceId = `llm_${m.model}`;
     const loadingStatus = getStatus(resourceId);
     const progress = getProgress(resourceId);
+    const isCached = getCached(resourceId);
     let status;
     if (loadingStatus === "loaded") {
       status = "loaded";
@@ -121,7 +151,7 @@ export const ModelsTable = ({ models = [] }) => {
     } else {
       status = "available";
     }
-    return { ...m, resourceId, status, progress };
+    return { ...m, resourceId, status, progress, loadingStatus, isCached };
   });
 
   // Apply filters
@@ -180,6 +210,8 @@ export const ModelsTable = ({ models = [] }) => {
                   resourceId,
                   status,
                   progress,
+                  loadingStatus,
+                  isCached,
                 },
                 i,
               ) => {
@@ -203,6 +235,12 @@ export const ModelsTable = ({ models = [] }) => {
                     <td>${quantization ?? "—"}</td>
                     <td>${maxTokens ?? "—"}</td>
                     <td>${vramMb ?? "—"}</td>
+                    <td style=${{ textAlign: "center" }}>
+                      <${OfflineCell}
+                        loadingStatus=${loadingStatus}
+                        isCached=${isCached}
+                      />
+                    </td>
                     <td>
                       <${StatusIcon}
                         status=${status}

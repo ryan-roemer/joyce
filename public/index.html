@@ -52,6 +52,43 @@
         }
       }
     </script>
+    <!-- Service Worker Registration -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("/sw.js")
+            .then((registration) => {
+              console.log(
+                "[App] Service Worker registered:",
+                registration.scope,
+              );
+
+              // Check for updates periodically
+              setInterval(() => registration.update(), 60 * 60 * 1000); // hourly
+
+              // Handle updates
+              registration.addEventListener("updatefound", () => {
+                const newWorker = registration.installing;
+                if (newWorker) {
+                  newWorker.addEventListener("statechange", () => {
+                    if (
+                      newWorker.state === "installed" &&
+                      navigator.serviceWorker.controller
+                    ) {
+                      console.log("[App] New Service Worker available");
+                      // Could show update notification here
+                    }
+                  });
+                }
+              });
+            })
+            .catch((err) => {
+              console.warn("[App] Service Worker registration failed:", err);
+            });
+        });
+      }
+    </script>
     <script type="module">
       import React from "react";
       import ReactDOM from "react-dom/client";
@@ -59,15 +96,20 @@
       import { App } from "/app/index.js";
       import { init } from "/local/data/loading.js";
       import { getSystemInfo } from "/local/data/util.js";
+      import { getServiceWorkerStatus } from "/local/data/sw-status.js";
       import { CHROME_ANY_API_POSSIBLE } from "/shared-config.js";
 
       // Initialize loaders early and get system info.
       init();
-      const systemInfo = await getSystemInfo();
+      const [systemInfo, swStatus] = await Promise.all([
+        getSystemInfo(),
+        getServiceWorkerStatus(),
+      ]);
 
       // TODO(LOCAL): Add config or remove.
       const config = {
         systemInfo,
+        swStatus,
         // TODO(CHAT): Move somewhere else?
         providers: {
           webLlm: {

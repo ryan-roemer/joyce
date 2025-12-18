@@ -1048,6 +1048,44 @@ button.loading-status-icon-button {
   font-size: 0.9em;
 }
 
+/* Offline Status Indicators */
+.offline-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.offline-status-not-cached i {
+  color: var(--color-status-idle);
+}
+
+.offline-status-cached i {
+  color: var(--color-primary);
+}
+
+.offline-status-loading i {
+  color: var(--color-status-loading);
+  animation: loading-status-loading 1.5s linear infinite;
+}
+
+.offline-status-loaded-not-cached i {
+  color: var(--color-status-success);
+}
+
+.offline-status-loaded-cached i {
+  color: var(--color-status-success);
+}
+
+.offline-status-error i {
+  color: var(--color-status-error);
+}
+
+.cache-timestamp {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+  margin-left: 0.5em;
+}
+
 /* Info Icon (reusable) */
 .info-icon {
   display: inline-flex;

@@ -1,3 +1,4 @@
+/* global document:false */
 import {
   createContext,
   useContext,
@@ -11,8 +12,11 @@ import {
   RESOURCES,
   getLoadingStatus,
   getLoadingProgress,
+  getCachedStatus as getCachedStatusFromLoader,
   subscribeLoadingStatus,
   subscribeLoadingProgress,
+  subscribeCachedStatus,
+  checkCachedStatus,
   startLoading,
   findResourceById,
   registerLlmResource,
@@ -30,6 +34,7 @@ export const LoadingProvider = ({ children }) => {
   const [errors, setErrors] = useState(new Map());
   const [elapsedTimes, setElapsedTimes] = useState(new Map());
   const [progressMap, setProgressMap] = useState(new Map());
+  const [cachedMap, setCachedMap] = useState(new Map());
 
   // Update status for a resource
   const updateStatus = useCallback(
@@ -72,6 +77,15 @@ export const LoadingProvider = ({ children }) => {
     });
   }, []);
 
+  // Update cached status for a resource
+  const updateCached = useCallback((resourceId, isCached) => {
+    setCachedMap((prev) => {
+      const next = new Map(prev);
+      next.set(resourceId, isCached);
+      return next;
+    });
+  }, []);
+
   // Subscribe to status changes and initialize from current state
   // Note: We subscribe first, then check current status to avoid race conditions
   // where a load completes between checking status and subscribing
@@ -102,13 +116,40 @@ export const LoadingProvider = ({ children }) => {
         updateProgress(resource.id, currentProgress);
       }
 
-      return [unsubStatus, unsubProgress];
+      // Subscribe to cached status changes
+      const unsubCached = subscribeCachedStatus(resource.id, (isCached) => {
+        updateCached(resource.id, isCached);
+      });
+      // Check current cached status
+      const currentCached = getCachedStatusFromLoader(resource.id);
+      if (currentCached !== null) {
+        updateCached(resource.id, currentCached);
+      }
+
+      return [unsubStatus, unsubProgress, unsubCached];
     });
 
     return () => {
       unsubscribes.forEach((unsub) => unsub());
     };
-  }, [updateStatus, updateProgress]);
+  }, [updateStatus, updateProgress, updateCached]);
+
+  // Refresh cached status on visibility change (when user returns to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Re-check cached status for all resources
+        Object.values(RESOURCES).forEach((resource) => {
+          checkCachedStatus(resource.id);
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   const handleStartLoading = useCallback(
     (resourceId) => {
@@ -123,7 +164,7 @@ export const LoadingProvider = ({ children }) => {
           registerLlmResource(provider, modelId);
           resource = findResourceById(resourceId);
 
-          // Subscribe to status/progress changes for the newly registered resource
+          // Subscribe to status/progress/cached changes for the newly registered resource
           if (resource) {
             subscribeLoadingStatus(
               resource.id,
@@ -134,6 +175,9 @@ export const LoadingProvider = ({ children }) => {
             subscribeLoadingProgress(resource.id, (progress) => {
               updateProgress(resource.id, progress);
             });
+            subscribeCachedStatus(resource.id, (isCached) => {
+              updateCached(resource.id, isCached);
+            });
           }
         }
       }
@@ -142,8 +186,13 @@ export const LoadingProvider = ({ children }) => {
         startLoading(resource);
       }
     },
-    [updateStatus, updateProgress],
+    [updateStatus, updateProgress, updateCached],
   );
+
+  // Function to refresh cached status for a specific resource
+  const refreshCachedStatus = useCallback((resourceId) => {
+    checkCachedStatus(resourceId);
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -151,9 +200,19 @@ export const LoadingProvider = ({ children }) => {
       getError: (resourceId) => errors.get(resourceId) || null,
       getElapsed: (resourceId) => elapsedTimes.get(resourceId) ?? null,
       getProgress: (resourceId) => progressMap.get(resourceId) ?? null,
+      getCached: (resourceId) => cachedMap.get(resourceId) ?? null,
       startLoading: handleStartLoading,
+      refreshCachedStatus,
     }),
-    [statuses, errors, elapsedTimes, progressMap, handleStartLoading],
+    [
+      statuses,
+      errors,
+      elapsedTimes,
+      progressMap,
+      cachedMap,
+      handleStartLoading,
+      refreshCachedStatus,
+    ],
   );
 
   return html`

@@ -1,6 +1,11 @@
 /* global performance:false */
-import { getPosts, getPostsEmbeddings } from "./api/posts.js";
-import { getDb, getExtractor } from "./api/search.js";
+import {
+  getPosts,
+  getPostsEmbeddings,
+  isPostsCached,
+  isEmbeddingsCached,
+} from "./api/posts.js";
+import { getDb, getExtractor, isExtractorCached } from "./api/search.js";
 import {
   getLlmEngine,
   setLlmProgressCallback,
@@ -44,19 +49,30 @@ export const RESOURCES = {
   POSTS_DATA: {
     id: "posts_data",
     get: getPosts,
+    checkCached: isPostsCached,
   },
   POSTS_EMBEDDINGS: {
     id: "posts_embeddings",
     get: getPostsEmbeddings,
+    checkCached: isEmbeddingsCached,
   },
   DB: {
     id: "db",
     get: getDb,
     deps: ["posts_data", "posts_embeddings"],
+    // DB is cached if both posts and embeddings are cached
+    checkCached: async () => {
+      const [postsCached, embeddingsCached] = await Promise.all([
+        isPostsCached(),
+        isEmbeddingsCached(),
+      ]);
+      return postsCached && embeddingsCached;
+    },
   },
   EXTRACTOR: {
     id: "extractor",
     get: getExtractor,
+    checkCached: isExtractorCached,
   },
   ...LLM_RESOURCES,
 };
@@ -64,7 +80,7 @@ export const RESOURCES = {
 /**
  * Find a resource by its ID
  * @param {string} resourceId
- * @returns {{ id: string, get: () => Promise<any> } | undefined}
+ * @returns {{ id: string, get: () => Promise<any>, checkCached?: () => Promise<boolean> } | undefined}
  */
 export const findResourceById = (resourceId) => {
   return Object.values(RESOURCES).find((r) => r.id === resourceId);
@@ -87,6 +103,10 @@ const loadedData = new Map();
 const loadingProgress = new Map();
 const progressCallbacks = new Map();
 
+// Cached status tracking (separate from loaded status)
+const cachedStatus = new Map();
+const cachedCallbacks = new Map();
+
 /**
  * Get loading status for a resource
  * @param {string} resourceId
@@ -94,6 +114,68 @@ const progressCallbacks = new Map();
  */
 export const getLoadingStatus = (resourceId) => {
   return loadingStatus.get(resourceId) || "not_loaded";
+};
+
+/**
+ * Get cached status for a resource (whether it's available offline)
+ * @param {string} resourceId
+ * @returns {boolean | null} true if cached, false if not, null if unknown
+ */
+export const getCachedStatus = (resourceId) => {
+  return cachedStatus.get(resourceId) ?? null;
+};
+
+/**
+ * Check and update cached status for a resource
+ * @param {string} resourceId
+ * @returns {Promise<boolean>}
+ */
+export const checkCachedStatus = async (resourceId) => {
+  const resource = findResourceById(resourceId);
+  if (!resource?.checkCached) {
+    return false;
+  }
+
+  try {
+    const isCached = await resource.checkCached();
+    setCachedStatus(resourceId, isCached);
+    return isCached;
+    // eslint-disable-next-line no-unused-vars
+  } catch (err) {
+    return false;
+  }
+};
+
+/**
+ * Set cached status for a resource
+ * @param {string} resourceId
+ * @param {boolean} isCached
+ */
+const setCachedStatus = (resourceId, isCached) => {
+  cachedStatus.set(resourceId, isCached);
+  // Notify subscribers
+  const callbacks = [...(cachedCallbacks.get(resourceId) || [])];
+  callbacks.forEach((cb) => cb(isCached));
+};
+
+/**
+ * Subscribe to cached status changes
+ * @param {string} resourceId
+ * @param {Function} callback
+ * @returns {Function} Unsubscribe function
+ */
+export const subscribeCachedStatus = (resourceId, callback) => {
+  if (!cachedCallbacks.has(resourceId)) {
+    cachedCallbacks.set(resourceId, []);
+  }
+  cachedCallbacks.get(resourceId).push(callback);
+  return () => {
+    const callbacks = cachedCallbacks.get(resourceId);
+    const index = (callbacks || []).indexOf(callback);
+    if (index > -1) {
+      callbacks.splice(index, 1);
+    }
+  };
 };
 
 /**
@@ -232,6 +314,9 @@ export const startLoading = async (resource) => {
     loadedData.set(id, result);
     const elapsed = performance.now() - start;
     setLoadingStatus(id, "loaded", { elapsed });
+
+    // After loading, update cached status (resource is now cached)
+    checkCachedStatus(id);
   } catch (error) {
     const elapsed = performance.now() - start;
     setLoadingStatus(id, "error", { error, elapsed });
@@ -239,9 +324,24 @@ export const startLoading = async (resource) => {
 };
 
 /**
+ * Check cached status for all resources
+ * @returns {Promise<Map<string, boolean>>}
+ */
+export const checkAllCachedStatuses = async () => {
+  const resources = Object.values(RESOURCES);
+  await Promise.all(
+    resources.map((resource) => checkCachedStatus(resource.id)),
+  );
+  return cachedStatus;
+};
+
+/**
  * Initialize loading system and start default loads
  */
 export const init = () => {
+  // Check cached status for all resources on init
+  checkAllCachedStatuses();
+
   startLoading(RESOURCES.POSTS_DATA);
   startLoading(RESOURCES.POSTS_EMBEDDINGS);
   startLoading(RESOURCES.DB);

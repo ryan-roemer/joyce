@@ -1,4 +1,4 @@
-/* global performance:false */
+/* global performance:false,caches:false */
 import { create, insertMultiple, search as oramaSearch } from "@orama/orama";
 import { pipeline } from "@xenova/transformers";
 
@@ -12,12 +12,38 @@ const MIN_SIMILARITY = 0.8;
 
 const dateToNumber = (date) => Date.parse(date);
 
+// Transformers.js cache name (used by @xenova/transformers for storing model files)
+const TRANSFORMERS_CACHE_NAME = "transformers-cache";
+
 // Embeddings extractor (feature-extraction pipeline)
 export const getExtractor = getAndCache(async () => {
   const { model } = config.embeddings;
   const extractor = await pipeline("feature-extraction", model);
   return extractor;
 });
+
+/**
+ * Check if the extractor model is cached in the browser's Cache API.
+ * Transformers.js caches model files under "transformers-cache".
+ * @returns {Promise<boolean>} true if the model is cached, false otherwise
+ */
+export const isExtractorCached = async () => {
+  try {
+    const { model } = config.embeddings;
+    const cache = await caches.open(TRANSFORMERS_CACHE_NAME);
+    const keys = await cache.keys();
+
+    // Check if any cached URL contains the model name (e.g., "Xenova/gte-small")
+    // Transformers.js caches files from huggingface.co with paths like:
+    // https://huggingface.co/Xenova/gte-small/resolve/main/onnx/model_quantized.onnx
+    const hasCachedModel = keys.some((request) => request.url.includes(model));
+
+    return hasCachedModel;
+    // eslint-disable-next-line no-unused-vars
+  } catch (err) {
+    return false;
+  }
+};
 
 // Posts database (full-text search)
 export const getPostsDb = getAndCache(async () => {

@@ -15,6 +15,14 @@ import {
   LOADING,
 } from "../../local/app/components/loading/index.js";
 import { checkAvailability } from "../../local/data/api/providers/chrome.js";
+import {
+  getServiceWorkerStatus,
+  getCacheSize,
+  clearServiceWorkerCache,
+} from "../../local/data/sw-status.js";
+import { getCacheStats, clearAllCaches } from "../../local/data/storage.js";
+import { useLoading } from "../../local/app/context/loading.js";
+import { CombinedStatusIcon } from "../../local/app/components/offline-status.js";
 
 // Get model short name from resource id (provider-agnostic)
 const modelShortName = (modelId) => {
@@ -147,11 +155,154 @@ const ChromeAIInfo = () => {
   `;
 };
 
+// Offline Cache Status section
+const OfflineCacheInfo = () => {
+  const [swStatus, setSwStatus] = useState(null);
+  const [swCacheSize, setSwCacheSize] = useState(null);
+  const [idbStats, setIdbStats] = useState(null);
+  const [isClearing, setIsClearing] = useState(false);
+
+  const refreshStatus = async () => {
+    const [sw, size, stats] = await Promise.all([
+      getServiceWorkerStatus(),
+      getCacheSize(),
+      getCacheStats(),
+    ]);
+    setSwStatus(sw);
+    setSwCacheSize(size);
+    setIdbStats(stats);
+  };
+
+  useEffect(() => {
+    refreshStatus();
+  }, []);
+
+  const handleClearCache = async () => {
+    setIsClearing(true);
+    try {
+      await Promise.all([clearServiceWorkerCache(), clearAllCaches()]);
+      await refreshStatus();
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const formatTimestamp = (ts) => {
+    if (!ts) return "Never";
+    return new Date(ts).toLocaleString();
+  };
+
+  const swStatusBadge = swStatus?.controller
+    ? { label: "Active", className: "status-supported" }
+    : swStatus?.registered
+      ? { label: "Registered", className: "status-warning" }
+      : swStatus?.supported
+        ? { label: "Not Registered", className: "status-warning" }
+        : { label: "Not Supported", className: "status-unsupported" };
+
+  return html`
+    <div className="system-info">
+      <div className="system-info-row">
+        <strong>Service Worker:</strong>
+        <span className=${`status-badge ${swStatusBadge.className}`}>
+          ${swStatusBadge.label}
+        </span>
+      </div>
+      ${swCacheSize !== null &&
+      html`
+        <div className="system-info-row">
+          <strong>SW Cache Size:</strong>
+          <span>${formatBytes(swCacheSize)}</span>
+        </div>
+      `}
+      ${idbStats &&
+      html`
+        <div key="posts-data" className="system-info-row">
+          <strong>Posts Data:</strong>
+          <span
+            className=${`status-badge ${idbStats.posts.cached ? "status-supported" : "status-warning"}`}
+          >
+            ${idbStats.posts.cached ? "Cached" : "Not Cached"}
+          </span>
+          ${idbStats.posts.timestamp &&
+          html`<span className="cache-timestamp"
+            >(${formatTimestamp(idbStats.posts.timestamp)})</span
+          >`}
+        </div>
+        <div key="embeddings-data" className="system-info-row">
+          <strong>Embeddings:</strong>
+          <span
+            className=${`status-badge ${idbStats.embeddings.cached ? "status-supported" : "status-warning"}`}
+          >
+            ${idbStats.embeddings.cached ? "Cached" : "Not Cached"}
+          </span>
+          ${idbStats.embeddings.timestamp &&
+          html`<span className="cache-timestamp"
+            >(${formatTimestamp(idbStats.embeddings.timestamp)})</span
+          >`}
+        </div>
+      `}
+      <div className="system-info-row" style=${{ marginTop: "8px" }}>
+        <button
+          className="pure-button"
+          onClick=${handleClearCache}
+          disabled=${isClearing}
+          style=${{ fontSize: "12px" }}
+        >
+          <i className="iconoir-trash"></i>${" "}
+          ${isClearing ? "Clearing..." : "Clear Offline Cache"}
+        </button>
+        <button
+          className="pure-button"
+          onClick=${refreshStatus}
+          style=${{ fontSize: "12px", marginLeft: "8px" }}
+        >
+          <i className="iconoir-refresh"></i>${" "}Refresh
+        </button>
+      </div>
+    </div>
+  `;
+};
+
+// Enhanced LoadingButton with offline status
+const LoadingButtonWithOffline = ({ resourceId, children }) => {
+  const { getStatus, getCached } = useLoading();
+  const loadingStatus = getStatus(resourceId);
+  const isCached = getCached(resourceId);
+
+  return html`
+    <div
+      style=${{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+      }}
+    >
+      <${CombinedStatusIcon}
+        loadingStatus=${loadingStatus}
+        isCached=${isCached}
+        size="14px"
+      />
+      <${LoadingButton} resourceId=${resourceId}>
+        ${children}
+      </${LoadingButton}>
+    </div>
+  `;
+};
+
 export const Data = () => {
   const { systemInfo } = useConfig();
 
   return html`
     <${Page} name="Data & Models">
+      <h2 className="content-subhead">Offline Status</h2>
+      <p>
+        Joyce can work offline once data and models are cached. The cloud icons
+        indicate offline readiness: <i className="iconoir-cloud-check" style=${{ color: "var(--color-blue, #3498db)" }}></i> means
+        cached for offline, <i className="iconoir-cloud-xmark" style=${{ color: "var(--color-gray, #999)" }}></i> means requires network.
+      </p>
+      <${OfflineCacheInfo} />
+
       <h2 className="content-subhead">Data</h2>
       <p>
         We load data, databases, and models for use in the app.
@@ -159,34 +310,27 @@ export const Data = () => {
         manually. (If you see a gray circle, this is unloaded data that you can click to load.)
       </p>
       <div>
-        <${LoadingButton} resourceId=${LOADING.POSTS_DATA}>
+        <${LoadingButtonWithOffline} resourceId=${LOADING.POSTS_DATA}>
           <strong>Posts</strong>: posts data
-        </${LoadingButton}>
-        <${LoadingButton} resourceId=${LOADING.POSTS_EMBEDDINGS}>
+        </${LoadingButtonWithOffline}>
+        <${LoadingButtonWithOffline} resourceId=${LOADING.POSTS_EMBEDDINGS}>
           <strong>Posts Embeddings</strong>: chunked embeddings for posts data
-        </${LoadingButton}>
-        <${LoadingButton} resourceId=${LOADING.DB}>
+        </${LoadingButtonWithOffline}>
+        <${LoadingButtonWithOffline} resourceId=${LOADING.DB}>
           <strong>Database</strong>: search indexes
-        </${LoadingButton}>
-        <${LoadingButton} resourceId=${LOADING.EXTRACTOR}>
+        </${LoadingButtonWithOffline}>
+        <${LoadingButtonWithOffline} resourceId=${LOADING.EXTRACTOR}>
           <strong>Extractor</strong>: embeddings extraction model
-        </${LoadingButton}>
+        </${LoadingButtonWithOffline}>
         ${Object.keys(LOADING)
           .filter((key) => key.startsWith("LLM_"))
           .map(
             (key) => html`
-              <${LoadingButton} resourceId=${LOADING[key]} key=${key}>
+              <${LoadingButtonWithOffline} resourceId=${LOADING[key]} key=${key}>
                 <strong>Model</strong>: ${modelShortName(LOADING[key])}
-              </${LoadingButton}>
+              </${LoadingButtonWithOffline}>
             `,
           )}
-      </div>
-      <div>
-        <!-- TODO(LOCAL): Remove these demo buttons -->
-        <${LoadingButton} resourceId="demo_not_loaded" label="Demo: Not loaded" forceStatus="not_loaded" />
-        <${LoadingButton} resourceId="demo_loading" label="Demo: Loading" forceStatus="loading" />
-        <${LoadingButton} resourceId="demo_loaded" label="Demo: Loaded" forceStatus="loaded" />
-        <${LoadingButton} resourceId="demo_error" label="Demo: Error" forceStatus="error" />
       </div>
 
       <h2 className="content-subhead">Models</h2>
@@ -210,9 +354,9 @@ export const Data = () => {
 
       <h3>web-llm</h3>
       <p>
-        Available web-llm models for local inference. Status
-        indicates whether the model is loaded in memory, currently loading, or
-        available for download.
+        Available web-llm models for local inference. The "Offline" column shows
+        whether models are cached for offline use. Status indicates whether the
+        model is loaded in memory, currently loading, or available for download.
       </p>
       <${ModelsTable} models=${MODELS} />
     </${Page}>

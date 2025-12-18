@@ -104,10 +104,10 @@ Chrome provides [Built-in AI APIs](https://developer.chrome.com/docs/ai/) powere
 Use global objects `LanguageModel` and `Writer` for feature detection:
 ```javascript
 // Check if Prompt API is supported
-if ("LanguageModel" in self) { /* supported */ }
+if ("LanguageModel" in window) { /* supported */ }
 
 // Check if Writer API is supported
-if ("Writer" in self) { /* supported */ }
+if ("Writer" in window) { /* supported */ }
 ```
 
 ### Available APIs
