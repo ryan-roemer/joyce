@@ -1,8 +1,10 @@
-/* global indexedDB:false */
+/* global indexedDB:false,navigator:false,console:false */
 /**
  * IndexedDB wrapper for offline data persistence.
  * Provides cache-first storage for posts and embeddings data.
  */
+
+import { fetchWrapper } from "./util.js";
 
 const DB_NAME = "joyce-offline";
 const DB_VERSION = 1;
@@ -241,4 +243,47 @@ export const getCacheStats = async () => {
   ]);
 
   return { posts, embeddings };
+};
+
+/**
+ * Create a cached fetcher with stale-while-revalidate strategy.
+ * Returns cached data immediately (if available) while refreshing in background.
+ * @param {Object} options
+ * @param {string} options.store - The IndexedDB store name (from STORES)
+ * @param {string|Function} options.url - URL string or function returning URL
+ * @param {string} options.label - Label for console warnings (e.g., "Posts")
+ * @returns {Function} Async function that returns cached/fetched data
+ */
+export const createCachedFetcher = ({ store, url, label }) => {
+  const getUrl = typeof url === "function" ? url : () => url;
+
+  const refreshInBackground = () => {
+    if (!navigator.onLine) return;
+
+    fetchWrapper(getUrl())
+      .then((data) => saveToCache(store, data))
+      .catch((err) => {
+        console.warn(`[${label}] Background refresh failed:`, err);
+      });
+  };
+
+  return async () => {
+    // Try to load from IndexedDB cache first
+    const cached = await loadFromCache(store);
+    if (cached) {
+      // Refresh in background (stale-while-revalidate)
+      refreshInBackground();
+      return cached;
+    }
+
+    // Fetch from network
+    const data = await fetchWrapper(getUrl());
+
+    // Save to IndexedDB for offline use
+    await saveToCache(store, data).catch((err) => {
+      console.warn(`[${label}] Failed to save to cache:`, err);
+    });
+
+    return data;
+  };
 };

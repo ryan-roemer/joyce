@@ -87,30 +87,24 @@ const DATA_FILES = [
  * Install event - precache app shell
  */
 self.addEventListener("install", (event) => {
-  console.log("[SW] Installing service worker");
-
   event.waitUntil(
     caches
       .open(CACHE_NAME)
       .then((cache) => {
-        console.log("[SW] Precaching app shell");
         // Use addAll for app shell, but don't fail install if some fail
         return cache.addAll(APP_SHELL).catch((err) => {
-          console.warn("[SW] Some app shell assets failed to cache:", err);
+          console.warn("[SW] Some app shell assets failed to cache:", err); // eslint-disable-line no-undef
           // Try to cache what we can individually
           return Promise.allSettled(
             APP_SHELL.map((url) =>
-              cache
-                .add(url)
-                .catch((e) => console.warn(`[SW] Failed to cache ${url}:`, e)),
+              cache.add(url).catch(
+                (e) => console.warn(`[SW] Failed to cache ${url}:`, e), // eslint-disable-line no-undef
+              ),
             ),
           );
         });
       })
-      .then(() => {
-        console.log("[SW] App shell cached, activating immediately");
-        return self.skipWaiting();
-      }),
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -118,8 +112,6 @@ self.addEventListener("install", (event) => {
  * Activate event - clean up old caches
  */
 self.addEventListener("activate", (event) => {
-  console.log("[SW] Activating service worker");
-
   event.waitUntil(
     caches
       .keys()
@@ -127,16 +119,10 @@ self.addEventListener("activate", (event) => {
         return Promise.all(
           cacheNames
             .filter((name) => name.startsWith("joyce-") && name !== CACHE_NAME)
-            .map((name) => {
-              console.log("[SW] Deleting old cache:", name);
-              return caches.delete(name);
-            }),
+            .map((name) => caches.delete(name)),
         );
       })
-      .then(() => {
-        console.log("[SW] Claiming clients");
-        return self.clients.claim();
-      }),
+      .then(() => self.clients.claim()),
   );
 });
 
@@ -196,7 +182,7 @@ async function cacheFirstWithNetwork(request) {
     }
     return response;
   } catch (err) {
-    console.warn("[SW] Network fetch failed:", request.url, err);
+    console.warn("[SW] Network fetch failed:", request.url, err); // eslint-disable-line no-undef
     // Return a fallback offline page if available
     const fallback = await cache.match("/index.html");
     if (fallback) {
@@ -221,7 +207,7 @@ async function networkFirstWithCache(request) {
     }
     return response;
   } catch (err) {
-    console.warn("[SW] Network failed, trying cache:", request.url);
+    console.warn("[SW] Network failed, trying cache:", request.url); // eslint-disable-line no-undef
     const cached = await cache.match(request);
     if (cached) {
       return cached;
@@ -303,10 +289,11 @@ async function getCacheSize() {
 async function cacheUrls(urls) {
   const cache = await caches.open(CACHE_NAME);
   return Promise.allSettled(
-    urls.map((url) =>
-      cache
-        .add(url)
-        .catch((e) => console.warn(`[SW] Failed to cache ${url}:`, e)),
+    urls.map(
+      (url) =>
+        cache
+          .add(url)
+          .catch((e) => console.warn(`[SW] Failed to cache ${url}:`, e)), // eslint-disable-line no-undef
     ),
   );
 }

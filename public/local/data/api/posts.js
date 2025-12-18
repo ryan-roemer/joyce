@@ -1,87 +1,28 @@
-/* global navigator:false */
 import { getEmbeddingsPath } from "../../../config.js";
 import { getAndCache } from "../../../shared-util.js";
-import { fetchWrapper } from "../util.js";
-import { saveToCache, loadFromCache, isCached, STORES } from "../storage.js";
+import { createCachedFetcher, isCached, STORES } from "../storage.js";
 
 /**
- * Fetch posts with IndexedDB cache-first strategy.
- * Tries to load from cache first, falls back to network, then saves to cache.
+ * Fetch posts with IndexedDB cache-first strategy (stale-while-revalidate).
  */
-export const getPosts = getAndCache(async () => {
-  // Try to load from IndexedDB cache first
-  const cached = await loadFromCache(STORES.POSTS);
-  if (cached) {
-    // Optionally refresh in background (stale-while-revalidate)
-    refreshPostsInBackground();
-    return cached;
-  }
-
-  // Fetch from network
-  const data = await fetchWrapper("/data/posts.json");
-
-  // Save to IndexedDB for offline use
-  await saveToCache(STORES.POSTS, data).catch((err) => {
-    console.warn("[Posts] Failed to save to cache:", err); // eslint-disable-line no-undef
-  });
-
-  return data;
-});
+export const getPosts = getAndCache(
+  createCachedFetcher({
+    store: STORES.POSTS,
+    url: "/data/posts.json",
+    label: "Posts",
+  }),
+);
 
 /**
- * Refresh posts data in background without blocking.
- * This enables stale-while-revalidate pattern.
+ * Fetch embeddings with IndexedDB cache-first strategy (stale-while-revalidate).
  */
-const refreshPostsInBackground = () => {
-  // Only refresh if online
-  if (!navigator.onLine) return;
-
-  fetchWrapper("/data/posts.json")
-    .then((data) => {
-      saveToCache(STORES.POSTS, data);
-    })
-    .catch((err) => {
-      console.warn("[Posts] Background refresh failed:", err); // eslint-disable-line no-undef
-    });
-};
-
-/**
- * Fetch embeddings with IndexedDB cache-first strategy.
- */
-export const getPostsEmbeddings = getAndCache(async () => {
-  // Try to load from IndexedDB cache first
-  const cached = await loadFromCache(STORES.EMBEDDINGS);
-  if (cached) {
-    // Optionally refresh in background
-    refreshEmbeddingsInBackground();
-    return cached;
-  }
-
-  // Fetch from network
-  const data = await fetchWrapper(getEmbeddingsPath());
-
-  // Save to IndexedDB for offline use
-  await saveToCache(STORES.EMBEDDINGS, data).catch((err) => {
-    console.warn("[Embeddings] Failed to save to cache:", err); // eslint-disable-line no-undef
-  });
-
-  return data;
-});
-
-/**
- * Refresh embeddings data in background without blocking.
- */
-const refreshEmbeddingsInBackground = () => {
-  if (!navigator.onLine) return;
-
-  fetchWrapper(getEmbeddingsPath())
-    .then((data) => {
-      saveToCache(STORES.EMBEDDINGS, data);
-    })
-    .catch((err) => {
-      console.warn("[Embeddings] Background refresh failed:", err); // eslint-disable-line no-undef
-    });
-};
+export const getPostsEmbeddings = getAndCache(
+  createCachedFetcher({
+    store: STORES.EMBEDDINGS,
+    url: getEmbeddingsPath,
+    label: "Embeddings",
+  }),
+);
 
 /**
  * Check if posts data is cached in IndexedDB (offline-ready).
