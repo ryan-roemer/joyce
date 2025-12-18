@@ -293,6 +293,7 @@ const ModelStatusIcon = ({ status }) => {
       className=${`model-status-icon ${config.cls}`}
       title=${config.title}
       style=${{
+        // TODO(CHAT): Move to CSS
         marginRight: "6px",
         display: "inline-flex",
         alignItems: "center",
