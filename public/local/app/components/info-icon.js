@@ -21,7 +21,7 @@ export const InfoIcon = ({ tooltip, modalTitle, children, className = "" }) => {
 
   return html`
     <span
-      className=${`info-icon ${className}`.trim()}
+      className=${`info-icon ${className ?? ""}`.trim()}
       title=${tooltip}
       onClick=${handleClick}
     >

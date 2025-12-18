@@ -7,7 +7,7 @@ const SORT_DIRS = {
 };
 
 const sortIconHtml = (className) =>
-  html`<i title="Sort" className="ui-icon-button ${className}"></i>`;
+  html`<i title="Sort" className="ui-icon-button ${className ?? ""}"></i>`;
 
 const SORT_CHARS = {
   [SORT_DIRS.ASC]: sortIconHtml("iconoir-sort-up"),

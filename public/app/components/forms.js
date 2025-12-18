@@ -84,7 +84,7 @@ export const DropdownWrapper = ({
 
   return html`
     <div
-      className=${`form-dropdown ${className}`}
+      className=${`form-dropdown ${className ?? ""}`}
       hidden=${hidden}
       ref=${dropdownRef}
     >
