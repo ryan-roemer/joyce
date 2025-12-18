@@ -43,6 +43,7 @@ const setQueryValue = getQuerySetter("query");
 const SUGGESTIONS = [
   "Tell me 2 sentences about Nearform's expertise in using AI for software development.",
   "Give me a single paragraph about Nearform's React and React Native expertise.",
+  "Give me 3 articles by Nearform on AI in engineering teams.",
 ];
 
 export const ShortDescription = () => html`

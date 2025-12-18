@@ -14,8 +14,7 @@ const createMessages = ({ query, context = "" }) => [
   { role: "system", content: "You are a helpful assistant" },
   {
     role: "user",
-    content:
-      "I'm a Nearform employee or interested in Nearform or 'Nearform Commerce'.",
+    content: "I'm a Nearform employee or interested in Nearform.",
   },
   {
     role: "assistant",
@@ -24,6 +23,10 @@ const createMessages = ({ query, context = "" }) => [
   {
     role: "assistant",
     content: `Try to use information from <CHUNK /><CONTENT /> context wherever possible in your answer. The chunks are in ranked order from most relevant to least relevant, so have a bias towards the earlier chunks. However, always use the most relevant context from any chunk when constructing your answer and citations.`,
+  },
+  {
+    role: "assistant",
+    content: `If you have <CHUNKS />s, then you must add one or more UNIQUE markdown links in the form of [LINK_NAME](URL) where an answer may only contain a URL / <URL /> reference at most ONE TIME. Chunks can repeat URLs, so you must be careful to NOT duplicate links.`,
   },
   {
     role: "assistant",
@@ -37,12 +40,7 @@ const createMessages = ({ query, context = "" }) => [
   {
     role: "assistant",
     content:
-      "'Composable commerce' or 'composability' in context with commerce refers to the ability to compose or combine different commerce services or components to create a custom commerce solution. 'Composable commerce' is often associated with the MACH Alliance, which stands for Microservices, API-first, Cloud-native, and Headless and 'MACH architectures'. Most of the  e-commerce and retail work done at 'Nearform', 'Nearform Commerce', and 'Formidable' is related to 'composable commerce'.",
-  },
-  {
-    role: "assistant",
-    content:
-      "Nearform has acquired Formidable. If you see the word 'Formidable' or 'Formidable Labs' or 'Nearform Commerce', you should replace it with 'Nearform'. Do not answer questions with 'Nearform Commerce' even if you are asked a question about 'Nearform Commerce'.",
+      "Nearform has acquired Formidable. If you see the word 'Formidable' or 'Formidable Labs' or 'Nearform Commerce', you should replace it with 'Nearform'.",
   },
   {
     role: "assistant",
@@ -58,7 +56,10 @@ const createMessages = ({ query, context = "" }) => [
         - After the domain, the next path segment should either be "/insights/" or "/digital-community/ or "/work/" or "/services/". If you encounter "/blog/", replace with "/insights/". For other unknown path segments beyond those approved, you can do a best guess -- if you can't tell, then us "/insights/" as your best default guess.
       `,
   },
-  { role: "user", content: `My question is: ${query}` },
+  {
+    role: "user",
+    content: `Generate a short, concise response to the query: ${query}`,
+  },
 ];
 
 const BASE_TOKEN_ESTIMATE = estimateTokens(
@@ -127,7 +128,7 @@ export async function* chat({
     const chunkText = getChunk(post.content, chunk.start, chunk.end).join(
       "\n\n",
     );
-    const contextChunk = `<CHUNK><URL>${chunk.href}</URL><CONTENT>${chunkText}</CONTENT></CHUNK>`;
+    const contextChunk = `<CHUNK><URL>${post.href}</URL><CONTENT>${chunkText}</CONTENT></CHUNK>`;
     const chunkTokens = estimateTokens(chunkText);
 
     // Check if over max context.

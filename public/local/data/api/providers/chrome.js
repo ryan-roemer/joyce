@@ -1,14 +1,12 @@
-/* global window:false,LanguageModel:false,Writer:false */
+/* global LanguageModel:false,Writer:false */
 // Chrome AI provider implementation using Chrome Built-in AI APIs
 // Supports both Prompt API and Writer API via pseudo-models
 // See: https://developer.chrome.com/docs/ai/built-in-apis
-//
-// ## Enabling in Chrome
-// - Prompt: https://developer.chrome.com/docs/ai/prompt-api#use_on_localhost
-// - Writer: https://developer.chrome.com/docs/ai/writer-api#add_support_to_localhost
-export const HAS_PROMPT_API = "LanguageModel" in window;
-export const HAS_WRITER_API = "Writer" in window;
-export const ANY_CHROME_API_POSSIBLE = HAS_PROMPT_API || HAS_WRITER_API;
+
+import {
+  CHROME_HAS_PROMPT_API,
+  CHROME_HAS_WRITER_API,
+} from "../../../../shared-config.js";
 
 const MODEL_OPTIONS = {
   expectedInputs: [{ type: "text", languages: ["en"] }],
@@ -81,7 +79,7 @@ export const checkAvailability = async (apiType) => {
   try {
     if (apiType === "prompt") {
       // Feature detection using global LanguageModel
-      if (!HAS_PROMPT_API) {
+      if (!CHROME_HAS_PROMPT_API) {
         return {
           available: false,
           reason: "Prompt API not supported in this browser",
@@ -90,7 +88,7 @@ export const checkAvailability = async (apiType) => {
       status = await LanguageModel.availability(MODEL_OPTIONS);
     } else if (apiType === "writer") {
       // Feature detection using global Writer
-      if (!HAS_WRITER_API) {
+      if (!CHROME_HAS_WRITER_API) {
         return {
           available: false,
           reason: "Writer API not supported in this browser",
@@ -243,6 +241,7 @@ const createWriterEngine = (options = {}) => ({
         });
 
         const stream = writer.writeStreaming(writingTask, { context });
+        // console.log("TODO: WRITER STREAM", { writer, stream });
         return (async function* () {
           try {
             yield* streamToAsyncIterator({ stream });

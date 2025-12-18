@@ -4,17 +4,17 @@ import { Page } from "../components/page.js";
 import { useConfig } from "../contexts/config.js";
 import { MODELS, getModelCfg, getProviderForModel } from "../../config.js";
 import { formatBytes } from "../../shared-util.js";
+import {
+  CHROME_ANY_API_POSSIBLE,
+  CHROME_HAS_PROMPT_API,
+  CHROME_HAS_WRITER_API,
+} from "../../shared-config.js";
 import { ModelsTable } from "../../local/app/components/models-table.js";
 import {
   LoadingButton,
   LOADING,
 } from "../../local/app/components/loading/index.js";
-import {
-  ANY_CHROME_API_POSSIBLE,
-  HAS_PROMPT_API,
-  HAS_WRITER_API,
-  checkAvailability,
-} from "../../local/data/api/providers/chrome.js";
+import { checkAvailability } from "../../local/data/api/providers/chrome.js";
 
 // Get model short name from resource id (provider-agnostic)
 const modelShortName = (modelId) => {
@@ -108,20 +108,20 @@ const ChromeAIInfo = () => {
 
   useEffect(() => {
     // Check availability for both APIs
-    if (HAS_PROMPT_API) {
+    if (CHROME_HAS_PROMPT_API) {
       checkAvailability("prompt").then(setPromptStatus);
     }
-    if (HAS_WRITER_API) {
+    if (CHROME_HAS_WRITER_API) {
       checkAvailability("writer").then(setWriterStatus);
     }
   }, []);
 
-  const overallStatus = ANY_CHROME_API_POSSIBLE
+  const overallStatus = CHROME_ANY_API_POSSIBLE
     ? { label: "Available", className: "status-supported" }
     : { label: "Not Supported", className: "status-unsupported" };
 
-  const promptBadge = getApiStatusBadge(HAS_PROMPT_API, promptStatus);
-  const writerBadge = getApiStatusBadge(HAS_WRITER_API, writerStatus);
+  const promptBadge = getApiStatusBadge(CHROME_HAS_PROMPT_API, promptStatus);
+  const writerBadge = getApiStatusBadge(CHROME_HAS_WRITER_API, writerStatus);
 
   return html`
     <div className="system-info">

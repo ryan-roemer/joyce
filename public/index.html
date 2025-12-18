@@ -59,7 +59,7 @@
       import { App } from "/app/index.js";
       import { init } from "/local/data/loading.js";
       import { getSystemInfo } from "/local/data/util.js";
-      import { ANY_CHROME_API_POSSIBLE } from "/local/data/api/providers/chrome.js";
+      import { CHROME_ANY_API_POSSIBLE } from "/shared-config.js";
 
       // Initialize loaders early and get system info.
       init();
@@ -74,7 +74,7 @@
             enabled: true,
           },
           chrome: {
-            enabled: ANY_CHROME_API_POSSIBLE,
+            enabled: CHROME_ANY_API_POSSIBLE,
           },
         },
       };

@@ -1,6 +1,17 @@
+/* global window:false */
 /**
  * Shared client configuration. (No secrets).
  */
+
+// Chrome Built-in AI feature detection
+// ## Enabling in Chrome
+// - Prompt: https://developer.chrome.com/docs/ai/prompt-api#use_on_localhost
+// - Writer: https://developer.chrome.com/docs/ai/writer-api#add_support_to_localhost
+export const CHROME_HAS_PROMPT_API = "LanguageModel" in window;
+export const CHROME_HAS_WRITER_API = "Writer" in window;
+export const CHROME_ANY_API_POSSIBLE =
+  CHROME_HAS_PROMPT_API || CHROME_HAS_WRITER_API;
+
 const BASE_PAGES = [
   { name: "Home", naveName: "Joyce", to: "/", icon: "iconoir-post" },
   { name: "Posts", to: "/posts", icon: "iconoir-multiple-pages-empty" },
@@ -20,7 +31,8 @@ export const TOKEN_CUSHION_EMBEDDINGS = 25;
 
 // TODO(CHAT): Can we programmatically get these values?
 export const GEMMA_NANO_MAX_TOKENS = 32768;
-export const GEMMA_NANO_MAX_TOKENS_ADJUSTED = 8192; // Session max input is much smaller, like around 9K on my mac.
+export const GEMMA_NANO_MAX_TOKENS_ADJUSTED_PROMPT = 8192; // Session max input is much smaller, like around 9K on my mac.
+export const GEMMA_NANO_MAX_TOKENS_ADJUSTED_WRITER = 5000; // Session max input around 6K on my mac.
 
 /**
  * Get the path to the embeddings file for a given chunk size.
@@ -44,6 +56,30 @@ const config = {
       LARGE: 512,
     },
   },
+  // Chrome Built-in AI (Gemini Nano) - available in Chrome with AI features enabled
+  // See: https://developer.chrome.com/docs/ai/built-in-apis
+  chrome: {
+    models: {
+      chat: [
+        {
+          model: "gemini-nano-prompt",
+          modelShortName: "Gemini Nano (Prompt)",
+          shortOption: "Flexible",
+          api: "prompt",
+          maxTokens: GEMMA_NANO_MAX_TOKENS_ADJUSTED_PROMPT,
+          default: CHROME_HAS_PROMPT_API,
+        },
+        {
+          model: "gemini-nano-writer",
+          modelShortName: "Gemini Nano (Writer)",
+          shortOption: "Writing",
+          api: "writer",
+          maxTokens: GEMMA_NANO_MAX_TOKENS_ADJUSTED_WRITER,
+          default: !CHROME_HAS_PROMPT_API && CHROME_HAS_WRITER_API,
+        },
+      ],
+    },
+  },
   // web-llm model metadata (vramMb, maxTokens) is mutated into model objects at load time
   // from prebuiltAppConfig. See: https://github.com/mlc-ai/web-llm/blob/main/src/config.ts
   webLlm: {
@@ -60,7 +96,7 @@ const config = {
           model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
           modelShortName: "TinyLlama-1.1B",
           shortOption: "Fast",
-          default: true,
+          default: !CHROME_ANY_API_POSSIBLE,
         },
         {
           model: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
@@ -75,28 +111,6 @@ const config = {
       ],
     },
   },
-  // Chrome Built-in AI (Gemini Nano) - available in Chrome with AI features enabled
-  // See: https://developer.chrome.com/docs/ai/built-in-apis
-  chrome: {
-    models: {
-      chat: [
-        {
-          model: "gemini-nano-prompt",
-          modelShortName: "Gemini Nano (Prompt)",
-          shortOption: "Flexible",
-          api: "prompt",
-          maxTokens: GEMMA_NANO_MAX_TOKENS_ADJUSTED,
-        },
-        {
-          model: "gemini-nano-writer",
-          modelShortName: "Gemini Nano (Writer)",
-          shortOption: "Writing",
-          api: "writer",
-          maxTokens: GEMMA_NANO_MAX_TOKENS_ADJUSTED,
-        },
-      ],
-    },
-  },
 };
 
 // Default embedding chunk size (uses the MEDIUM size from dataChunkSizes)
@@ -104,8 +118,8 @@ export const DEFAULT_EMBEDDING_CHUNK_SIZE =
   config.embeddings.dataChunkSizes.MEDIUM;
 
 export const ALL_PROVIDERS = {
-  webLlm: "web-llm",
   chrome: "Chrome",
+  webLlm: "web-llm",
 };
 
 export const ALL_CHAT_MODELS = Object.keys(ALL_PROVIDERS).map((provider) => ({
