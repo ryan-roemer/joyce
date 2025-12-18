@@ -148,7 +148,7 @@ export const DEFAULT_CHAT_MODEL = (() => {
 })();
 export const DEFAULT_DATASTORE = "postgresql";
 export const DEFAULT_API = "chat";
-export const DEFAULT_TEMPERATURE = 1;
+export const DEFAULT_TEMPERATURE = 0.4; // TODO(CHAT): note about temperature in SLMs.
 
 export const getModelCfg = ({ provider, model }) => {
   const modelCfg = CHAT_MODELS_MAP[provider][model];

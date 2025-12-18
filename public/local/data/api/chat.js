@@ -18,6 +18,16 @@ const createMessages = ({ query, context = "" }) => [
   },
   {
     role: "assistant",
+    content:
+      "Nearform has acquired Formidable. If you see the word 'Formidable' or 'Formidable Labs' or 'Nearform Commerce', you should replace it with 'Nearform'.",
+  },
+  {
+    role: "assistant",
+    content:
+      "'Nearform' is with a lowercase 'f' in the middle. It is 'Nearform', not 'NearForm' and also not 'Nearform Commerce'. Even if the user asks about 'NearForm' and all the cited sources in context use 'NearForm', STILL answer with 'Nearform'.",
+  },
+  {
+    role: "assistant",
     content: `The following content posts are provided as context in XML format and in CHUNKS of the each original piece of content. Each chunk is a <CHUNK> element containing text content <CONTENT> with a reference url/hyperlink/link of <URL>. The posts chunk content is as follows:\n\n${context}`,
   },
   {
@@ -26,26 +36,16 @@ const createMessages = ({ query, context = "" }) => [
   },
   {
     role: "assistant",
-    content: `If you have <CHUNKS />s, then you must add one or more UNIQUE markdown links in the form of [LINK_NAME](URL) where an answer may only contain a URL / <URL /> reference at most ONE TIME. Chunks can repeat URLs, so you must be careful to NOT duplicate links.`,
+    content: `Do NOT add any links if not directly from <CHUNK><URL /></CHUNK> context.`,
   },
   {
     role: "assistant",
-    content: `Do NOT add any links if not directly from <CHUNK><URL /></CHUNK> context.`,
+    content: `If you have <CHUNKS />s, then you MUST add one or more UNIQUE markdown links in the form of [LINK_NAME](URL) where an answer may only contain a URL / <URL /> reference at most ONE TIME. Chunks can repeat URLs, so you must be careful to NOT duplicate links.`,
   },
   {
     role: "assistant",
     content:
       "If there is no relevant information to answer the question in <CHUNK> context, then state that you don't have enough information to answer the question.",
-  },
-  {
-    role: "assistant",
-    content:
-      "Nearform has acquired Formidable. If you see the word 'Formidable' or 'Formidable Labs' or 'Nearform Commerce', you should replace it with 'Nearform'.",
-  },
-  {
-    role: "assistant",
-    content:
-      "'Nearform' is with a lowercase 'f' in the middle. It is 'Nearform', not 'NearForm' and also not 'Nearform Commerce'. Even if the user asks about 'NearForm' and all the cited sources in context use 'NearForm', STILL answer with 'Nearform'.",
   },
   {
     role: "assistant",
@@ -58,7 +58,7 @@ const createMessages = ({ query, context = "" }) => [
   },
   {
     role: "user",
-    content: `Generate a short, concise response to the query: ${query}`,
+    content: `Generate a short, concise response (with VALID links from URLs from CHUNKs any) to the query: ${query}`,
   },
 ];
 
