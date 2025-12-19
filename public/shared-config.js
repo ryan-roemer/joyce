@@ -12,6 +12,8 @@ export const CHROME_HAS_WRITER_API = "Writer" in globalThis;
 export const CHROME_ANY_API_POSSIBLE =
   CHROME_HAS_PROMPT_API || CHROME_HAS_WRITER_API;
 
+export const CHROME_DEFAULT_TOP_K = 40;
+
 let params = { get: () => undefined };
 if (globalThis.location?.search) {
   params = new URLSearchParams(globalThis.location.search);
@@ -45,14 +47,6 @@ export const TOKEN_CUSHION_EMBEDDINGS = 25;
 export const GEMMA_NANO_MAX_TOKENS = 32768;
 export const GEMMA_NANO_MAX_TOKENS_ADJUSTED_PROMPT = 8192; // Session max input is much smaller, like around 9K on my mac.
 export const GEMMA_NANO_MAX_TOKENS_ADJUSTED_WRITER = 5000; // Session max input around 6K on my mac.
-
-/**
- * Get the path to the embeddings file for a given chunk size.
- * @param {number} size - The chunk size (e.g., 256, 512)
- * @returns {string} - The path to the embeddings file
- */
-export const getEmbeddingsPath = (size = DEFAULT_EMBEDDING_CHUNK_SIZE) =>
-  `/data/posts-embeddings-${size}.json`;
 
 const config = {
   pages: {
@@ -190,5 +184,13 @@ export const getProviderForModel = (modelId) => {
   }
   return null;
 };
+
+/**
+ * Get the path to the embeddings file for a given chunk size.
+ * @param {number} size - The chunk size (e.g., 256, 512)
+ * @returns {string} - The path to the embeddings file
+ */
+export const getEmbeddingsPath = (size = DEFAULT_EMBEDDING_CHUNK_SIZE) =>
+  `/data/posts-embeddings-${size}.json`;
 
 export default config;
