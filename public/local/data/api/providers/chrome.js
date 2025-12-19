@@ -4,13 +4,19 @@
 // See: https://developer.chrome.com/docs/ai/built-in-apis
 
 import {
+  CHROME_DEFAULT_TOP_K,
   CHROME_HAS_PROMPT_API,
   CHROME_HAS_WRITER_API,
 } from "../../../../shared-config.js";
 
-const MODEL_OPTIONS = {
+const PROMPT_OPTIONS = {
   expectedInputs: [{ type: "text", languages: ["en"] }],
   expectedOutputs: [{ type: "text", languages: ["en"] }],
+};
+
+const WRITER_OPTIONS = {
+  expectedInputLanguages: ["en"],
+  expectedContextLanguages: ["en"],
 };
 
 // Map of model -> { progressCallback }
@@ -85,7 +91,7 @@ export const checkAvailability = async (apiType) => {
           reason: "Prompt API not supported in this browser",
         };
       }
-      status = await LanguageModel.availability(MODEL_OPTIONS);
+      status = await LanguageModel.availability(PROMPT_OPTIONS);
     } else if (apiType === "writer") {
       // Feature detection using global Writer
       if (!CHROME_HAS_WRITER_API) {
@@ -94,7 +100,7 @@ export const checkAvailability = async (apiType) => {
           reason: "Writer API not supported in this browser",
         };
       }
-      status = await Writer.availability(MODEL_OPTIONS);
+      status = await Writer.availability(WRITER_OPTIONS);
     }
   } catch (err) {
     return { available: false, reason: err.message };
@@ -161,18 +167,14 @@ const createPromptMessages = (messages) => {
 const createPromptEngine = (options = {}) => ({
   chat: {
     completions: {
-      create: async ({ messages }) => {
-        // TODO(CHROME): Add temperature
+      create: async ({ messages, temperature }) => {
         const { initialPrompts, lastUserMessage } =
           createPromptMessages(messages);
 
-        // console.log("TODO: PROMPT MESSAGES", {
-        //   initialPrompts,
-        //   lastUserMessage,
-        // });
-
         const session = await LanguageModel.create({
-          ...MODEL_OPTIONS,
+          ...PROMPT_OPTIONS,
+          topK: CHROME_DEFAULT_TOP_K,
+          temperature,
           initialPrompts:
             initialPrompts.length > 0 ? initialPrompts : undefined,
           monitor: createDownloadMonitor(options.progressCallback),
@@ -235,13 +237,12 @@ const createWriterEngine = (options = {}) => ({
           length: options.length || "medium",
           format: options.format || "markdown",
           sharedContext,
-          ...MODEL_OPTIONS,
+          ...WRITER_OPTIONS,
           outputLanguage: "en",
           monitor: createDownloadMonitor(options.progressCallback),
         });
 
         const stream = writer.writeStreaming(writingTask, { context });
-        // console.log("TODO: WRITER STREAM", { writer, stream });
         return (async function* () {
           try {
             yield* streamToAsyncIterator({ stream });

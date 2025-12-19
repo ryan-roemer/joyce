@@ -11,7 +11,6 @@ import {
   PostCategoryPrimarySelectDropdown,
   QueryField,
   ChatInputForm,
-  ApiSelectDropdown,
 } from "../components/forms.js";
 import { Answer } from "../components/answer.js";
 import { PostsFound } from "../components/posts-found.js";
@@ -30,7 +29,6 @@ import { QueryDisplay } from "../components/query-display.js";
 import { Description } from "../components/description.js";
 import { searchResultsToPosts } from "../data/util.js";
 import {
-  DEFAULT_API,
   DEFAULT_CHAT_MODEL,
   DEFAULT_TEMPERATURE,
   getModelCfg,
@@ -116,7 +114,6 @@ export const Chat = () => {
   const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
   const [minDate, setMinDate] = useState("");
   const [currentQuery, setCurrentQuery] = useState(null);
-  const [api, setApi] = useState(DEFAULT_API);
 
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
@@ -163,7 +160,6 @@ export const Chat = () => {
       let metadata = null;
       let usage = null;
       for await (let part of chat({
-        api,
         query,
         postType,
         minDate,
@@ -196,7 +192,6 @@ export const Chat = () => {
         internal: metadata?.internal,
         model: modelObj.model,
         provider: modelObj.provider,
-        providerApi: api,
         chunks: {
           numChunks: chunks.length,
           similarityMin: metadata?.chunks?.similarity?.min,
@@ -308,11 +303,6 @@ export const Chat = () => {
           selected=${modelObj}
           setSelected=${setModelObj}
           providers=${providers}
-        />
-        <${ApiSelectDropdown}
-          hidden=${!isDeveloperMode}
-          selected=${api}
-          setSelected=${setApi}
         />
         <${TemperatureDropdown} hidden=${!isDeveloperMode} value=${temperature} onChange=${setTemperature} />
       </${ChatInputForm}>
