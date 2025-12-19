@@ -12,6 +12,8 @@ export const CHROME_HAS_WRITER_API = "Writer" in globalThis;
 export const CHROME_ANY_API_POSSIBLE =
   CHROME_HAS_PROMPT_API || CHROME_HAS_WRITER_API;
 
+export const CHROME_DEFAULT_TOP_K = 40;
+
 let params = { get: () => undefined };
 if (globalThis.location?.search) {
   params = new URLSearchParams(globalThis.location.search);

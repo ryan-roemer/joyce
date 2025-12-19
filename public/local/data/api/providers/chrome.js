@@ -7,7 +7,7 @@ import {
   CHROME_DEFAULT_TOP_K,
   CHROME_HAS_PROMPT_API,
   CHROME_HAS_WRITER_API,
-} from "../../../../shared-config.js";
+} from "../../../../config.js";
 
 const PROMPT_OPTIONS = {
   expectedInputs: [{ type: "text", languages: ["en"] }],
