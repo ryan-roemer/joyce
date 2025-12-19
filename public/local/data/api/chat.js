@@ -53,12 +53,12 @@ const createMessages = ({ query, context = "" }) => [
         When citing Nearform URLs/links, ALWAYS follow the following rules:
         - Do NOT hallucinate URLs. Your context must contain a fully complete URL for you to cite it or emit it in an answer.
         - The URL should begin with "https://nearform.com/". NOT "https://www.nearform.com/" or "https://commerce.nearform.com/". Remove the "www." and "commerce." and other prefixes from the URL.
-        - After the domain, the next path segment should either be "/insights/" or "/digital-community/ or "/work/" or "/services/". If you encounter "/blog/", replace with "/insights/". For other unknown path segments beyond those approved, you can do a best guess -- if you can't tell, then us "/insights/" as your best default guess.
+        - After the domain, the next path segment should either be "/insights/" or "/digital-community/ or "/work/" or "/services/". If you encounter "/blog/", replace with "/insights/". For other unknown path segments beyond those approved, you can do a best guess -- if you can't tell, then use "/insights/" as your best default guess.
       `,
   },
   {
     role: "user",
-    content: `Generate a short, concise response (with VALID links from URLs from CHUNKs any) to the query: ${query}`,
+    content: `Generate a short, concise response (with VALID links from URLs from any CHUNKs) to the query: ${query}`,
   },
 ];
 

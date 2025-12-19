@@ -92,7 +92,7 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
 
       ${filters.vramMin != null &&
       filters.vramMax != null &&
-      filters.vramMax <= filters.vramMin &&
+      filters.vramMax < filters.vramMin &&
       html`
         <span className="filter-validation-error">
           Max must be greater than min

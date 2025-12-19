@@ -44,7 +44,7 @@ async function* streamToAsyncIterator({ stream, session }) {
 
 const getUsage = ({ session, content }) => {
   // TODO(TOKENS): Figure overall token estimation / counting strategy.
-  // TODO(TOKENS): There `inputQuota` that's smaller than maxTokens. Figure this out too.
+  // TODO(TOKENS): There is `inputQuota` that's smaller than `maxTokens`. Figure this out too.
   const completionTokensEst = Math.ceil((content.length ?? 0) / 4);
 
   return {
