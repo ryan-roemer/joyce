@@ -31,7 +31,7 @@ import { performance } from "node:perf_hooks";
 import { parseArgs } from "node:util";
 import { pipeline, AutoTokenizer } from "@xenova/transformers";
 import { split } from "llm-splitter";
-import config, { TOKEN_CUSHION_EMBEDDINGS } from "../public/shared-config.js";
+import config, { TOKEN_CUSHION_EMBEDDINGS } from "../public/config.js";
 import { quantizeEmbedding } from "../public/local/data/embeddings.js";
 
 const { dirname } = import.meta;

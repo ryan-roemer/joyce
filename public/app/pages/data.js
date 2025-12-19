@@ -9,7 +9,7 @@ import {
   CHROME_HAS_PROMPT_API,
   CHROME_HAS_WRITER_API,
   FEATURES,
-} from "../../shared-config.js";
+} from "../../config.js";
 import { ModelsTable } from "../../local/app/components/models-table.js";
 import {
   LoadingButton,

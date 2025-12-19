@@ -4,7 +4,7 @@ import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
-import { FEATURES } from "../../shared-config.js";
+import { FEATURES } from "../../config.js";
 
 // TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
