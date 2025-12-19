@@ -8,6 +8,7 @@ import {
   CHROME_ANY_API_POSSIBLE,
   CHROME_HAS_PROMPT_API,
   CHROME_HAS_WRITER_API,
+  FEATURES,
 } from "../../shared-config.js";
 import { ModelsTable } from "../../local/app/components/models-table.js";
 import {
@@ -171,15 +172,18 @@ export const Data = () => {
         <${LoadingButton} resourceId=${LOADING.EXTRACTOR}>
           <strong>Extractor</strong>: embeddings extraction model
         </${LoadingButton}>
-        ${Object.keys(LOADING)
-          .filter((key) => key.startsWith("LLM_"))
-          .map(
-            (key) => html`
+        ${
+          FEATURES.chat.enabled &&
+          Object.keys(LOADING)
+            .filter((key) => key.startsWith("LLM_"))
+            .map(
+              (key) => html`
               <${LoadingButton} resourceId=${LOADING[key]} key=${key}>
                 <strong>Model</strong>: ${modelShortName(LOADING[key])}
               </${LoadingButton}>
             `,
-          )}
+            )
+        }
       </div>
       <div>
         <!-- TODO(LOCAL): Remove these demo buttons -->
@@ -189,32 +193,38 @@ export const Data = () => {
         <${LoadingButton} resourceId="demo_error" label="Demo: Error" forceStatus="error" />
       </div>
 
-      <h2 className="content-subhead">Models</h2>
+      ${
+        FEATURES.chat.enabled &&
+        html`
+          <h2 className="content-subhead">Models</h2>
 
-      <${SystemInfo} info=${systemInfo} />
+          <${SystemInfo} info=${systemInfo} />
 
-      <h3>Google Chrome Built-in AI</h3>
-      <p>
-        Chrome provides built-in AI powered by Gemini Nano. The browser manages
-        model downloads and updates automatically. Requires Chrome 138+ with AI
-        features enabled.
-        See the Chrome AI <a
-          href="https://developer.chrome.com/docs/ai/built-in-apis"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          documentation
-        </a> for more.
-      </p>
-      <${ChromeAIInfo} />
+          <h3>Google Chrome Built-in AI</h3>
+          <p>
+            Chrome provides built-in AI powered by Gemini Nano. The browser
+            manages model downloads and updates automatically. Requires Chrome
+            138+ with AI features enabled. See the Chrome AI
+            <a
+              href="https://developer.chrome.com/docs/ai/built-in-apis"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              documentation
+            </a>
+            for more.
+          </p>
+          <${ChromeAIInfo} />
 
-      <h3>web-llm</h3>
-      <p>
-        Available web-llm models for local inference. Status
-        indicates whether the model is loaded in memory, currently loading, or
-        available for download.
-      </p>
-      <${ModelsTable} models=${MODELS} />
+          <h3>web-llm</h3>
+          <p>
+            Available web-llm models for local inference. Status indicates
+            whether the model is loaded in memory, currently loading, or
+            available for download.
+          </p>
+          <${ModelsTable} models=${MODELS} />
+        `
+      }
     </${Page}>
   `;
 };

@@ -4,6 +4,7 @@ import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
+import { FEATURES } from "../../shared-config.js";
 
 // TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
@@ -25,7 +26,12 @@ export const Home = () => {
           <ul>
             <li id="posts"><${Link} to="/posts">Posts</${Link}>: Browse / filter all available content.</li>
             <li id="search"><${Link} to="/search">Search</${Link}>: Find / filter similar posts to a query.</li>
-            <li id="chat"><${Link} to="/chat">Chat</${Link}>: Get answers from AI using our content.</li>
+            ${
+              FEATURES.chat.enabled &&
+              html`
+              <li id="chat"><${Link} to="/chat">Chat</${Link}>: Get answers from AI using our content.</li>
+            `
+            }
             <li id="settings"><${Link} to="/settings">Settings</${Link}>: Enable hidden developer features.</li>
           </ul>
         </${Fragment}>
@@ -59,8 +65,13 @@ export const Home = () => {
             in the database to find the top "n" most similar posts.
           </p>
 
-          <h2 className="content-subhead">Chat</h2>
-          <${ChatShortDescription} />
+          ${
+            FEATURES.chat.enabled &&
+            html`
+              <h2 className="content-subhead">Chat</h2>
+              <${ChatShortDescription} />
+            `
+          }
         </${Fragment}>
         `
       }

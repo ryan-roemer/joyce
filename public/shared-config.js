@@ -1,16 +1,27 @@
-/* global window:false */
+/* global URLSearchParams:false */
 /**
- * Shared client configuration. (No secrets).
+ * Shared client configuration. (No secrets, Node.js compatible).
  */
 
 // Chrome Built-in AI feature detection
 // ## Enabling in Chrome
 // - Prompt: https://developer.chrome.com/docs/ai/prompt-api#use_on_localhost
 // - Writer: https://developer.chrome.com/docs/ai/writer-api#add_support_to_localhost
-export const CHROME_HAS_PROMPT_API = "LanguageModel" in window;
-export const CHROME_HAS_WRITER_API = "Writer" in window;
+export const CHROME_HAS_PROMPT_API = "LanguageModel" in globalThis;
+export const CHROME_HAS_WRITER_API = "Writer" in globalThis;
 export const CHROME_ANY_API_POSSIBLE =
   CHROME_HAS_PROMPT_API || CHROME_HAS_WRITER_API;
+
+let params = { get: () => undefined };
+if (globalThis.location?.search) {
+  params = new URLSearchParams(globalThis.location.search);
+}
+
+export const FEATURES = {
+  chat: {
+    enabled: params.get("chatEnabled") === "true",
+  },
+};
 
 const BASE_PAGES = [
   { name: "Home", naveName: "Joyce", to: "/", icon: "iconoir-post" },
@@ -20,9 +31,10 @@ const BASE_PAGES = [
     name: "Chat",
     to: "/chat",
     icon: "iconoir-chat-bubble",
+    enabled: FEATURES.chat.enabled,
   },
   { name: "Settings", to: "/settings", icon: "iconoir-tools" },
-];
+].filter(({ enabled }) => enabled !== false);
 
 const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 
