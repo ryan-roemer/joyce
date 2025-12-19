@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router";
 
 import { html, getElements, getQuerySetter } from "../util/html.js";
@@ -57,10 +57,9 @@ export const ShortDescription = () => html`
   </p>
 `;
 
-// TODO(CHAT): UPDATE FOR WEB-LLM!!!
 const DescriptionButton = () => {
   const [settings] = useSettings();
-  const { isDeveloperMode, featureOpenAIToolEnabled } = settings;
+  const { isDeveloperMode } = settings;
 
   return html`
     <${Description}>
@@ -80,34 +79,18 @@ const DescriptionButton = () => {
           <i className="iconoir-calendar"></i> <strong>Date</strong>: Filter content to only include posts published on or after the selected date.
         </li>
         <li>
-          <i className="iconoir-sparks"></i> <strong>Model</strong>: Choose the AI language model that will generate the responses, with different models offering varying speed and quality trade-offs.
+          <i className="iconoir-sparks"></i> <strong>Model</strong>: Choose the AI language model. Local models must be loaded before use, which may take a moment on first request. Different models offer varying speed, quality, and memory trade-offs.
         </li>
         ${
-          /* TODO(LOCAL): Remove */
           isDeveloperMode &&
           html`
-          <${Fragment}>
             <li>
-              <i className="iconoir-database"></i> <strong>Data</strong>: Choose the data source for the
-              getting post information to pass as context to LLM queries.
-              <ul>
-                <li><em>Postgres</em>: (Default) Query files from our PostgreSQL database with pgvector extension enabled hosted on Neon.</li>
-                <li><em>OpenAI Search</em>: Query files from our OpenAI Vector/File Store via the <a href="https://platform.openai.com/docs/api-reference/vector_stores/search">vector store search</a> API.</li>
-                ${featureOpenAIToolEnabled && html`<li><em>OpenAI Tool</em>: Enable a <a href="https://platform.openai.com/docs/guides/tools-file-search">vector store search tool</a> within the Responses API backed by the same OpenAI Vector/File Store.</li>`}
-              </ul>
+              <i className="iconoir-temperature-high"></i>
+              <strong>Temperature</strong>: Control the creativity and
+              randomness of AI responses, from 0 (more focused and
+              deterministic) to 1 (more creative and varied).
             </li>
-            <li>
-              <i className="iconoir-cloud-sync"></i> <strong>API</strong>: Choose the upstream API to use.
-              <ul>
-                <li><em>Chat</em>: (Default) OpenAI's <a href="https://platform.openai.com/docs/api-reference/chat">Chat</a> API for conversational completions. Most other AI providers implement this API.</li>
-                <li><em>Responses</em>: OpenAI's newer <a href="https://platform.openai.com/docs/api-reference/responses">Responses</a> API for advanced retrieval-augmented generation (RAG) with citations and file search. Only some other AI providers implement this API.</li>
-              </ul>
-            </li>
-            <li>
-              <i className="iconoir-temperature-high"></i> <strong>Temperature</strong>: Control the creativity and randomness of AI responses, from 0 (more focused and deterministic) to 1 (more creative and varied).
-            </li>
-          </${Fragment}>
-        `
+          `
         }
       </ul>
     </${Description}>
