@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router";
 
 import { html, getElements, getQuerySetter } from "../util/html.js";
@@ -11,7 +11,6 @@ import {
   PostCategoryPrimarySelectDropdown,
   QueryField,
   ChatInputForm,
-  DatastoreSelectDropdown,
   ApiSelectDropdown,
 } from "../components/forms.js";
 import { Answer } from "../components/answer.js";
@@ -22,6 +21,8 @@ import {
 } from "../components/posts-download.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { useConfig } from "../contexts/config.js";
+import { useLoading } from "../../local/app/context/loading.js";
+import { LoadingButton } from "../../local/app/components/loading/button.js";
 import { Alert } from "../components/alert.js";
 import { SuggestedQueries } from "../components/suggested-queries.js";
 import { LoadingBubble } from "../components/loading-bubble.js";
@@ -31,18 +32,18 @@ import { searchResultsToPosts } from "../data/util.js";
 import {
   DEFAULT_API,
   DEFAULT_CHAT_MODEL,
-  DEFAULT_DATASTORE,
   DEFAULT_TEMPERATURE,
-} from "../../shared-config.js";
+  getModelCfg,
+} from "../../config.js";
 import { chat } from "../data/index.js";
 
 // TODO: REFACTOR TO PUT IN SUBMIT???
 const setQueryValue = getQuerySetter("query");
 
 const SUGGESTIONS = [
-  "Write a 3 bullet point list with links and 1-2 sentence descriptions of Nearform's expertise in using AI for software development.",
-  "Write a short email blurb about Nearform's commerce and retail expertise. Use examples and citations.",
-  "Write an elevator pitch about Nearform's design systems expertise. Limit to 100 words and use examples and citations.",
+  "Tell me 2 sentences about Nearform's expertise in using AI for software development.",
+  "Give me a single paragraph about Nearform's React and React Native expertise.",
+  "Give me 3 articles by Nearform on AI in engineering teams.",
 ];
 
 export const ShortDescription = () => html`
@@ -58,7 +59,7 @@ export const ShortDescription = () => html`
 
 const DescriptionButton = () => {
   const [settings] = useSettings();
-  const { isDeveloperMode, featureOpenAIToolEnabled } = settings;
+  const { isDeveloperMode } = settings;
 
   return html`
     <${Description}>
@@ -78,34 +79,18 @@ const DescriptionButton = () => {
           <i className="iconoir-calendar"></i> <strong>Date</strong>: Filter content to only include posts published on or after the selected date.
         </li>
         <li>
-          <i className="iconoir-sparks"></i> <strong>Model</strong>: Choose the AI language model that will generate the responses, with different models offering varying speed and quality trade-offs.
+          <i className="iconoir-sparks"></i> <strong>Model</strong>: Choose the AI language model. Local models must be loaded before use, which may take a moment on first request. Different models offer varying speed, quality, and memory trade-offs.
         </li>
         ${
-          /* TODO(LOCAL): Remove */
           isDeveloperMode &&
           html`
-          <${Fragment}>
             <li>
-              <i className="iconoir-database"></i> <strong>Data</strong>: Choose the data source for the
-              getting post information to pass as context to LLM queries.
-              <ul>
-                <li><em>Postgres</em>: (Default) Query files from our PostgreSQL database with pgvector extension enabled hosted on Neon.</li>
-                <li><em>OpenAI Search</em>: Query files from our OpenAI Vector/File Store via the <a href="https://platform.openai.com/docs/api-reference/vector_stores/search">vector store search</a> API.</li>
-                ${featureOpenAIToolEnabled && html`<li><em>OpenAI Tool</em>: Enable a <a href="https://platform.openai.com/docs/guides/tools-file-search">vector store search tool</a> within the Responses API backed by the same OpenAI Vector/File Store.</li>`}
-              </ul>
+              <i className="iconoir-temperature-high"></i>
+              <strong>Temperature</strong>: Control the creativity and
+              randomness of AI responses, from 0 (more focused and
+              deterministic) to 1 (more creative and varied).
             </li>
-            <li>
-              <i className="iconoir-cloud-sync"></i> <strong>API</strong>: Choose the upstream API to use.
-              <ul>
-                <li><em>Chat</em>: (Default) OpenAI's <a href="https://platform.openai.com/docs/api-reference/chat">Chat</a> API for conversational completions. Most other AI providers implement this API.</li>
-                <li><em>Responses</em>: OpenAI's newer <a href="https://platform.openai.com/docs/api-reference/responses">Responses</a> API for advanced retrieval-augmented generation (RAG) with citations and file search. Only some other AI providers implement this API.</li>
-              </ul>
-            </li>
-            <li>
-              <i className="iconoir-temperature-high"></i> <strong>Temperature</strong>: Control the creativity and randomness of AI responses, from 0 (more focused and deterministic) to 1 (more creative and varied).
-            </li>
-          </${Fragment}>
-        `
+          `
         }
       </ul>
     </${Description}>
@@ -128,7 +113,6 @@ export const Chat = () => {
     end: null,
   });
   const [modelObj, setModelObj] = useState(DEFAULT_CHAT_MODEL);
-  const [datastore, setDatastore] = useState(DEFAULT_DATASTORE);
   const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
   const [minDate, setMinDate] = useState("");
   const [currentQuery, setCurrentQuery] = useState(null);
@@ -136,7 +120,7 @@ export const Chat = () => {
 
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
-  // TODO(LOCAL): useConfig() depends on remote /api/config - needs local replacement
+  // TODO(CHAT): useConfig() depends on remote /api/config - needs local replacement
   const config = useConfig();
   const providers = new Set(
     Object.entries(config.providers)
@@ -144,9 +128,19 @@ export const Chat = () => {
       .map(([provider]) => provider),
   );
 
-  const resetOutputs = (query) => {
+  // Model loading status
+  const { getStatus, getError, startLoading } = useLoading();
+  const modelResourceId = `llm_${modelObj.model}`;
+  const modelStatus = getStatus(modelResourceId);
+  const isModelLoaded = modelStatus === "loaded";
+
+  // Track when we're waiting for model to load before chat
+  const [isLoadingModelForChat, setIsLoadingModelForChat] = useState(false);
+  const pendingQueryRef = useRef(null);
+
+  const resetOutputs = (query, { setFetching = true } = {}) => {
     setQueryValue("");
-    setIsFetching(true);
+    if (setFetching) setIsFetching(true);
     setPosts(null);
     setSearchData(null);
     setQueryInfo(null);
@@ -155,28 +149,12 @@ export const Chat = () => {
     setCurrentQuery(query);
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const { query } = getElements(event);
-    if (!query) {
-      return;
-    }
-
-    // Validation.
-    if (datastore === "openai-tool") {
-      if (api !== "responses") {
-        return setErr("OpenAI Tool is only supported for Responses API");
-      } else if (modelObj.provider !== "openai") {
-        return setErr("OpenAI Tool is only supported for OpenAI models.");
-      }
-    }
+  // Execute the actual chat query
+  const executeChatQuery = async (queryParams) => {
+    const { query, postType, categoryPrimary } = queryParams;
 
     // Get ready for new query output for the page.
     resetOutputs(query);
-
-    // Infer other input parameters.
-    const postType = selectedPostTypes.map(({ value }) => value);
-    const categoryPrimary = selectedCategoryPrimary.map(({ value }) => value);
 
     // Do the query.
     try {
@@ -194,7 +172,6 @@ export const Chat = () => {
         model: modelObj.model,
         provider: modelObj.provider,
         temperature,
-        datastore,
       })) {
         if (part.type === "chunks") {
           chunks.push(...part.message);
@@ -237,6 +214,47 @@ export const Chat = () => {
     }
   };
 
+  // Effect to execute pending query once model is loaded, or handle load error
+  useEffect(() => {
+    if (!isLoadingModelForChat) return;
+
+    if (isModelLoaded && pendingQueryRef.current) {
+      setIsLoadingModelForChat(false);
+      const queryParams = pendingQueryRef.current;
+      pendingQueryRef.current = null;
+      executeChatQuery(queryParams);
+    } else if (modelStatus === "error") {
+      // Keep isLoadingModelForChat true so LoadingButton stays visible
+      pendingQueryRef.current = null;
+      setErr(getError(modelResourceId));
+    }
+  }, [isModelLoaded, isLoadingModelForChat, modelStatus, modelResourceId]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const { query } = getElements(event);
+    if (!query) {
+      return;
+    }
+
+    // Infer other input parameters.
+    const postType = selectedPostTypes.map(({ value }) => value);
+    const categoryPrimary = selectedCategoryPrimary.map(({ value }) => value);
+    const queryParams = { query, postType, categoryPrimary };
+
+    // If model not loaded, trigger loading and wait
+    if (!isModelLoaded) {
+      pendingQueryRef.current = queryParams;
+      setIsLoadingModelForChat(true);
+      resetOutputs(query, { setFetching: false });
+      startLoading(modelResourceId);
+      return;
+    }
+
+    // Model is loaded, proceed directly
+    executeChatQuery(queryParams);
+  };
+
   const submitName = `Ask${completionsCount > 0 ? "  (New)" : ""}`;
   const placeholder =
     completionsCount > 0
@@ -260,8 +278,16 @@ export const Chat = () => {
 
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
 
+      ${
+        isLoadingModelForChat &&
+        html`
+        <${LoadingButton} resourceId=${modelResourceId} label=${getModelCfg(modelObj).modelShortName}>
+          Loading model <strong>${getModelCfg(modelObj).modelShortName}</strong>
+        </${LoadingButton}>
+      `
+      }
       ${currentQuery && html`<${QueryDisplay} query=${currentQuery} />`}
-      ${isFetching && !completions && html`<${LoadingBubble} />`}
+      ${isFetching && !completions && !isLoadingModelForChat && html`<${LoadingBubble} />`}
       ${
         completions &&
         html`<${Answer} answer=${completions} queryInfo=${queryInfo} />`
@@ -282,11 +308,6 @@ export const Chat = () => {
           selected=${modelObj}
           setSelected=${setModelObj}
           providers=${providers}
-        />
-        <${DatastoreSelectDropdown}
-          hidden=${!isDeveloperMode}
-          selected=${datastore}
-          setSelected=${setDatastore}
         />
         <${ApiSelectDropdown}
           hidden=${!isDeveloperMode}

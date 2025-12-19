@@ -3,10 +3,12 @@ import { create, insertMultiple, search as oramaSearch } from "@orama/orama";
 import { pipeline } from "@xenova/transformers";
 
 import { getAndCache } from "../../../shared-util.js";
-import config from "../../../shared-config.js";
+import config from "../../../config.js";
+import { dequantizeEmbedding } from "../embeddings.js";
 import { getPosts, getPostsEmbeddings } from "./posts.js";
 
 const MAX_CHUNKS = 50;
+const MIN_SIMILARITY = 0.8;
 
 const dateToNumber = (date) => Date.parse(date);
 
@@ -54,6 +56,7 @@ export const getChunksDb = getAndCache(async () => {
   ]);
 
   // Flatten chunks: each chunk becomes a document with slug reference and post metadata
+  // Dequantize embeddings from uint8 back to floats for Orama vector search
   const chunks = Object.entries(embeddingsObj).flatMap(([slug, { chunks }]) => {
     const post = postsObj[slug];
     return chunks.map((chunk) => ({
@@ -62,6 +65,8 @@ export const getChunksDb = getAndCache(async () => {
       postType: post?.postType,
       categories: post?.categories,
       ...chunk,
+      // Dequantize embeddings: { values, min, max } -> float[]
+      embeddings: dequantizeEmbedding(chunk.embeddings),
     }));
   });
 
@@ -124,13 +129,13 @@ export const search = async ({
   const chunksData = await getPostsEmbeddings();
 
   // Generate query embedding
-  const embeddingStart = performance.now();
+  const start = performance.now();
   const queryExtracted = await extractor(query, {
     pooling: "mean",
     normalize: true,
   });
   const queryEmbedding = Array.from(queryExtracted.data);
-  const embeddingQuery = performance.now() - embeddingStart;
+  const embeddingQuery = performance.now() - start;
 
   // Build where clause for filtering
   const where = {};
@@ -145,14 +150,14 @@ export const search = async ({
   }
 
   // Vector search on chunks DB
-  const databaseStart = performance.now();
   const results = await oramaSearch(chunksDb, {
     mode: "vector",
     vector: { value: queryEmbedding, property: "embeddings" },
     limit: MAX_CHUNKS,
+    similarity: MIN_SIMILARITY,
     where: Object.keys(where).length > 0 ? where : undefined,
   });
-  const databaseQuery = performance.now() - databaseStart;
+  const databaseQuery = performance.now() - start;
 
   // Build posts map and chunks array
   const postsMap = {};
@@ -182,7 +187,6 @@ export const search = async ({
           title: post.title,
           href: post.href,
           date: post.date,
-          // TODO(ORG): No Org Presently -- org: post.org,
           postType: post.postType,
           categories: post.categories,
           ...(withContent ? { content: post.content } : {}),

@@ -70,29 +70,3 @@ export const Settings = () => {
     </${Page}>
   `;
 };
-
-// TODO(REMOVE): Old fields to remove.
-// <${Checkbox}
-//   id="display-analytics"
-//   label="Display Analytics"
-//   checked=${pendingSettings.displayAnalytics}
-//   onChange=${handleSettingChange("displayAnalytics")}
-// >
-//   Show analytics information in the posts table view.
-// </${Checkbox}>
-//
-// <legend>Experimental</legend>
-//
-// ${"" /* TODO(openai-tool): Remove feature flag when fully enabled. */}
-// <${Checkbox}
-//   id="feature-openai-tool-enabled"
-//   label="OpenAI File Search Tool"
-//   checked=${pendingSettings.featureOpenAIToolEnabled}
-//   onChange=${handleSettingChange("featureOpenAIToolEnabled")}
-// >
-//   Enable the <a href="https://platform.openai.com/docs/guides/tools-file-search">vector store
-//   file search</a> tool in Responses API calls under the hood in
-//   the <${Link} to="/chat">Chat</${Link}> page via the option "OpenAI Tool".
-//   ${" "}<em>Note</em>: the matched file results so far don't seem as good as the separate
-//   datastore lookups (either via OpenAI's direct vector search or Postgres).
-// </${Checkbox}>

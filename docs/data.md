@@ -2,10 +2,11 @@
 
 ## Data Files
 
-| File                                | Description                               |
-| ----------------------------------- | ----------------------------------------- |
-| `public/data/posts.json`            | Source blog post data                     |
-| `public/data/posts-embeddings.json` | Pre-computed embeddings for vector search |
+| File                                    | Description                                         |
+| --------------------------------------- | --------------------------------------------------- |
+| `public/data/posts.json`                | Source blog post data                               |
+| `public/data/posts-embeddings-256.json` | Pre-computed embeddings (256 token chunks, default) |
+| `public/data/posts-embeddings-512.json` | Pre-computed embeddings (512 token chunks)          |
 
 _Note_: The source blog post data comes from a separate process -- scraping the public website, converting to JSON, and adding the category labels.
 
@@ -20,7 +21,7 @@ See `public/local/data/api/search.js` for the schema and initialization.
 
 ## NPM Commands
 
-Regenerate posts-embeddings.json from posts.json. (Should be run whenever `posts.json` is updated). We presently use the `Xenova/gte-small` embeddings model (max 512 tokens).
+Regenerate embeddings files from posts.json. (Should be run whenever `posts.json` is updated). We presently use the `Xenova/gte-small` embeddings model. This generates multiple files based on chunk sizes configured in `shared-config.js`.
 
 ```sh
 $ npm run data:embeddings

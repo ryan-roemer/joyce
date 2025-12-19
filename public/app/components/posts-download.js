@@ -6,44 +6,16 @@ const { saveAs } = FileSaver;
 
 const postsToCsv = (posts) => {
   return (
-    [
-      "Date",
-      // TODO(ORG): No Org Presently --"Org",
-      "Type",
-      "Title",
-      "URL",
-      "Category",
-      // TODO(ANALYTICS): No Analytics Presently -- analytics,
-      // "Views",
-      // "Users",
-      // "Time (min)",
-      // "Bounce Rate",
-    ].join(",") +
+    ["Date", "Type", "Title", "URL", "Category"].join(",") +
     "\n" +
     posts
       .map((post) => {
-        const {
-          title,
-          /*org,*/ postType,
-          date,
-          href,
-          categories /*analytics*/,
-        } = post;
+        const { title, postType, date, href, categories } = post;
         // Escape any commas in the title with quotes
         const escapedTitle = `"${title}"`.replace(/\n/g, " ");
-        return [
-          date,
-          // TODO(ORG): No Org Presently -- org,
-          postType,
-          escapedTitle,
-          href,
-          categories.primary,
-          // TODO(ANALYTICS): No Analytics Presently -- analytics,
-          // analytics?.views ?? "",
-          // analytics?.users ?? "",
-          // analytics?.time?.toFixed(2) ?? "",
-          // analytics?.bounceRate?.toFixed(2) ?? "",
-        ].join(",");
+        return [date, postType, escapedTitle, href, categories.primary].join(
+          ",",
+        );
       })
       .join("\n")
   );

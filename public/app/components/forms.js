@@ -6,14 +6,17 @@ import {
   ALL_CHAT_MODELS,
   DEFAULT_CHAT_MODEL,
   ALL_PROVIDERS,
-  CHAT_MODELS_MAP,
+  getModelCfg,
+  getSimpleModelOptions,
   DEFAULT_DATASTORE,
   DEFAULT_API,
   DEFAULT_TEMPERATURE,
-} from "../../shared-config.js";
+} from "../../config.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { useState, createContext, useContext } from "react";
+import { useLoading } from "../../local/app/context/loading.js";
 import { useClickOutside } from "../hooks/use-click-outside.js";
+import { formatInt } from "../../shared-util.js";
 
 const CATEGORY_OPTIONS = CATEGORIES_LIST.map((category) => ({
   label: category,
@@ -81,7 +84,7 @@ export const DropdownWrapper = ({
 
   return html`
     <div
-      className=${`form-dropdown ${className}`}
+      className=${`form-dropdown ${className ?? ""}`}
       hidden=${hidden}
       ref=${dropdownRef}
     >
@@ -258,9 +261,44 @@ const optionToModelObj = (option) => {
   return { provider, model };
 };
 
-// TODO REMOVE -- used? titles?
-const modelStats = ({ pricing, maxTokens }) =>
-  `Max Input: ${maxTokens.toLocaleString("en-US")} tokens, Cost: $${pricing.input}/M in, $${pricing.output}/M out`;
+// Status icon configuration for model loading states (using solid/filled icons)
+const MODEL_STATUS_CONFIG = {
+  not_loaded: {
+    icon: "iconoir-circle",
+    cls: "loading-status-not-loaded",
+    title: "Not loaded",
+  },
+  loading: {
+    icon: "iconoir-refresh-circle-solid",
+    cls: "loading-status-loading",
+    title: "Loading...",
+  },
+  loaded: {
+    icon: "iconoir-check-circle-solid",
+    cls: "loading-status-loaded",
+    title: "Loaded",
+  },
+  error: {
+    icon: "iconoir-warning-circle-solid",
+    cls: "loading-status-error",
+    title: "Error",
+  },
+};
+
+// Simple status icon for model select options (non-interactive)
+const ModelStatusIcon = ({ status }) => {
+  const config = MODEL_STATUS_CONFIG[status] || MODEL_STATUS_CONFIG.not_loaded;
+  return html`
+    <span className=${`model-status-icon ${config.cls}`} title=${config.title}>
+      <i className=${config.icon}></i>
+    </span>
+  `;
+};
+
+const modelStats = ({ vramMb, maxTokens }) =>
+  `Max Input: ${(maxTokens ?? 0).toLocaleString("en-US")} tokens, VRAM: ${(vramMb ?? 0).toLocaleString("en-US")} MB`;
+
+const isNullish = (value) => value == null;
 
 export const ModelChatSelect = ({
   selected,
@@ -271,14 +309,28 @@ export const ModelChatSelect = ({
 }) => {
   const [settings] = useSettings();
   const { isDeveloperMode, displayModelStats } = settings;
+  const { getStatus } = useLoading();
 
   const getLabel = (label, { provider, model }) => {
     if (!displayModelStats) {
       return label;
     }
 
-    const inputPricing = CHAT_MODELS_MAP[provider][model].pricing.input;
-    return `${label} ($${inputPricing}/M)`;
+    const { modelShortName, quantization, vramMb, maxTokens } = getModelCfg({
+      provider,
+      model,
+    });
+    const vramString = !isNullish(vramMb) ? `M: ${formatInt(vramMb)} MB` : "";
+    const maxTokensString = !isNullish(maxTokens)
+      ? `T: ${formatInt(maxTokens)}`
+      : "";
+    const quantizationString = !isNullish(quantization)
+      ? `Q: ${quantization}`
+      : "";
+    const statsString = [maxTokensString, vramString, quantizationString]
+      .filter(Boolean)
+      .join(", ");
+    return `${modelShortName} ${statsString ? `(${statsString})` : ""}`;
   };
 
   let options = [];
@@ -287,38 +339,42 @@ export const ModelChatSelect = ({
       providers.has(provider),
     ).map(({ provider, models }) => ({
       label: ALL_PROVIDERS[provider],
-      options: models.map(({ model, pricing, maxTokens }) => ({
-        id: `${provider}-${model}`,
-        title: modelStats({ pricing, maxTokens }), // TODO REMOVE???
-        label: getLabel(model, { provider, model }),
-        value: modelObjToOption({ provider, model }),
-      })),
+      options: models.map(({ model }) => {
+        const cfg = getModelCfg({ provider, model });
+        return {
+          id: `${provider}-${model}`,
+          title: modelStats(cfg),
+          label: getLabel(model, { provider, model }),
+          value: modelObjToOption({ provider, model }),
+          model, // Store model ID for status lookup
+        };
+      }),
     }));
   } else {
-    const provider = "openai";
-    options = [
-      {
-        label: "Fastest",
-        model: "gpt-4.1-nano",
-      },
-      {
-        label: "Fast",
-        model: "gpt-5-mini",
-      },
-      {
-        label: "Best",
-        model: "gpt-5.1",
-      },
-    ].map(({ label, model }) => ({
+    const provider = DEFAULT_CHAT_MODEL.provider;
+    options = getSimpleModelOptions(provider).map(({ label, model }) => ({
       id: `${provider}-${model}`,
       label: getLabel(label, { provider, model }),
       value: modelObjToOption({ provider, model }),
+      model, // Store model ID for status lookup
     }));
   }
 
   // Manually set the selected state. (From doing object values).
   const isOptionSelected = ({ value }) => value === modelObjToOption(selected);
   const divClass = `form-multi-select-${isDeveloperMode ? "wide" : "medium"}`;
+
+  // Custom format for options showing status icon
+  const formatOptionLabel = (option) => {
+    const modelId = option.model;
+    const status = modelId ? getStatus(`llm_${modelId}`) : "not_loaded";
+    return html`
+      <span className="model-option-label">
+        <${ModelStatusIcon} status=${status} />
+        <span>${option.label}</span>
+      </span>
+    `;
+  };
 
   return html`
     <label htmlFor="model" style=${{ whiteSpace: "nowrap" }}>
@@ -333,6 +389,7 @@ export const ModelChatSelect = ({
           isOptionSelected=${isOptionSelected}
           value=${modelObjToOption(selected)}
           onChange=${({ value }) => setSelected(optionToModelObj(value))}
+          formatOptionLabel=${formatOptionLabel}
         />
       </div>
     </label>

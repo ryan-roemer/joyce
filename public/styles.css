@@ -312,11 +312,35 @@ table.pure-table-bordered tr:first-child th:last-child {
   margin-right: 8px;
 }
 
+/* Filter row layout */
+.form-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: flex-end;
+}
+
+/* Reset multi-select positioning for vertical filter layouts */
+.form-filter-row .form-multi-select {
+  margin-bottom: 6px;
+  min-height: 28px !important;
+  height: 28px !important;
+}
+
+/* Remove default margins from inputs in filter rows for proper alignment */
+.form-filter-row input {
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+}
+
 .form-multi-select-medium {
-  min-width: 150px;
+  min-width: 200px;
 }
 .form-multi-select-wide {
-  min-width: 200px;
+  min-width: 300px;
+  width: 450px;
+  max-width: 75vw;
 }
 
 /* Alert Components */
@@ -729,6 +753,53 @@ table.pure-table-bordered tr:first-child th:last-child {
   padding: 0px 24px 12px 24px;
 }
 
+/* Modal Stat Cards */
+.modal-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.modal-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  padding: 12px;
+  background: var(--color-bg-modal);
+  border: 1px solid var(--color-border-modal);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.modal-stat-card i {
+  font-size: 1.6em;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.modal-stat-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.modal-stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 480px) {
+  .modal-stat-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* Responsive modal */
 @media (max-width: 768px) {
   .modal-overlay {
@@ -857,13 +928,14 @@ table.pure-table-bordered tr:first-child th:last-child {
   border: 1px solid var(--color-border-medium);
   border-radius: 8px;
   overflow: hidden;
-  min-width: fit-content;
+  min-width: 0;
   width: 100%;
   max-width: 100%;
 }
 
 .loading-status-label {
-  flex: 1 1 auto;
+  flex: 1 1 0;
+  min-width: 0;
   padding: 0.5em 1em;
   margin: 0;
   font-weight: normal;
@@ -871,6 +943,26 @@ table.pure-table-bordered tr:first-child th:last-child {
   display: flex;
   align-items: center;
   position: relative;
+  overflow: hidden;
+}
+
+.loading-status-text {
+  overflow: hidden;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.loading-status-label::before {
+  content: "";
+  position: absolute;
+  right: 1px;
+  top: 0;
+  bottom: 0;
+  width: 2em;
+  background: linear-gradient(to right, transparent, var(--color-bg-white));
+  pointer-events: none;
+  z-index: 1;
 }
 
 .loading-status-label::after {
@@ -946,4 +1038,191 @@ button.loading-status-icon-button {
 
 .loading-status-error i {
   color: var(--color-status-error);
+}
+
+.loading-status-info {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4em;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease;
+}
+
+.loading-status-info:hover {
+  color: var(--color-text-primary);
+}
+
+.loading-status-info i {
+  font-size: 0.9em;
+}
+
+/* Info Icon (reusable) */
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4em;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease;
+}
+
+.info-icon:hover {
+  color: var(--color-text-primary);
+}
+
+.info-icon i {
+  font-size: 0.9em;
+}
+
+/* VRAM Filter Inputs */
+.form-filter-row .vram-input {
+  width: 100px;
+}
+
+.form-filter-row .filter-validation-error {
+  color: var(--color-error-text);
+  font-size: 12px;
+  align-self: center;
+}
+
+/* System Info Component */
+.system-info {
+  margin-bottom: 1em;
+  padding: 1em;
+  background-color: var(--color-bg-modal);
+  border: 1px solid var(--color-border-modal);
+  border-radius: 8px;
+}
+
+.system-info-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.5em;
+  flex-wrap: wrap;
+}
+
+.system-info-row:last-child {
+  margin-bottom: 0;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.status-supported {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
+  border: 1px solid var(--color-success-border);
+}
+
+.status-warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+}
+
+.status-unsupported {
+  background-color: var(--color-error-bg);
+  color: var(--color-error-text-dark);
+  border: 1px solid var(--color-error-border);
+}
+
+.gpu-info {
+  color: var(--color-text-muted);
+  font-size: 0.9em;
+}
+
+.system-info-limits {
+  margin-top: 0.75em;
+  padding-top: 0.75em;
+  border-top: 1px solid var(--color-border-modal);
+}
+
+.system-info-limits summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-text-query);
+  user-select: none;
+}
+
+.system-info-limits summary:hover {
+  color: var(--color-text-query-emphasis);
+}
+
+.limits-table {
+  margin-top: 0.5em;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.limits-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.limits-table td:first-child {
+  color: var(--color-text-muted);
+  padding-left: 0;
+}
+
+.limits-table td:last-child {
+  text-align: right;
+  font-family: monospace;
+  padding-right: 0;
+}
+
+.limits-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Models Table Component */
+.models-table-container {
+  overflow-x: auto;
+}
+
+.sortable-header {
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.status-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-progress-text {
+  font-size: 12px;
+  color: var(--color-text-modal);
+}
+
+/* Models Filter Component */
+.form-filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-text-input {
+  width: 180px;
+}
+
+/* Model Status Icon */
+.model-status-icon {
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Model Option Label */
+.model-option-label {
+  display: flex;
+  align-items: center;
 }

@@ -1,3 +1,4 @@
+import { getEmbeddingsPath } from "../../../config.js";
 import { getAndCache } from "../../../shared-util.js";
 import { fetchWrapper } from "../util.js";
 
@@ -6,11 +7,20 @@ export const getPosts = getAndCache(async () => {
 });
 
 export const getPostsEmbeddings = getAndCache(async () => {
-  return fetchWrapper("/data/posts-embeddings.json");
+  return fetchWrapper(getEmbeddingsPath());
 });
 
+export const getPost = async (slug) => {
+  const postsObj = await getPosts();
+  const post = postsObj[slug];
+  if (!post) {
+    throw new Error(`Post not found: ${slug}`);
+  }
+
+  return post;
+};
+
 const filterPosts = async ({
-  // TODO(ORG): No Org Presently -- org,
   postType = [],
   minDate,
   categoryPrimary = [],
@@ -23,7 +33,6 @@ const filterPosts = async ({
   return Object.values(postsObj)
     .filter(
       (post) =>
-        // TODO(ORG): No Org Presently -- (!org || post.org === org) &&
         (postType.length === 0 || postTypeSet.has(post.postType)) &&
         (!minDateObj || new Date(post.date) >= minDateObj) &&
         (categoryPrimary.length === 0 ||

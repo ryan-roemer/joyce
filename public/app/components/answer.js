@@ -3,24 +3,8 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { html } from "../util/html.js";
 import { useSettings } from "../hooks/use-settings.js";
-import { ALL_PROVIDERS, getModelCfg } from "../../shared-config.js";
-
-const formatInt = (num) =>
-  (num ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
-const formatFloat = (num) =>
-  (num ?? 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-
-export const formatElapsed = (elapsed) => {
-  if (elapsed === null || elapsed === undefined) {
-    return "";
-  } else if (elapsed < 1000) {
-    return `${elapsed.toFixed(0)}ms`;
-  }
-  return `${(elapsed / 1000).toFixed(2)}s`;
-};
+import { ALL_PROVIDERS, getModelCfg } from "../../config.js";
+import { formatInt, formatFloat, formatElapsed } from "../../shared-util.js";
 
 const QueryInfo = ({
   elapsed,
@@ -36,23 +20,28 @@ const QueryInfo = ({
   const totalElapsed = elapsed?.tokensLast
     ? formatElapsed(elapsed.tokensLast)
     : null;
-  const totalCost = usage
+
+  // Look up model config
+  const modelCfg = getModelCfg({ provider, model });
+  const maxTokens = modelCfg ? formatInt(modelCfg.maxTokens) : null;
+  // Infer cost availability from pricing config
+  const hasCost = modelCfg?.pricing && usage?.input?.cost != null;
+  const totalCost = hasCost
     ? (usage.input.cost + usage.output.cost).toFixed(2)
     : null;
 
-  // Look up maxTokens from shared config
-  const modelCfg = getModelCfg({ provider, model });
-  const maxTokens = modelCfg ? formatInt(modelCfg.maxTokens) : null;
-  const ElapsedDelta = ({ delta }) =>
-    html`<${Fragment}><i className="iconoir-triangle"></i> ${formatElapsed(delta)}</${Fragment}>`;
+  const ElapsedDelta = ({ delta }) => {
+    if (delta == null || Number.isNaN(delta)) return null;
+    return html`<${Fragment}>(<i className="iconoir-triangle"></i> ${formatElapsed(delta)})</${Fragment}>`;
+  };
 
   return html`
     <details className="query-info">
       <summary>
         <em>Query Info</em> (
         ${model && html`${model}${(totalElapsed || usage) && ", "}`}
-        ${totalElapsed && html`${totalElapsed}${usage && ", "}`}
-        ${usage && html`$${totalCost}`})
+        ${totalElapsed && html`${totalElapsed}${hasCost && ", "}`}
+        ${hasCost && html`$${totalCost}`})
       </summary>
 
       <div>
@@ -81,23 +70,22 @@ const QueryInfo = ({
                 elapsed.embeddingQuery && elapsed.embeddingQuery
                   ? html`
                   <${Fragment}>
-                    <li>Embeddings: ${formatElapsed(elapsed.embeddingQuery)} (<${ElapsedDelta} delta=${elapsed.embeddingQuery} />)</li>
-                    <li>DB chunks: ${formatElapsed(elapsed.databaseQuery)} (<${ElapsedDelta} delta=${elapsed.databaseQuery - elapsed.embeddingQuery} />)</li>
+                    <li>Embeddings: ${formatElapsed(elapsed.embeddingQuery)} <${ElapsedDelta} delta=${elapsed.embeddingQuery} /></li>
+                    <li>DB chunks: ${formatElapsed(elapsed.databaseQuery)} <${ElapsedDelta} delta=${elapsed.databaseQuery - elapsed.embeddingQuery} /></li>
                   </${Fragment}>
                 `
                   : html`<li>
-                      Chunks: ${formatElapsed(elapsed.chunks)} (<${ElapsedDelta}
-                        delta=${elapsed.chunks}
-                      />)
+                      Chunks: ${formatElapsed(elapsed.chunks)}
+                      <${ElapsedDelta} delta=${elapsed.chunks} />
                     </li>`
               }
               <li>
                 First Token: ${formatElapsed(elapsed.tokensFirst)}
-                ${" "}(<${ElapsedDelta} delta=${elapsed.tokensFirst - elapsed.chunks} />)
+                ${" "}<${ElapsedDelta} delta=${elapsed.tokensFirst - elapsed.chunks} />
               </li>
               <li>
                 Last Token: ${formatElapsed(elapsed.tokensLast)}
-                ${" "}(<${ElapsedDelta} delta=${elapsed.tokensLast - elapsed.tokensFirst} />)
+                ${" "}<${ElapsedDelta} delta=${elapsed.tokensLast - elapsed.tokensFirst} />
               </li>
             </ul>
           </${Fragment}>
@@ -110,11 +98,11 @@ const QueryInfo = ({
             </div>
             <ul>
               <li>
-                Input: $${formatFloat(usage.input.cost)}, ${formatInt(usage.input.tokens)} tokens
+                Input: ${hasCost && html`$${formatFloat(usage.input.cost)}, `}${formatInt(usage.input.tokens)} tokens
                 ${" "}(${formatInt(usage.input.cachedTokens)} cached)
               </li>
               <li>
-                Output: $${formatFloat(usage.output.cost)}, ${formatInt(usage.output.tokens)} tokens
+                Output: ${hasCost && html`$${formatFloat(usage.output.cost)}, `}${formatInt(usage.output.tokens)} tokens
                 ${" "}(${formatInt(usage.output.reasoningTokens)} reasoning)
               </li>
             </ul>
