@@ -289,16 +289,7 @@ const MODEL_STATUS_CONFIG = {
 const ModelStatusIcon = ({ status }) => {
   const config = MODEL_STATUS_CONFIG[status] || MODEL_STATUS_CONFIG.not_loaded;
   return html`
-    <span
-      className=${`model-status-icon ${config.cls}`}
-      title=${config.title}
-      style=${{
-        // TODO(CHAT): Move to CSS
-        marginRight: "6px",
-        display: "inline-flex",
-        alignItems: "center",
-      }}
-    >
+    <span className=${`model-status-icon ${config.cls}`} title=${config.title}>
       <i className=${config.icon}></i>
     </span>
   `;
@@ -378,7 +369,7 @@ export const ModelChatSelect = ({
     const modelId = option.model;
     const status = modelId ? getStatus(`llm_${modelId}`) : "not_loaded";
     return html`
-      <span style=${{ display: "flex", alignItems: "center" }}>
+      <span className="model-option-label">
         <${ModelStatusIcon} status=${status} />
         <span>${option.label}</span>
       </span>

@@ -1213,3 +1213,16 @@ button.loading-status-icon-button {
 .model-text-input {
   width: 180px;
 }
+
+/* Model Status Icon */
+.model-status-icon {
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Model Option Label */
+.model-option-label {
+  display: flex;
+  align-items: center;
+}
