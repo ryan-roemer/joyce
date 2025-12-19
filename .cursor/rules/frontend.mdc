@@ -70,17 +70,20 @@ The frontend of this project uses modern web development without build tools. Al
 - Use `=${array.map(item => html`...`)}` for list rendering
 
 #### Style Attributes
-- Always use object syntax for `style` attributes: `style=${{ ... }}`
+- **Prefer CSS classes in `public/styles.css` over inline styles whenever possible**
+- Create semantic class names (e.g., `.status-icon-wrapper`, `.sortable-header`) for reusable styles
+- Only use inline `style` attributes for truly dynamic values computed at runtime
+- When inline styles are necessary, always use object syntax: `style=${{ ... }}`
 - Use camelCase for CSS properties: `backgroundColor`, `fontSize`, `marginTop`
 - NEVER use string syntax: `style="margin: 1px solid red;"` ❌
 - ALWAYS use object syntax: `style=${{ margin: "1px solid red" }}` ✅
 
 #### HTM Examples
 ```javascript
-// Correct object syntax
-style=${{
-  data: { stroke: "#ff6b6b", strokeWidth: 2 },
-}}
+// PREFERRED: Use CSS classes from styles.css
+className="status-icon-wrapper"
+className="sortable-header"
+className=${"base-class " + (isActive ? "active" : "")}
 
 // Correct array syntax
 data=${[
@@ -91,9 +94,9 @@ data=${[
 // Correct function syntax
 tickFormat=${(t) => new Date(t).toLocaleDateString()}
 
-// Correct style attributes
-style=${{ backgroundColor: "#ff6b6b" }}
-style=${{ fontSize: "12px", marginTop: "10px" }}
+// Only use inline styles for dynamic/computed values
+style=${{ width: `${progress}%` }}
+style=${{ transform: `translateX(${offset}px)` }}
 
 // Correct conditional rendering
 ${cursorData.length > 0 && html`

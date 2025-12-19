@@ -20,28 +20,19 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
   };
 
   return html`
-    <div
-      className="pure-form form-filter-row"
-      style=${{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "12px",
-        marginBottom: "16px",
-        alignItems: "flex-end",
-      }}
-    >
-      <label style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
+    <div className="pure-form form-filter-row">
+      <label className="form-filter-label">
         <span>Model</span>
         <input
           type="text"
           placeholder="Filter by name..."
           value=${filters.modelText}
           onInput=${(e) => updateFilter("modelText")(e.target.value)}
-          style=${{ width: "180px" }}
+          className="model-text-input"
         />
       </label>
 
-      <label style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <label className="form-filter-label">
         <span>Quantization</span>
         <div className="form-multi-select">
           <${Select}
@@ -55,7 +46,7 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
         </div>
       </label>
 
-      <label style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <label className="form-filter-label">
         <span>Max Tokens</span>
         <div className="form-multi-select">
           <${Select}
@@ -69,7 +60,7 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
         </div>
       </label>
 
-      <label style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <label className="form-filter-label">
         <span>VRAM (MB)</span>
         <input
           type="number"
@@ -84,7 +75,7 @@ export const ModelsFilter = ({ models, filters, setFilters }) => {
         />
       </label>
 
-      <label style=${{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <label className="form-filter-label">
         <span>VRAM (MB)</span>
         <input
           type="number"

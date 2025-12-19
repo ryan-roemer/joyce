@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import { useConfig } from "../contexts/config.js";
@@ -196,33 +196,35 @@ export const Data = () => {
       ${
         FEATURES.chat.enabled &&
         html`
-          <h2 className="content-subhead">Models</h2>
+          <${Fragment}>
+            <h2 className="content-subhead">Models</h2>
 
-          <${SystemInfo} info=${systemInfo} />
+            <${SystemInfo} info=${systemInfo} />
 
-          <h3>Google Chrome Built-in AI</h3>
-          <p>
-            Chrome provides built-in AI powered by Gemini Nano. The browser
-            manages model downloads and updates automatically. Requires Chrome
-            138+ with AI features enabled. See the Chrome AI
-            <a
-              href="https://developer.chrome.com/docs/ai/built-in-apis"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              documentation
-            </a>
-            for more.
-          </p>
-          <${ChromeAIInfo} />
+            <h3>Google Chrome Built-in AI</h3>
+            <p>
+              Chrome provides built-in AI powered by Gemini Nano. The browser
+              manages model downloads and updates automatically. Requires Chrome
+              138+ with AI features enabled. See the Chrome AI
+              <a
+                href="https://developer.chrome.com/docs/ai/built-in-apis"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                documentation
+              </a>
+              for more.
+            </p>
+            <${ChromeAIInfo} />
 
-          <h3>web-llm</h3>
-          <p>
-            Available web-llm models for local inference. Status indicates
-            whether the model is loaded in memory, currently loading, or
-            available for download.
-          </p>
-          <${ModelsTable} models=${MODELS} />
+            <h3>web-llm</h3>
+            <p>
+              Available web-llm models for local inference. Status indicates
+              whether the model is loaded in memory, currently loading, or
+              available for download.
+            </p>
+            <${ModelsTable} models=${MODELS} />
+          </${Fragment}>
         `
       }
     </${Page}>

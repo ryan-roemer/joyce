@@ -71,7 +71,6 @@ const StatusIcon = ({ status, onLoad, progress }) => {
           onClick=${onLoad}
           type="button"
           title=${config.title}
-          style=${{ background: "none", border: "none", padding: "4px" }}
         >
           <i className=${config.icon}></i>
         </button>
@@ -80,19 +79,16 @@ const StatusIcon = ({ status, onLoad, progress }) => {
         <span
           className=${`loading-status-icon ${config.cls}`}
           title=${config.title}
-          style=${{ padding: "4px" }}
         >
           <i className=${config.icon}></i>
         </span>
       `;
 
   return html`
-    <span style=${{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+    <span className="status-icon-wrapper">
       ${icon}
       ${progressPercent !== null &&
-      html`<span style=${{ fontSize: "12px", color: "#666" }}
-        >${progressPercent}%</span
-      >`}
+      html`<span className="status-progress-text">${progressPercent}%</span>`}
     </span>
   `;
 };
@@ -151,7 +147,7 @@ export const ModelsTable = ({ models = [] }) => {
         filters=${filters}
         setFilters=${setFilters}
       />
-      <div style=${{ overflowX: "auto" }}>
+      <div className="models-table-container">
         <table className="pure-table pure-table-bordered">
           <thead>
             <tr>
@@ -159,7 +155,7 @@ export const ModelsTable = ({ models = [] }) => {
                 const tooltip = COLUMN_INFO[key];
                 return html`<th
                   key=${key}
-                  style=${{ whiteSpace: "nowrap", cursor: "pointer" }}
+                  className="sortable-header"
                   title=${tooltip}
                   onClick=${() => handleColumnSort(key)}
                 >

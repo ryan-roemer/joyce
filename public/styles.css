@@ -312,6 +312,15 @@ table.pure-table-bordered tr:first-child th:last-child {
   margin-right: 8px;
 }
 
+/* Filter row layout */
+.form-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: flex-end;
+}
+
 /* Reset multi-select positioning for vertical filter layouts */
 .form-filter-row .form-multi-select {
   margin-bottom: 6px;
@@ -1171,4 +1180,36 @@ button.loading-status-icon-button {
 
 .limits-table tr:last-child td {
   border-bottom: none;
+}
+
+/* Models Table Component */
+.models-table-container {
+  overflow-x: auto;
+}
+
+.sortable-header {
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.status-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-progress-text {
+  font-size: 12px;
+  color: var(--color-text-modal);
+}
+
+/* Models Filter Component */
+.form-filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-text-input {
+  width: 180px;
 }

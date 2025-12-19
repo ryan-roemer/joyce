@@ -68,8 +68,10 @@ export const Home = () => {
           ${
             FEATURES.chat.enabled &&
             html`
-              <h2 className="content-subhead">Chat</h2>
-              <${ChatShortDescription} />
+              <${Fragment}>
+                <h2 className="content-subhead">Chat</h2>
+                <${ChatShortDescription} />
+              </${Fragment}>
             `
           }
         </${Fragment}>
