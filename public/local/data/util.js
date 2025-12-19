@@ -1,8 +1,22 @@
-/* global fetch:false,navigator:false */
+/* global fetch:false,navigator:false,URL:false */
+
+// Derive base path from this module's URL.
+// Since util.js is at local/data/util.js, go up 3 levels to reach the static root.
+const BASE_PATH = new URL("../../../", import.meta.url).pathname;
+
+// Resolve root-relative paths (starting with "/") to actual paths based on BASE_PATH.
+const resolveUrl = (url) => {
+  if (url.startsWith("/")) {
+    return BASE_PATH + url.slice(1);
+  }
+  return url;
+};
+
 export const fetchWrapper = async (url) => {
+  const resolvedUrl = resolveUrl(url);
   let response;
   try {
-    response = await fetch(url);
+    response = await fetch(resolvedUrl);
   } catch (err) {
     throw new Error(`Failed to fetch posts data: ${err.message}`);
   }
