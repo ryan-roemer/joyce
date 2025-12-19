@@ -10,7 +10,8 @@ import {
 } from "../../../config.js";
 import { getPost } from "./posts.js";
 
-const createMessages = ({ query, context = "" }) => [
+// System prompts that set up the context and behavior
+const SYSTEM_PROMPTS = [
   { role: "system", content: "You are a helpful assistant" },
   {
     role: "user",
@@ -26,6 +27,10 @@ const createMessages = ({ query, context = "" }) => [
     content:
       "'Nearform' is with a lowercase 'f' in the middle. It is 'Nearform', not 'NearForm' and also not 'Nearform Commerce'. Even if the user asks about 'NearForm' and all the cited sources in context use 'NearForm', STILL answer with 'Nearform'.",
   },
+];
+
+// Context instructions that explain how to use the RAG chunks
+const createContextPrompts = (context) => [
   {
     role: "assistant",
     content: `The following content posts are provided as context in XML format and in CHUNKS of the each original piece of content. Each chunk is a <CHUNK> element containing text content <CONTENT> with a reference url/hyperlink/link of <URL>. The posts chunk content is as follows:\n\n${context}`,
@@ -56,17 +61,100 @@ const createMessages = ({ query, context = "" }) => [
         - After the domain, the next path segment should either be "/insights/" or "/digital-community/ or "/work/" or "/services/". If you encounter "/blog/", replace with "/insights/". For other unknown path segments beyond those approved, you can do a best guess -- if you can't tell, then us "/insights/" as your best default guess.
       `,
   },
+];
+
+/**
+ * Create the messages array for the chat API.
+ * @param {Object} params
+ * @param {string} params.query - The current user query
+ * @param {string} params.context - RAG context chunks
+ * @param {Array} params.previousMessages - Previous conversation turns
+ * @returns {Array} Messages array for the LLM
+ */
+const createMessages = ({ query, context = "", previousMessages = [] }) => [
+  // System prompts first
+  ...SYSTEM_PROMPTS,
+  // RAG context instructions
+  ...createContextPrompts(context),
+  // Previous conversation history (if any)
+  ...previousMessages,
+  // Current user query
   {
     role: "user",
     content: `Generate a short, concise response (with VALID links from URLs from CHUNKs any) to the query: ${query}`,
   },
 ];
 
+// Base token estimate without context or previous messages
 const BASE_TOKEN_ESTIMATE = estimateTokens(
-  JSON.stringify(createMessages({ query: "" })),
+  JSON.stringify(
+    createMessages({ query: "", context: "", previousMessages: [] }),
+  ),
 );
 
-// console.log("TODO: BASE_TOKEN_ESTIMATE", BASE_TOKEN_ESTIMATE);
+/**
+ * Estimate tokens for previous messages in conversation history.
+ * @param {Array} messages - Array of {role, content} messages
+ * @returns {number} Estimated token count
+ */
+const estimatePreviousMessagesTokens = (messages) => {
+  if (!messages || messages.length === 0) return 0;
+  return messages.reduce((acc, msg) => acc + estimateTokens(msg.content), 0);
+};
+
+// Minimum number of recent conversation turns to keep (user + assistant = 1 turn)
+const MIN_TURNS_TO_KEEP = 2;
+
+/**
+ * Compact conversation history to fit within token budget.
+ * Removes oldest turns first while keeping at least MIN_TURNS_TO_KEEP recent turns.
+ * @param {Array} messages - Previous conversation messages
+ * @param {number} availableTokens - Maximum tokens available for conversation history
+ * @returns {{ messages: Array, compacted: boolean, removedCount: number }}
+ */
+const compactConversationHistory = (messages, availableTokens) => {
+  if (!messages || messages.length === 0) {
+    return { messages: [], compacted: false, removedCount: 0 };
+  }
+
+  // Calculate tokens for all messages
+  const messageTokens = messages.map((msg) => ({
+    ...msg,
+    tokens: estimateTokens(msg.content),
+  }));
+
+  const totalTokens = messageTokens.reduce((acc, msg) => acc + msg.tokens, 0);
+
+  // If within budget, return as-is
+  if (totalTokens <= availableTokens) {
+    return { messages, compacted: false, removedCount: 0 };
+  }
+
+  // Need to compact - remove oldest messages first
+  // Each turn is 2 messages (user + assistant)
+  const minMessagesToKeep = MIN_TURNS_TO_KEEP * 2;
+  let compactedMessages = [...messageTokens];
+  let removedCount = 0;
+
+  while (
+    compactedMessages.length > minMessagesToKeep &&
+    compactedMessages.reduce((acc, msg) => acc + msg.tokens, 0) >
+      availableTokens
+  ) {
+    // Remove the oldest two messages (one turn)
+    compactedMessages = compactedMessages.slice(2);
+    removedCount += 2;
+  }
+
+  // Strip token info before returning
+  const result = compactedMessages.map(({ tokens, ...msg }) => msg);
+
+  return {
+    messages: result,
+    compacted: removedCount > 0,
+    removedCount,
+  };
+};
 
 /**
  * Chat with AI using streaming responses.
@@ -78,7 +166,10 @@ const BASE_TOKEN_ESTIMATE = estimateTokens(
  * @param {boolean} params.withContent
  * @param {string} params.model - The model ID
  * @param {string} params.provider - The LLM provider key (e.g., "webLlm", "chrome")
- * @param {number} params.temperature // TODO(CHAT): Add temperature
+ * @param {number} params.temperature
+ * @param {Array} params.previousMessages - Previous conversation turns for multi-turn chat
+ * @param {string} params.conversationId - Unique conversation ID for session reuse (Chrome AI)
+ * @param {boolean} params.isNewConversation - If true, starts a fresh session
  * @returns {AsyncGenerator} Streaming JSON response yielding { type, message }
  *
  * Yield types:
@@ -87,6 +178,8 @@ const BASE_TOKEN_ESTIMATE = estimateTokens(
  * - { type: "chunks", message: Array } - Chunks metadata
  * - { type: "posts", message: Object } - Posts metadata
  * - { type: "metadata", message: Object } - Metadata
+ * - { type: "sessionInfo", message: object } - Session token info (Chrome AI only)
+ * - { type: "compactionInfo", message: object } - Conversation compaction info (Web-LLM)
  */
 export async function* chat({
   query,
@@ -97,6 +190,9 @@ export async function* chat({
   model = DEFAULT_CHAT_MODEL.model,
   provider = DEFAULT_CHAT_MODEL.provider,
   temperature = DEFAULT_TEMPERATURE,
+  previousMessages = [],
+  conversationId = null,
+  isNewConversation = false,
 }) {
   const start = new Date();
 
@@ -116,10 +212,39 @@ export async function* chat({
   // Start assembling prompt, starting with the query.
   const modelCfg = getModelCfg({ provider, model });
   const maxContextTokens = modelCfg.maxTokens - TOKEN_CUSHION_CHAT;
-  let totalContextTokens = BASE_TOKEN_ESTIMATE + estimateTokens(query);
+  const queryTokens = estimateTokens(query);
+  let totalContextTokens = BASE_TOKEN_ESTIMATE + queryTokens;
+
   if (totalContextTokens > maxContextTokens) {
     throw new Error(`Query is too long: ${query}`);
   }
+
+  // For non-Chrome providers (Web-LLM), compact conversation history if needed
+  // Chrome uses persistent sessions, so we don't need to compact there
+  let compactedMessages = previousMessages;
+  let conversationCompacted = false;
+  let removedTurnsCount = 0;
+
+  if (provider !== "chrome" && previousMessages.length > 0) {
+    // Calculate how many tokens are available for conversation history
+    // after accounting for query and estimated RAG context
+    const estimatedRagTokens = Math.min(maxContextTokens * 0.5, 3000); // Reserve ~50% or 3K for RAG
+    const availableForHistory =
+      maxContextTokens - totalContextTokens - estimatedRagTokens;
+
+    const compactResult = compactConversationHistory(
+      previousMessages,
+      availableForHistory,
+    );
+    compactedMessages = compactResult.messages;
+    conversationCompacted = compactResult.compacted;
+    removedTurnsCount = Math.floor(compactResult.removedCount / 2);
+  }
+
+  // Calculate tokens with compacted messages
+  const previousMessagesTokens =
+    estimatePreviousMessagesTokens(compactedMessages);
+  totalContextTokens += previousMessagesTokens;
 
   // Add chunks to context.
   let context = "";
@@ -149,14 +274,33 @@ export async function* chat({
 
   // Use shared engine loader (handles caching and progress)
   const engine = await getLlmEngine({ provider, model });
-  const messages = createMessages({ query, context });
+  const messages = createMessages({
+    query,
+    context,
+    previousMessages: compactedMessages,
+  });
+
+  // Yield compaction info if conversation was compacted
+  if (conversationCompacted) {
+    yield {
+      type: "compactionInfo",
+      message: {
+        compacted: true,
+        removedTurns: removedTurnsCount,
+        remainingTurns: Math.floor(compactedMessages.length / 2),
+      },
+    };
+  }
 
   // Stream response from LLM engine (OpenAI-compatible API)
+  // Pass conversationId for persistent session support (Chrome AI)
   const stream = await engine.chat.completions.create({
     messages,
     temperature,
     stream: true,
     stream_options: { include_usage: true },
+    conversationId,
+    isNewConversation,
   });
 
   // Process streamed chunks
@@ -180,6 +324,10 @@ export async function* chat({
         },
       };
       yield { type: "usage", message: usage };
+    }
+    // Handle session info from Chrome AI persistent sessions
+    if (chunk.sessionInfo) {
+      yield { type: "sessionInfo", message: chunk.sessionInfo };
     }
   }
 

@@ -716,6 +716,42 @@ export const Form = ({
   </form>
 `;
 
+// New Chat button for starting a fresh conversation
+const NewChatButton = ({ onClick, isFetching }) => html`
+  <button
+    type="button"
+    className="pure-button chat-new-button ${(isFetching &&
+      "pure-button-disabled") ||
+    ""}"
+    onClick=${onClick}
+    title="Start a new conversation"
+  >
+    <i className="iconoir-plus"></i> New
+  </button>
+`;
+
+// Chat form with optional New Chat button
+const ChatForm = ({
+  handleSubmit,
+  handleNewChat,
+  submitName = "Submit",
+  isFetching,
+  hasConversation = false,
+  children,
+}) => html`
+  <form className="pure-form" onSubmit=${handleSubmit}>
+    ${children}
+    <div className="chat-submit-buttons">
+      ${hasConversation &&
+      handleNewChat &&
+      html`
+        <${NewChatButton} onClick=${handleNewChat} isFetching=${isFetching} />
+      `}
+      <${Submit} ...${{ submitName, isFetching }} />
+    </div>
+  </form>
+`;
+
 export const ChatInputForm = (props) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
@@ -723,7 +759,7 @@ export const ChatInputForm = (props) => {
     <${ChatFormProvider} onDropdownToggle=${setIsDropdownOpen}>
       <div className="chat-input-container">
         <div className="chat-input-container-inner">
-          <${Form} ...${props} />
+          <${ChatForm} ...${props} />
           <div className=${isDropdownOpen ? "chat-input-overlay-mask" : ""}></div>
         </div>
       </div>

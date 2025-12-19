@@ -14,19 +14,42 @@ const MODEL_OPTIONS = {
 };
 
 // Map of model -> { progressCallback }
-// Note: Unlike web-llm, we don't cache engines because Chrome AI sessions
-// maintain internal conversation history. Each chat.completions.create()
-// call gets a fresh session to match OpenAI's stateless behavior.
 const modelState = new Map();
-// TODO: Specify language model output language.
+
+// Map of conversationId -> { session, model, apiType }
+// Stores persistent sessions for multi-turn conversations
+const persistentSessions = new Map();
+
+// Token usage threshold - warn when this percentage of quota is used
+const TOKEN_WARNING_THRESHOLD = 0.85;
+
+/**
+ * Get session token info for capacity tracking.
+ * @param {Object} session - Chrome AI session
+ * @returns {{ used: number, remaining: number, total: number, nearLimit: boolean }}
+ */
+const getSessionTokenInfo = (session) => {
+  const used = session?.inputUsage ?? 0;
+  const total = session?.inputQuota ?? 0;
+  const remaining = Math.max(0, total - used);
+  const nearLimit = total > 0 && used / total >= TOKEN_WARNING_THRESHOLD;
+
+  return { used, remaining, total, nearLimit };
+};
 
 /**
  * Convert Chrome's streaming response to OpenAI-style async iterator.
  * Chrome streams accumulated full text, so we extract deltas.
  * @param {ReadableStream} stream - Chrome AI streaming response (async iterable)
- * @yields {{ choices: [{ delta: { content: string } }] }}
+ * @param {Object} session - Chrome AI session for usage tracking
+ * @param {boolean} isPersistent - Whether this is a persistent session
+ * @yields {{ choices: [{ delta: { content: string } }], usage?, sessionInfo? }}
  */
-async function* streamToAsyncIterator({ stream, session }) {
+async function* streamToAsyncIterator({
+  stream,
+  session,
+  isPersistent = false,
+}) {
   let content = "";
 
   for await (const chunk of stream) {
@@ -36,21 +59,24 @@ async function* streamToAsyncIterator({ stream, session }) {
     }
   }
 
+  // Get usage and session info
+  const usage = getUsage({ session, content });
+  const sessionInfo = isPersistent ? getSessionTokenInfo(session) : null;
+
   yield {
     choices: [{ delta: {} }],
-    usage: getUsage({ session, content }),
+    usage,
+    sessionInfo,
   };
 }
 
 const getUsage = ({ session, content }) => {
-  // TODO(TOKENS): Figure overall token estimation / counting strategy.
-  // TODO(TOKENS): There `inputQuota` that's smaller than maxTokens. Figure this out too.
   const completionTokensEst = Math.ceil((content.length ?? 0) / 4);
 
   return {
     prompt_tokens: session?.inputUsage ?? 0,
     completion_tokens: completionTokensEst,
-    total_tokens: completionTokensEst,
+    total_tokens: (session?.inputUsage ?? 0) + completionTokensEst,
   };
 };
 
@@ -151,42 +177,160 @@ const createPromptMessages = (messages) => {
 };
 
 /**
+ * Get or create a persistent session for a conversation.
+ * @param {string} conversationId - Unique conversation identifier
+ * @param {string} model - The model ID
+ * @param {Array} initialPrompts - Initial prompts for new session
+ * @param {Function} progressCallback - Optional progress callback
+ * @returns {Promise<Object>} The session object
+ */
+const getOrCreatePersistentSession = async (
+  conversationId,
+  model,
+  initialPrompts,
+  progressCallback,
+) => {
+  // Check if we have an existing session for this conversation
+  if (persistentSessions.has(conversationId)) {
+    const cached = persistentSessions.get(conversationId);
+    // Verify it's the same model
+    if (cached.model === model && cached.session) {
+      return cached.session;
+    }
+    // Different model - destroy old session
+    try {
+      cached.session?.destroy();
+    } catch (e) {
+      // Ignore destroy errors
+    }
+    persistentSessions.delete(conversationId);
+  }
+
+  // Create new session
+  const session = await LanguageModel.create({
+    ...MODEL_OPTIONS,
+    initialPrompts: initialPrompts.length > 0 ? initialPrompts : undefined,
+    monitor: createDownloadMonitor(progressCallback),
+  });
+
+  // Store for reuse
+  persistentSessions.set(conversationId, {
+    session,
+    model,
+    apiType: "prompt",
+  });
+
+  return session;
+};
+
+/**
+ * Destroy a persistent session for a conversation.
+ * Call this when starting a new conversation.
+ * @param {string} conversationId - The conversation ID to clean up
+ */
+export const destroyPersistentSession = (conversationId) => {
+  if (persistentSessions.has(conversationId)) {
+    const cached = persistentSessions.get(conversationId);
+    try {
+      cached.session?.destroy();
+    } catch (e) {
+      // Ignore destroy errors
+    }
+    persistentSessions.delete(conversationId);
+  }
+};
+
+/**
+ * Check if a conversation has remaining token capacity.
+ * @param {string} conversationId - The conversation ID
+ * @returns {{ hasCapacity: boolean, tokenInfo: Object | null }}
+ */
+export const checkSessionCapacity = (conversationId) => {
+  if (!persistentSessions.has(conversationId)) {
+    return { hasCapacity: true, tokenInfo: null };
+  }
+
+  const { session } = persistentSessions.get(conversationId);
+  const tokenInfo = getSessionTokenInfo(session);
+
+  return {
+    hasCapacity: tokenInfo.remaining > 100, // Need at least 100 tokens for a response
+    tokenInfo,
+  };
+};
+
+/**
  * Create a Prompt API engine wrapper with OpenAI-compatible interface.
- * Each chat.completions.create() call creates a fresh session with initialPrompts
- * to match OpenAI's stateless API behavior. Streaming-only.
+ * Supports both stateless (fresh session per call) and persistent (reused session) modes.
  * @param {Object} options - Engine options
  * @param {Function} options.progressCallback - Optional callback for download progress
+ * @param {string} options.model - The model ID (for persistent sessions)
  * @returns {Object} Engine with chat.completions.create method
  */
 const createPromptEngine = (options = {}) => ({
   chat: {
     completions: {
-      create: async ({ messages }) => {
-        // TODO(CHROME): Add temperature
+      /**
+       * Create a chat completion.
+       * @param {Object} params
+       * @param {Array} params.messages - Messages array
+       * @param {string} params.conversationId - Optional conversation ID for session reuse
+       * @param {boolean} params.isNewConversation - If true, destroys existing session first
+       */
+      create: async ({ messages, conversationId, isNewConversation }) => {
         const { initialPrompts, lastUserMessage } =
           createPromptMessages(messages);
 
-        // console.log("TODO: PROMPT MESSAGES", {
-        //   initialPrompts,
-        //   lastUserMessage,
-        // });
+        let session;
+        let isPersistent = false;
 
-        const session = await LanguageModel.create({
-          ...MODEL_OPTIONS,
-          initialPrompts:
-            initialPrompts.length > 0 ? initialPrompts : undefined,
-          monitor: createDownloadMonitor(options.progressCallback),
-        }).catch((err) => {
-          // console.error("ERROR: PROMPT SESSION CREATE", err);
-          throw err;
-        });
+        if (conversationId) {
+          // Persistent session mode
+          isPersistent = true;
+
+          // If starting new conversation, destroy old session first
+          if (isNewConversation) {
+            destroyPersistentSession(conversationId);
+          }
+
+          // Check if we have an existing session (continuing conversation)
+          const hasExisting = persistentSessions.has(conversationId);
+
+          if (hasExisting) {
+            // Reuse existing session - just prompt with the new user message
+            // (initialPrompts are already in the session's context)
+            session = persistentSessions.get(conversationId).session;
+          } else {
+            // First turn - create session with initialPrompts
+            session = await getOrCreatePersistentSession(
+              conversationId,
+              options.model,
+              initialPrompts,
+              options.progressCallback,
+            );
+          }
+        } else {
+          // Stateless mode - create fresh session each time
+          session = await LanguageModel.create({
+            ...MODEL_OPTIONS,
+            initialPrompts:
+              initialPrompts.length > 0 ? initialPrompts : undefined,
+            monitor: createDownloadMonitor(options.progressCallback),
+          }).catch((err) => {
+            throw err;
+          });
+        }
 
         const stream = session.promptStreaming(lastUserMessage);
+
         return (async function* () {
           try {
-            yield* streamToAsyncIterator({ stream, session });
+            yield* streamToAsyncIterator({ stream, session, isPersistent });
           } finally {
-            session.destroy();
+            // Only destroy if not persistent
+            if (!isPersistent) {
+              session.destroy();
+            }
           }
         })();
       },
@@ -298,7 +442,7 @@ export const getLlmEngine = async (model) => {
 
   // Get stored progress callback if any
   const state = modelState.get(model) || { progressCallback: null };
-  const options = { progressCallback: state.progressCallback };
+  const options = { progressCallback: state.progressCallback, model };
 
   // Return appropriate engine (engines are stateless wrappers, not cached sessions)
   if (apiType === "writer") {

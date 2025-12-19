@@ -14,6 +14,7 @@ import {
   ApiSelectDropdown,
 } from "../components/forms.js";
 import { Answer } from "../components/answer.js";
+import { ConversationThread } from "../components/conversation-thread.js";
 import { PostsFound } from "../components/posts-found.js";
 import {
   DownloadPostsCsv,
@@ -135,6 +136,19 @@ export const Chat = () => {
   const [currentQuery, setCurrentQuery] = useState(null);
   const [api, setApi] = useState(DEFAULT_API);
 
+  // Conversation history for multi-turn chat
+  // Each entry: { role: "user" | "assistant", content: string, queryInfo?: object }
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [conversationId, setConversationId] = useState(null);
+
+  // Session token info for Chrome AI (tracks remaining context capacity)
+  // { used: number, remaining: number, total: number, nearLimit: boolean }
+  const [sessionInfo, setSessionInfo] = useState(null);
+
+  // Compaction info for Web-LLM (tracks when old context was removed)
+  // { compacted: boolean, removedTurns: number, remainingTurns: number }
+  const [compactionInfo, setCompactionInfo] = useState(null);
+
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
   // TODO(CHAT): useConfig() depends on remote /api/config - needs local replacement
@@ -155,7 +169,11 @@ export const Chat = () => {
   const [isLoadingModelForChat, setIsLoadingModelForChat] = useState(false);
   const pendingQueryRef = useRef(null);
 
-  const resetOutputs = (query, { setFetching = true } = {}) => {
+  // Reset outputs for a new query. If isNewConversation is true, clears conversation history.
+  const resetOutputs = (
+    query,
+    { setFetching = true, isNewConversation = false } = {},
+  ) => {
     setQueryValue("");
     if (setFetching) setIsFetching(true);
     setPosts(null);
@@ -164,14 +182,63 @@ export const Chat = () => {
     setCompletions(null);
     setErr(null);
     setCurrentQuery(query);
+
+    if (isNewConversation) {
+      setConversationHistory([]);
+      setConversationId(null);
+      setSessionInfo(null);
+      setCompactionInfo(null);
+    }
+  };
+
+  // Start a new conversation (clears history)
+  const startNewConversation = () => {
+    setConversationHistory([]);
+    setConversationId(null);
+    setSessionInfo(null);
+    setCompactionInfo(null);
+    setPosts(null);
+    setSearchData(null);
+    setQueryInfo(null);
+    setCompletions(null);
+    setErr(null);
+    setCurrentQuery(null);
+    setCompletionsCount(0);
   };
 
   // Execute the actual chat query
-  const executeChatQuery = async (queryParams) => {
+  const executeChatQuery = async (
+    queryParams,
+    { isNewConversation = false } = {},
+  ) => {
     const { query, postType, categoryPrimary } = queryParams;
 
     // Get ready for new query output for the page.
-    resetOutputs(query);
+    resetOutputs(query, { isNewConversation });
+
+    // Build previousMessages from conversation history for the API
+    const previousMessages = isNewConversation
+      ? []
+      : conversationHistory.map(({ role, content }) => ({
+          role,
+          content,
+        }));
+
+    // Add user message to conversation history immediately
+    const userMessage = { role: "user", content: query };
+    setConversationHistory((prev) =>
+      isNewConversation ? [userMessage] : [...prev, userMessage],
+    );
+
+    // Generate a new conversation ID if needed
+    const currentConversationId = isNewConversation
+      ? Date.now().toString()
+      : conversationId || Date.now().toString();
+
+    // Update state with the conversation ID
+    if (!conversationId || isNewConversation) {
+      setConversationId(currentConversationId);
+    }
 
     // Do the query.
     try {
@@ -179,6 +246,8 @@ export const Chat = () => {
       let posts = [];
       let metadata = null;
       let usage = null;
+      let fullResponse = "";
+
       for await (let part of chat({
         api,
         query,
@@ -189,6 +258,9 @@ export const Chat = () => {
         model: modelObj.model,
         provider: modelObj.provider,
         temperature,
+        previousMessages,
+        conversationId: currentConversationId,
+        isNewConversation,
       })) {
         if (part.type === "chunks") {
           chunks.push(...part.message);
@@ -199,15 +271,17 @@ export const Chat = () => {
         } else if (part.type === "usage") {
           usage = part.message;
         } else if (part.type === "data") {
+          fullResponse += part.message;
           setCompletions((prev) => (prev ?? "") + part.message);
+        } else if (part.type === "sessionInfo") {
+          setSessionInfo(part.message);
+        } else if (part.type === "compactionInfo") {
+          setCompactionInfo(part.message);
         }
       }
 
-      // Set state
-      setSearchData({ posts, chunks, metadata });
-      setPosts(searchResultsToPosts({ posts, chunks }));
-      setAnalyticsDates(metadata?.analytics?.dates);
-      setQueryInfo({
+      // Build query info object
+      const newQueryInfo = {
         usage,
         elapsed: metadata?.elapsed,
         internal: metadata?.internal,
@@ -220,11 +294,25 @@ export const Chat = () => {
           similarityMax: metadata?.chunks?.similarity?.max,
           similarityAvg: metadata?.chunks?.similarity?.avg,
         },
-      });
+      };
+
+      // Add assistant response to conversation history
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: "assistant", content: fullResponse, queryInfo: newQueryInfo },
+      ]);
+
+      // Set state
+      setSearchData({ posts, chunks, metadata });
+      setPosts(searchResultsToPosts({ posts, chunks }));
+      setAnalyticsDates(metadata?.analytics?.dates);
+      setQueryInfo(newQueryInfo);
       setCompletionsCount((prev) => prev + 1);
     } catch (respErr) {
       console.error(respErr); // eslint-disable-line no-undef
       setErr(respErr);
+      // Remove the user message we added since the query failed
+      setConversationHistory((prev) => prev.slice(0, -1));
       return;
     } finally {
       setIsFetching(false);
@@ -237,9 +325,11 @@ export const Chat = () => {
 
     if (isModelLoaded && pendingQueryRef.current) {
       setIsLoadingModelForChat(false);
-      const queryParams = pendingQueryRef.current;
+      const { isNewConversation, ...queryParams } = pendingQueryRef.current;
       pendingQueryRef.current = null;
-      executeChatQuery(queryParams);
+      executeChatQuery(queryParams, {
+        isNewConversation: isNewConversation ?? false,
+      });
     } else if (modelStatus === "error") {
       // Keep isLoadingModelForChat true so LoadingButton stays visible
       pendingQueryRef.current = null;
@@ -247,7 +337,8 @@ export const Chat = () => {
     }
   }, [isModelLoaded, isLoadingModelForChat, modelStatus, modelResourceId]);
 
-  const handleSubmit = async (event) => {
+  // Handle form submit - can be called with isNewConversation flag
+  const handleSubmit = async (event, { isNewConversation = false } = {}) => {
     event.preventDefault();
     const { query } = getElements(event);
     if (!query) {
@@ -261,22 +352,47 @@ export const Chat = () => {
 
     // If model not loaded, trigger loading and wait
     if (!isModelLoaded) {
-      pendingQueryRef.current = queryParams;
+      pendingQueryRef.current = { ...queryParams, isNewConversation };
       setIsLoadingModelForChat(true);
-      resetOutputs(query, { setFetching: false });
+      resetOutputs(query, { setFetching: false, isNewConversation });
       startLoading(modelResourceId);
       return;
     }
 
     // Model is loaded, proceed directly
-    executeChatQuery(queryParams);
+    executeChatQuery(queryParams, { isNewConversation });
   };
 
-  const submitName = `Ask${completionsCount > 0 ? "  (New)" : ""}`;
-  const placeholder =
-    completionsCount > 0
-      ? "Ask something else (in a new chat)"
-      : "Ask anything";
+  // Convenience handlers for the two submit modes
+  const handleContinue = (event) =>
+    handleSubmit(event, { isNewConversation: false });
+
+  // Handle "New Chat" button click - find the form from the button
+  const handleNewChat = (event) => {
+    event.preventDefault();
+    const form = event.target.closest("form");
+    if (!form) return;
+    // Create a synthetic event with the form as target and currentTarget
+    const syntheticEvent = {
+      preventDefault: () => {},
+      target: form,
+      currentTarget: form,
+    };
+    handleSubmit(syntheticEvent, { isNewConversation: true });
+  };
+
+  // Determine if we have an active conversation
+  const hasConversation = conversationHistory.length > 0;
+
+  // Check if we're near the session token limit (Chrome AI only)
+  const isNearTokenLimit = sessionInfo?.nearLimit ?? false;
+
+  // Button configuration based on conversation state
+  const placeholder = hasConversation
+    ? isNearTokenLimit
+      ? "Context nearly full - consider starting a new chat"
+      : "Continue the conversation..."
+    : "Ask anything";
 
   return html`
     <${Page} name="Chat">
@@ -296,6 +412,22 @@ export const Chat = () => {
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
 
       ${
+        isNearTokenLimit &&
+        !isFetching &&
+        html`
+          <div className="session-warning">
+            <i className="iconoir-warning-triangle"></i>
+            <span>
+              Context is
+              ${Math.round((sessionInfo.used / sessionInfo.total) * 100)}% full.
+              Consider starting a <strong>New</strong> conversation for best
+              results.
+            </span>
+          </div>
+        `
+      }
+
+      ${
         isLoadingModelForChat &&
         html`
         <${LoadingButton} resourceId=${modelResourceId} label=${getModelCfg(modelObj).modelShortName}>
@@ -303,14 +435,66 @@ export const Chat = () => {
         </${LoadingButton}>
       `
       }
-      ${currentQuery && html`<${QueryDisplay} query=${currentQuery} />`}
+
+      ${"" /* Show conversation history - previous complete turns */}
+      ${"" /* When not streaming: show all except the last assistant (shown via Answer) */}
+      ${"" /* When streaming: show all except the current user query (shown via QueryDisplay) */}
+      ${
+        hasConversation &&
+        conversationHistory.length > 1 &&
+        html`
+          <${ConversationThread} history=${conversationHistory.slice(0, -1)} />
+        `
+      }
+
+      ${"" /* Show current query - only while fetching to avoid duplicate with history */}
+      ${isFetching && currentQuery && html`<${QueryDisplay} query=${currentQuery} />`}
       ${isFetching && !completions && !isLoadingModelForChat && html`<${LoadingBubble} />`}
       ${
         completions &&
         html`<${Answer} answer=${completions} queryInfo=${queryInfo} />`
       }
 
-      <${ChatInputForm} ...${{ isFetching, handleSubmit, submitName }}>
+      ${
+        isDeveloperMode &&
+        sessionInfo &&
+        !isFetching &&
+        html`
+          <div className="session-token-info">
+            <i className="iconoir-data-transfer-both"></i>
+            <span>
+              Session: ${sessionInfo.used.toLocaleString()} /
+              ${sessionInfo.total.toLocaleString()} tokens
+              (${sessionInfo.remaining.toLocaleString()} remaining)
+            </span>
+          </div>
+        `
+      }
+
+      ${
+        isDeveloperMode &&
+        compactionInfo?.compacted &&
+        !isFetching &&
+        html`
+          <div className="compaction-info">
+            <i className="iconoir-compress"></i>
+            <span>
+              Context compacted: removed ${compactionInfo.removedTurns} older
+              turn${compactionInfo.removedTurns !== 1 ? "s" : ""}
+              (${compactionInfo.remainingTurns}
+              turn${compactionInfo.remainingTurns !== 1 ? "s" : ""} remaining)
+            </span>
+          </div>
+        `
+      }
+
+      <${ChatInputForm}
+        isFetching=${isFetching}
+        handleSubmit=${handleContinue}
+        handleNewChat=${hasConversation ? handleNewChat : null}
+        submitName=${hasConversation ? "Continue" : "Ask"}
+        hasConversation=${hasConversation}
+      >
         <${QueryField} placeholder=${placeholder} />
         <${PostTypeSelectDropdown}
           selected=${selectedPostTypes}
