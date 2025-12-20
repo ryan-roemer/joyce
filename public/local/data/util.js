@@ -2,7 +2,7 @@
 
 // Derive base path from this module's URL.
 // Since util.js is at local/data/util.js, go up 3 levels to reach the static root.
-const BASE_PATH = new URL("../../../", import.meta.url).pathname;
+export const BASE_PATH = new URL("../../", import.meta.url).pathname;
 
 // Resolve root-relative paths (starting with "/") to actual paths based on BASE_PATH.
 const resolveUrl = (url) => {

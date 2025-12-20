@@ -13,6 +13,7 @@ import { Posts } from "../pages/posts.js";
 import { Search } from "../pages/search.js";
 import { Chat } from "../pages/chat.js";
 import { Data } from "../pages/data.js";
+import { BASE_PATH } from "../../local/data/util.js";
 
 const PAGE_COMPONENTS = {
   Home,
@@ -43,7 +44,7 @@ export const Layout = () => {
 
   return html`
     <div id="layout" key="layout" className="${active ? "active" : ""}">
-      <${Router}>
+      <${Router} basename="${BASE_PATH}">
         <div ref=${menuRef}>
           <a href="#menu" id="menuLink" className="menu-link" onClick=${toggleMenu}>
             <span></span>

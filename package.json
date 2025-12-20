@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npx serve -p 4300",
+    "dev:root": "npx serve -c serve-root.json -p 4301",
     "data:embeddings": "node ./scripts/embeddings.js",
     "lint": "eslint . --fix",
     "pretty": "prettier . --write",
