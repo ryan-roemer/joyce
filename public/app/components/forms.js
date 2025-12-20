@@ -138,9 +138,9 @@ const Submit = ({ submitName = "Submit", isFetching }) => html`
 
 /**
  * Chat submit button with button group for conversations.
- * - Before first completion: shows "Ask" button
- * - After first completion (conversations enabled): shows [Ask More][New] button group
- * - After first completion (conversations disabled): shows "Ask (New)" only
+ * - Before first completion: shows "Ask" icon button
+ * - After first completion (conversations enabled): shows [Ask More][New] icon button group
+ * - After first completion (conversations disabled): shows "Ask (New)" icon only
  */
 export const ChatSubmitButton = ({
   isFetching,
@@ -149,35 +149,37 @@ export const ChatSubmitButton = ({
 }) => {
   const conversationsEnabled = FEATURES.chat.conversations;
 
-  // Before first completion - simple Ask button
+  // Before first completion - simple Ask icon button
   if (!hasCompletions) {
     return html`
       <button
         type="submit"
-        className="pure-button pure-button-primary ${isFetching
+        title="Ask"
+        className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
           ? "pure-button-disabled"
           : ""}"
       >
-        Ask
+        <i className="iconoir-arrow-up"></i>
       </button>
     `;
   }
 
-  // After first completion, conversations disabled - simple Ask (New) button
+  // After first completion, conversations disabled - simple Ask (New) icon button
   if (!conversationsEnabled) {
     return html`
       <button
         type="submit"
-        className="pure-button pure-button-primary ${isFetching
+        title="Ask (new conversation)"
+        className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
           ? "pure-button-disabled"
           : ""}"
       >
-        Ask (New)
+        <i className="iconoir-arrow-up"></i>
       </button>
     `;
   }
 
-  // After first completion, conversations enabled - button group
+  // After first completion, conversations enabled - icon button group
   const handleAskMore = (e) => {
     e.preventDefault();
     onSubmit("more");
@@ -192,21 +194,25 @@ export const ChatSubmitButton = ({
     <div className="pure-button-group" role="group">
       <button
         type="button"
-        className="pure-button pure-button-primary ${isFetching
+        title="Ask more"
+        className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
           ? "pure-button-disabled"
           : ""}"
         onClick=${handleAskMore}
         disabled=${isFetching}
       >
-        Ask More
+        <i className="iconoir-arrow-up"></i>
       </button>
       <button
         type="button"
-        className="pure-button ${isFetching ? "pure-button-disabled" : ""}"
+        title="Start new conversation"
+        className="pure-button chat-submit-icon-btn ${isFetching
+          ? "pure-button-disabled"
+          : ""}"
         onClick=${handleNew}
         disabled=${isFetching}
       >
-        New
+        <i className="iconoir-plus"></i>
       </button>
     </div>
   `;

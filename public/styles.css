@@ -611,6 +611,21 @@ table.pure-table-bordered tr:first-child th:last-child {
   border-bottom-right-radius: 8px;
 }
 
+/* Chat Submit Icon Buttons */
+.chat-submit-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+.chat-submit-icon-btn i {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
 .form-dropdown {
   display: inline-block;
   margin-right: 8px;
