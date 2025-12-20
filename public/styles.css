@@ -884,6 +884,7 @@ table.pure-table-bordered tr:first-child th:last-child {
 
 .query-info {
   margin-top: 15px;
+  margin-bottom: 1.5rem;
   width: fit-content;
   font-size: 0.9em;
   background-color: var(--color-bg-modal);
