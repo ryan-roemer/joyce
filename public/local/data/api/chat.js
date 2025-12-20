@@ -10,6 +10,9 @@ import {
 } from "../../../config.js";
 import { getPost } from "./posts.js";
 
+// Set to true to enable detailed token debugging in console
+const DEBUG_TOKENS = false;
+
 const createMessages = ({ query, context = "" }) => [
   { role: "system", content: "You are a helpful assistant" },
   {
@@ -66,7 +69,13 @@ const BASE_TOKEN_ESTIMATE = estimateTokens(
   JSON.stringify(createMessages({ query: "" })),
 );
 
-// console.log("TODO: BASE_TOKEN_ESTIMATE", BASE_TOKEN_ESTIMATE);
+if (DEBUG_TOKENS) {
+  // eslint-disable-next-line no-undef
+  console.log(
+    "DEBUG(TOKENS) chat.js - BASE_TOKEN_ESTIMATE:",
+    BASE_TOKEN_ESTIMATE,
+  );
+}
 
 /**
  * Chat with AI using streaming responses.
@@ -141,7 +150,27 @@ export async function* chat({
     context += contextChunk;
   }
 
-  // console.log("TODO: CONTEXT", { totalContextTokens, maxContextTokens });
+  if (DEBUG_TOKENS) {
+    // eslint-disable-next-line no-undef
+    console.log(
+      "DEBUG(TOKENS) chat.js - estimated input tokens:",
+      JSON.stringify(
+        {
+          provider,
+          model,
+          baseTokens: BASE_TOKEN_ESTIMATE,
+          queryTokens: estimateTokens(query),
+          contextTokens:
+            totalContextTokens - BASE_TOKEN_ESTIMATE - estimateTokens(query),
+          totalContextTokens,
+          maxContextTokens,
+          headroom: maxContextTokens - totalContextTokens,
+        },
+        null,
+        2,
+      ),
+    );
+  }
 
   // Yield search info.
   yield { type: "posts", message: searchResults.posts };
@@ -160,13 +189,39 @@ export async function* chat({
   });
 
   // Process streamed chunks
+  let chunkCount = 0;
+  let usageReceived = false;
+  let reportedInputTokens = 0;
+  let reportedOutputTokens = 0;
   for await (const chunk of stream) {
+    chunkCount++;
     if (chunk.choices[0]?.delta?.content) {
       metadata.elapsed.tokensFirst =
         metadata.elapsed.tokensFirst ?? new Date() - start;
       yield { type: "data", message: chunk.choices[0].delta.content };
     }
     if (chunk.usage) {
+      usageReceived = true;
+      reportedInputTokens = chunk.usage.prompt_tokens ?? 0;
+      reportedOutputTokens = chunk.usage.completion_tokens ?? 0;
+
+      if (DEBUG_TOKENS) {
+        // eslint-disable-next-line no-undef
+        console.log(
+          "DEBUG(TOKENS) chat.js - raw usage from provider:",
+          JSON.stringify(
+            {
+              provider,
+              model,
+              rawUsage: chunk.usage,
+              chunkNumber: chunkCount,
+            },
+            null,
+            2,
+          ),
+        );
+      }
+
       // Transform from web-llm format: { prompt_tokens, completion_tokens, total_tokens }
       // To expected format (costs omitted for local):
       const usage = {
@@ -181,6 +236,56 @@ export async function* chat({
       };
       yield { type: "usage", message: usage };
     }
+  }
+
+  if (DEBUG_TOKENS) {
+    if (!usageReceived) {
+      // eslint-disable-next-line no-undef
+      console.warn(
+        "DEBUG(TOKENS) chat.js - NO usage received from provider!",
+        JSON.stringify(
+          {
+            provider,
+            model,
+            totalChunks: chunkCount,
+          },
+          null,
+          2,
+        ),
+      );
+    }
+
+    const inputDiscrepancy =
+      reportedInputTokens > 0
+        ? (
+            ((reportedInputTokens - totalContextTokens) / totalContextTokens) *
+            100
+          ).toFixed(1)
+        : "N/A";
+    // eslint-disable-next-line no-undef
+    console.log(
+      "DEBUG(TOKENS) chat.js - TOKEN SUMMARY:",
+      JSON.stringify(
+        {
+          provider,
+          model,
+          estimated: {
+            inputTokens: totalContextTokens,
+          },
+          reported: {
+            inputTokens: reportedInputTokens,
+            outputTokens: reportedOutputTokens,
+          },
+          inputDiscrepancy:
+            inputDiscrepancy !== "N/A"
+              ? `${inputDiscrepancy}%`
+              : inputDiscrepancy,
+          usageReceived,
+        },
+        null,
+        2,
+      ),
+    );
   }
 
   metadata.elapsed.tokensLast = new Date() - start;

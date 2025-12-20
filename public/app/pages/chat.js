@@ -98,7 +98,7 @@ const DescriptionButton = () => {
 export const Chat = () => {
   // Conversation state - array of Q&A entries
   // Each entry: { query: string, answer: string, queryInfo: object, isLoading: boolean }
-  // TODO(CONVO): Track conversation token usage
+  // TODO(TOKENS): Track conversation token usage
   // - Running total of tokens used across all turns
   // - Available tokens remaining (maxTokens - used)
   // - Values come from: model config (maxTokens), API responses (usage)

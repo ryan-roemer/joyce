@@ -9,6 +9,9 @@ import {
   CHROME_HAS_WRITER_API,
 } from "../../../../config.js";
 
+// Set to true to enable detailed token debugging in console
+const DEBUG_TOKENS = false;
+
 const PROMPT_OPTIONS = {
   expectedInputs: [{ type: "text", languages: ["en"] }],
   expectedOutputs: [{ type: "text", languages: ["en"] }],
@@ -29,10 +32,12 @@ const modelState = new Map();
 /**
  * Convert Chrome's streaming response to OpenAI-style async iterator.
  * Chrome streams accumulated full text, so we extract deltas.
- * @param {ReadableStream} stream - Chrome AI streaming response (async iterable)
+ * @param {Object} options
+ * @param {AsyncIterable} options.stream - Chrome AI streaming response
+ * @param {number} options.inputTokens - Pre-captured input token count
  * @yields {{ choices: [{ delta: { content: string } }] }}
  */
-async function* streamToAsyncIterator({ stream, session }) {
+async function* streamToAsyncIterator({ stream, inputTokens }) {
   let content = "";
 
   for await (const chunk of stream) {
@@ -44,19 +49,41 @@ async function* streamToAsyncIterator({ stream, session }) {
 
   yield {
     choices: [{ delta: {} }],
-    usage: getUsage({ session, content }),
+    usage: getUsage({ inputTokens, content }),
   };
 }
 
-const getUsage = ({ session, content }) => {
-  // TODO(TOKENS): Figure overall token estimation / counting strategy.
-  // TODO(TOKENS): There is `inputQuota` that's smaller than `maxTokens`. Figure this out too.
-  const completionTokensEst = Math.ceil((content.length ?? 0) / 4);
+/**
+ * Build usage object for Chrome AI responses.
+ * @param {Object} options
+ * @param {number} options.inputTokens - Pre-captured input token count
+ * @param {string} options.content - Generated output content
+ * @returns {{ prompt_tokens: number, completion_tokens: number, total_tokens: number }}
+ */
+const getUsage = ({ inputTokens, content }) => {
+  // Estimate output tokens from content length (~4 chars per token)
+  const completionTokensEst = Math.ceil((content?.length ?? 0) / 4);
+
+  if (DEBUG_TOKENS) {
+    // eslint-disable-next-line no-undef
+    console.log(
+      "DEBUG(TOKENS) Chrome getUsage:",
+      JSON.stringify(
+        {
+          inputTokens,
+          contentLength: content?.length,
+          completionTokensEst,
+        },
+        null,
+        2,
+      ),
+    );
+  }
 
   return {
-    prompt_tokens: session?.inputUsage ?? 0,
+    prompt_tokens: inputTokens,
     completion_tokens: completionTokensEst,
-    total_tokens: completionTokensEst,
+    total_tokens: inputTokens + completionTokensEst,
   };
 };
 
@@ -183,10 +210,34 @@ const createPromptEngine = (options = {}) => ({
           throw err;
         });
 
+        // Capture inputUsage BEFORE streaming (it represents tokens from initialPrompts)
+        const initialInputUsage = session.inputUsage ?? 0;
+
+        // Measure the prompt message tokens and add to initial usage
+        const promptTokens = await session.measureInputUsage(lastUserMessage);
+        const inputTokens = initialInputUsage + promptTokens;
+
+        if (DEBUG_TOKENS) {
+          // eslint-disable-next-line no-undef
+          console.log(
+            "DEBUG(TOKENS) Chrome Prompt API - token capture:",
+            JSON.stringify(
+              {
+                initialInputUsage,
+                promptTokens,
+                inputTokens,
+                inputQuota: session.inputQuota,
+              },
+              null,
+              2,
+            ),
+          );
+        }
+
         const stream = session.promptStreaming(lastUserMessage);
         return (async function* () {
           try {
-            yield* streamToAsyncIterator({ stream, session });
+            yield* streamToAsyncIterator({ stream, inputTokens });
           } finally {
             session.destroy();
           }
@@ -242,10 +293,33 @@ const createWriterEngine = (options = {}) => ({
           monitor: createDownloadMonitor(options.progressCallback),
         });
 
+        // Writer API doesn't have inputUsage property, use measureInputUsage() instead
+        // NOTE: This only measures writingTask + context, NOT sharedContext.
+        // Chrome's Writer API doesn't expose total input tokens including sharedContext.
+        // For full accuracy, we'd need to estimate sharedContext tokens separately.
+        const inputTokens = await writer.measureInputUsage(writingTask, {
+          context,
+        });
+
+        if (DEBUG_TOKENS) {
+          // eslint-disable-next-line no-undef
+          console.log(
+            "DEBUG(TOKENS) Chrome Writer API - token capture:",
+            JSON.stringify(
+              {
+                inputTokens,
+                inputQuota: writer.inputQuota,
+              },
+              null,
+              2,
+            ),
+          );
+        }
+
         const stream = writer.writeStreaming(writingTask, { context });
         return (async function* () {
           try {
-            yield* streamToAsyncIterator({ stream });
+            yield* streamToAsyncIterator({ stream, inputTokens });
           } finally {
             writer.destroy();
           }

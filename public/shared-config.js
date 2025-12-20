@@ -16,13 +16,15 @@ export const CHROME_DEFAULT_TOP_K = 40;
 
 let params = { get: () => undefined };
 if (globalThis.location?.search) {
+  // TODO REMOVE ESLINT DISABLE NEXT LINE
+  // eslint-disable-next-line no-unused-vars
   params = new URLSearchParams(globalThis.location.search);
 }
 
 export const FEATURES = {
   chat: {
-    enabled: params.get("chatEnabled") === "true",
-    conversations: params.get("chatConversations") === "true",
+    enabled: true, // TODO REENABLE: params.get("chatEnabled") === "true",
+    conversations: true, // TODO REENABLE: params.get("chatConversations") === "true",
   },
 };
 
