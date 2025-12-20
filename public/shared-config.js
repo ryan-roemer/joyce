@@ -22,6 +22,7 @@ if (globalThis.location?.search) {
 export const FEATURES = {
   chat: {
     enabled: params.get("chatEnabled") === "true",
+    conversations: params.get("chatConversations") === "true",
   },
 };
 
@@ -64,6 +65,8 @@ const config = {
   },
   // Chrome Built-in AI (Gemini Nano) - available in Chrome with AI features enabled
   // See: https://developer.chrome.com/docs/ai/built-in-apis
+  // TODO(CONVO): Add supportsConversations field to model configs
+  // to indicate which models can handle multi-turn conversations
   chrome: {
     models: {
       chat: [

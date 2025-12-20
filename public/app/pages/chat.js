@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router";
 
-import { html, getElements, getQuerySetter } from "../util/html.js";
+import { html, getQuerySetter } from "../util/html.js";
 import { Page } from "../components/page.js";
 import {
   ModelChatSelectDropdown,
@@ -96,24 +96,41 @@ const DescriptionButton = () => {
 };
 
 export const Chat = () => {
-  // Woah, that's a lot of state.
+  // Conversation state - array of Q&A entries
+  // Each entry: { query: string, answer: string, queryInfo: object, isLoading: boolean }
+  // TODO(CONVO): Track conversation token usage
+  // - Running total of tokens used across all turns
+  // - Available tokens remaining (maxTokens - used)
+  // - Values come from: model config (maxTokens), API responses (usage)
+  // - May not always be known (some providers don't report usage)
+  // - Consider displaying in UI when isDeveloperMode is true
+  const [conversation, setConversation] = useState([]);
   const [isFetching, setIsFetching] = useState(false);
+
+  // RAG context - only fetched on first question, persists until "New"
+  // TODO(CONVO): Decide posts display strategy for conversations
+  // Options: show latest only, accumulate all, or per-answer buttons
+  // For now, showing posts from the first query only.
   const [posts, setPosts] = useState(null);
   const [searchData, setSearchData] = useState(null);
-  const [selectedPostTypes, setSelectedPostTypes] = useState([]);
-  const [selectedCategoryPrimary, setSelectedCategoryPrimary] = useState([]);
-  const [completions, setCompletions] = useState(null);
-  const [completionsCount, setCompletionsCount] = useState(0);
-  const [queryInfo, setQueryInfo] = useState(null);
-  const [err, setErr] = useState(null);
   const [analyticsDates, setAnalyticsDates] = useState({
     start: null,
     end: null,
   });
+
+  // Form state - locked after first Q&A
+  const [selectedPostTypes, setSelectedPostTypes] = useState([]);
+  const [selectedCategoryPrimary, setSelectedCategoryPrimary] = useState([]);
   const [modelObj, setModelObj] = useState(DEFAULT_CHAT_MODEL);
   const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
   const [minDate, setMinDate] = useState("");
-  const [currentQuery, setCurrentQuery] = useState(null);
+
+  // Other state
+  const [err, setErr] = useState(null);
+
+  // Derived state
+  const isConversationActive = conversation.length > 0;
+  const hasCompletions = conversation.some((entry) => entry.answer);
 
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
@@ -135,28 +152,43 @@ export const Chat = () => {
   const [isLoadingModelForChat, setIsLoadingModelForChat] = useState(false);
   const pendingQueryRef = useRef(null);
 
-  const resetOutputs = (query, { setFetching = true } = {}) => {
+  // Reset all outputs for a new conversation
+  const resetForNewConversation = () => {
     setQueryValue("");
-    if (setFetching) setIsFetching(true);
+    setConversation([]);
     setPosts(null);
     setSearchData(null);
-    setQueryInfo(null);
-    setCompletions(null);
+    setAnalyticsDates({ start: null, end: null });
     setErr(null);
-    setCurrentQuery(query);
   };
 
-  // Execute the actual chat query
+  // Update the last conversation entry with the answer
+  const updateLastEntry = (updates) => {
+    setConversation((prev) => {
+      const updated = [...prev];
+      const lastIdx = updated.length - 1;
+      if (lastIdx >= 0) {
+        updated[lastIdx] = { ...updated[lastIdx], ...updates };
+      }
+      return updated;
+    });
+  };
+
+  // Execute the actual chat query (first question in conversation)
   const executeChatQuery = async (queryParams) => {
     const { query, postType, categoryPrimary } = queryParams;
 
-    // Get ready for new query output for the page.
-    resetOutputs(query);
+    // Reset for new conversation and add the first entry
+    resetForNewConversation();
+    setConversation([
+      { query, answer: null, queryInfo: null, isLoading: true },
+    ]);
+    setIsFetching(true);
 
     // Do the query.
     try {
       let chunks = [];
-      let posts = [];
+      let fetchedPosts = [];
       let metadata = null;
       let usage = null;
       for await (let part of chat({
@@ -172,21 +204,35 @@ export const Chat = () => {
         if (part.type === "chunks") {
           chunks.push(...part.message);
         } else if (part.type === "posts") {
-          posts = part.message;
+          fetchedPosts = part.message;
         } else if (part.type === "metadata") {
           metadata = part.message;
         } else if (part.type === "usage") {
           usage = part.message;
         } else if (part.type === "data") {
-          setCompletions((prev) => (prev ?? "") + part.message);
+          // Stream answer into the last conversation entry
+          // Must use functional update to get current state (not stale closure)
+          setConversation((prev) => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (lastIdx >= 0) {
+              updated[lastIdx] = {
+                ...updated[lastIdx],
+                answer: (updated[lastIdx].answer ?? "") + part.message,
+              };
+            }
+            return updated;
+          });
         }
       }
 
-      // Set state
-      setSearchData({ posts, chunks, metadata });
-      setPosts(searchResultsToPosts({ posts, chunks }));
+      // Set RAG context (persists for conversation)
+      setSearchData({ posts: fetchedPosts, chunks, metadata });
+      setPosts(searchResultsToPosts({ posts: fetchedPosts, chunks }));
       setAnalyticsDates(metadata?.analytics?.dates);
-      setQueryInfo({
+
+      // Finalize the conversation entry with queryInfo
+      const entryQueryInfo = {
         usage,
         elapsed: metadata?.elapsed,
         internal: metadata?.internal,
@@ -198,15 +244,36 @@ export const Chat = () => {
           similarityMax: metadata?.chunks?.similarity?.max,
           similarityAvg: metadata?.chunks?.similarity?.avg,
         },
-      });
-      setCompletionsCount((prev) => prev + 1);
+      };
+      updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
     } catch (respErr) {
       console.error(respErr); // eslint-disable-line no-undef
       setErr(respErr);
+      updateLastEntry({ isLoading: false });
       return;
     } finally {
       setIsFetching(false);
     }
+  };
+
+  // Execute an "Ask More" query (echo response for now)
+  const executeAskMore = (query) => {
+    setQueryValue("");
+
+    // Add new entry with echo response
+    const echoAnswer = `ECHO: ${query}`;
+    const echoQueryInfo = {
+      model: modelObj.model,
+      provider: modelObj.provider,
+      elapsed: null,
+      usage: null,
+      chunks: null,
+    };
+
+    setConversation((prev) => [
+      ...prev,
+      { query, answer: echoAnswer, queryInfo: echoQueryInfo, isLoading: false },
+    ]);
   };
 
   // Effect to execute pending query once model is loaded, or handle load error
@@ -215,9 +282,13 @@ export const Chat = () => {
 
     if (isModelLoaded && pendingQueryRef.current) {
       setIsLoadingModelForChat(false);
-      const queryParams = pendingQueryRef.current;
+      const { queryParams, mode } = pendingQueryRef.current;
       pendingQueryRef.current = null;
-      executeChatQuery(queryParams);
+      if (mode === "more") {
+        executeAskMore(queryParams.query);
+      } else {
+        executeChatQuery(queryParams);
+      }
     } else if (modelStatus === "error") {
       // Keep isLoadingModelForChat true so LoadingButton stays visible
       pendingQueryRef.current = null;
@@ -225,36 +296,42 @@ export const Chat = () => {
     }
   }, [isModelLoaded, isLoadingModelForChat, modelStatus, modelResourceId]);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const { query } = getElements(event);
+  // Handle form submission with mode ("new" or "more")
+  const handleModeSubmit = (mode) => {
+    // Get the query from the form
+    const queryEl = document.getElementById("query"); // eslint-disable-line no-undef
+    const query = queryEl?.value?.trim();
     if (!query) {
       return;
     }
 
-    // Infer other input parameters.
+    // Infer other input parameters
     const postType = selectedPostTypes.map(({ value }) => value);
     const categoryPrimary = selectedCategoryPrimary.map(({ value }) => value);
     const queryParams = { query, postType, categoryPrimary };
 
     // If model not loaded, trigger loading and wait
     if (!isModelLoaded) {
-      pendingQueryRef.current = queryParams;
+      pendingQueryRef.current = { queryParams, mode };
       setIsLoadingModelForChat(true);
-      resetOutputs(query, { setFetching: false });
+      if (mode === "new") {
+        resetForNewConversation();
+      }
       startLoading(modelResourceId);
       return;
     }
 
-    // Model is loaded, proceed directly
-    executeChatQuery(queryParams);
+    // Model is loaded, proceed based on mode
+    if (mode === "more") {
+      executeAskMore(query);
+    } else {
+      executeChatQuery(queryParams);
+    }
   };
 
-  const submitName = `Ask${completionsCount > 0 ? "  (New)" : ""}`;
-  const placeholder =
-    completionsCount > 0
-      ? "Ask something else (in a new chat)"
-      : "Ask anything";
+  const placeholder = isConversationActive
+    ? "Ask a follow-up question..."
+    : "Ask anything";
 
   return html`
     <${Page} name="Chat">
@@ -281,30 +358,57 @@ export const Chat = () => {
         </${LoadingButton}>
       `
       }
-      ${currentQuery && html`<${QueryDisplay} query=${currentQuery} />`}
-      ${isFetching && !completions && !isLoadingModelForChat && html`<${LoadingBubble} />`}
-      ${
-        completions &&
-        html`<${Answer} answer=${completions} queryInfo=${queryInfo} />`
-      }
 
-      <${ChatInputForm} ...${{ isFetching, handleSubmit, submitName }}>
+      ${conversation.map(
+        (entry, idx) => html`
+          <div
+            key=${`conversation-entry-${idx}`}
+            className="conversation-entry"
+          >
+            <${QueryDisplay} query=${entry.query} />
+            ${entry.isLoading && !entry.answer && html`<${LoadingBubble} />`}
+            ${entry.answer &&
+            html`<${Answer}
+              answer=${entry.answer}
+              queryInfo=${entry.queryInfo}
+            />`}
+          </div>
+        `,
+      )}
+
+      <${ChatInputForm}
+        isFetching=${isFetching}
+        onModeSubmit=${handleModeSubmit}
+        hasCompletions=${hasCompletions}
+      >
         <${QueryField} placeholder=${placeholder} />
         <${PostTypeSelectDropdown}
           selected=${selectedPostTypes}
           setSelected=${setSelectedPostTypes}
+          disabled=${isConversationActive}
         />
         <${PostCategoryPrimarySelectDropdown}
           selected=${selectedCategoryPrimary}
           setSelected=${setSelectedCategoryPrimary}
+          disabled=${isConversationActive}
         />
-        <${PostMinDateDropdown} value=${minDate} onChange=${setMinDate} />
+        <${PostMinDateDropdown}
+          value=${minDate}
+          onChange=${setMinDate}
+          disabled=${isConversationActive}
+        />
         <${ModelChatSelectDropdown}
           selected=${modelObj}
           setSelected=${setModelObj}
           providers=${providers}
+          disabled=${isConversationActive}
         />
-        <${TemperatureDropdown} hidden=${!isDeveloperMode} value=${temperature} onChange=${setTemperature} />
+        <${TemperatureDropdown}
+          hidden=${!isDeveloperMode}
+          value=${temperature}
+          onChange=${setTemperature}
+          disabled=${isConversationActive}
+        />
       </${ChatInputForm}>
     </${Page}>
   `;

@@ -11,6 +11,7 @@ import {
   DEFAULT_DATASTORE,
   DEFAULT_API,
   DEFAULT_TEMPERATURE,
+  FEATURES,
 } from "../../config.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { useState, createContext, useContext } from "react";
@@ -67,6 +68,7 @@ export const DropdownWrapper = ({
   iconTitle = "Show options",
   isChanged = false,
   hidden = false,
+  disabled = false,
   className,
   children,
 }) => {
@@ -79,8 +81,18 @@ export const DropdownWrapper = ({
   const dropdownRef = useClickOutside(isOpen, setOpenState);
 
   const toggleOpen = () => {
+    if (disabled) return;
     setOpenState(!isOpen);
   };
+
+  const iconClasses = [
+    icon,
+    "form-dropdown-icon",
+    isChanged ? "form-dropdown-icon-changed" : "",
+    disabled ? "form-dropdown-icon-disabled" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return html`
     <div
@@ -88,14 +100,8 @@ export const DropdownWrapper = ({
       hidden=${hidden}
       ref=${dropdownRef}
     >
-      <i
-        className=${`
-          ${icon} form-dropdown-icon${isChanged ? " form-dropdown-icon-changed" : ""}
-        `}
-        onClick=${toggleOpen}
-        title=${iconTitle}
-      ></i>
-      ${isOpen
+      <i className=${iconClasses} onClick=${toggleOpen} title=${iconTitle}></i>
+      ${isOpen && !disabled
         ? html`<div className="form-dropdown-content" onClick=${toggleOpen}>
             <div
               className="form-dropdown-content-inner"
@@ -124,6 +130,85 @@ const Submit = ({ submitName = "Submit", isFetching }) => html`
       : submitName}
   </button>
 `;
+
+// TODO(CONVO): Check if provider supports conversations
+// Some providers/models may not support multi-turn context.
+// Need to check per-provider and per-model capabilities from config.
+// When unsupported, hide "Ask More" even if FEATURES.chat.conversations is true.
+
+/**
+ * Chat submit button with stacked layout for conversations.
+ * - Before first completion: shows "Ask" button
+ * - After first completion (conversations enabled): shows "Ask More" button + "New chat" link
+ * - After first completion (conversations disabled): shows "Ask (New)" only
+ */
+export const ChatSubmitButton = ({
+  isFetching,
+  hasCompletions = false,
+  onSubmit,
+}) => {
+  const conversationsEnabled = FEATURES.chat.conversations;
+
+  // Before first completion - simple Ask button
+  if (!hasCompletions) {
+    return html`
+      <div className="chat-submit-wrapper">
+        <button
+          type="submit"
+          className="pure-button pure-button-primary ${isFetching ? "pure-button-disabled" : ""}"
+        >
+          Ask
+        </button>
+      </div>
+    `;
+  }
+
+  // After first completion, conversations disabled - simple Ask (New) button
+  if (!conversationsEnabled) {
+    return html`
+      <div className="chat-submit-wrapper">
+        <button
+          type="submit"
+          className="pure-button pure-button-primary ${isFetching ? "pure-button-disabled" : ""}"
+        >
+          Ask (New)
+        </button>
+      </div>
+    `;
+  }
+
+  // After first completion, conversations enabled - Ask More button + New chat link
+  const handleAskMore = (e) => {
+    e.preventDefault();
+    onSubmit("more");
+  };
+
+  const handleNew = (e) => {
+    e.preventDefault();
+    onSubmit("new");
+  };
+
+  return html`
+    <div className="chat-submit-wrapper">
+      <button
+        type="button"
+        className="pure-button pure-button-primary ${isFetching ? "pure-button-disabled" : ""}"
+        onClick=${handleAskMore}
+        disabled=${isFetching}
+      >
+        Ask More
+      </button>
+      <button
+        type="button"
+        className="chat-submit-new-link"
+        onClick=${handleNew}
+        disabled=${isFetching}
+      >
+        <i className="iconoir-refresh"></i> New chat
+      </button>
+    </div>
+  `;
+};
 
 export const QueryField = ({ placeholder = "Ask anything" }) => html`
   <fieldset>
@@ -160,6 +245,7 @@ export const PostTypeSelectDropdown = ({
   hidden,
   selected = [],
   setSelected,
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -171,9 +257,10 @@ export const PostTypeSelectDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-multiple-pages"
-      iconTitle="Post Types"
+      iconTitle=${disabled ? "Post Types (locked)" : "Post Types"}
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${PostTypeSelect}
         selected=${selected}
@@ -208,6 +295,7 @@ export const PostCategoryPrimarySelectDropdown = ({
   hidden,
   selected = [],
   setSelected,
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -219,9 +307,10 @@ export const PostCategoryPrimarySelectDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-list-select"
-      iconTitle="Primary Categories"
+      iconTitle=${disabled ? "Categories (locked)" : "Primary Categories"}
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${PostCategoryPrimarySelect}
         selected=${selected}
@@ -402,6 +491,7 @@ export const ModelChatSelectDropdown = ({
   setSelected,
   defaultValue = DEFAULT_CHAT_MODEL,
   providers,
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -413,9 +503,10 @@ export const ModelChatSelectDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-sparks"
-      iconTitle="LLM Model (Chat)"
+      iconTitle=${disabled ? "Model (locked)" : "LLM Model (Chat)"}
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${ModelChatSelect}
         defaultValue=${defaultValue}
@@ -625,6 +716,7 @@ export const TemperatureDropdown = ({
   hidden,
   value = DEFAULT_TEMPERATURE,
   onChange = () => {},
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -636,10 +728,11 @@ export const TemperatureDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-temperature-high"
-      iconTitle=${TEMPERATURE_TITLE}
+      iconTitle=${disabled ? "Temperature (locked)" : TEMPERATURE_TITLE}
       className="form-dropdown-hideable"
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${Temperature}
         value=${value}
@@ -672,6 +765,7 @@ export const PostMinDateDropdown = ({
   hidden,
   value = "",
   onChange = () => {},
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -683,9 +777,10 @@ export const PostMinDateDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-calendar"
-      iconTitle=${MIN_DATE_TITLE}
+      iconTitle=${disabled ? "Date (locked)" : MIN_DATE_TITLE}
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${PostMinDate} className="form-dropdown-input-box" value=${value} setValue=${handleChange}/>
     </${DropdownWrapper}>
@@ -707,14 +802,52 @@ export const Form = ({
   </form>
 `;
 
-export const ChatInputForm = (props) => {
+/**
+ * Chat-specific form that uses ChatSubmitButton for conversation support.
+ */
+const ChatForm = ({
+  onModeSubmit,
+  isFetching,
+  hasCompletions = false,
+  children,
+}) => {
+  // Handle form submission - default to "new" mode
+  const onFormSubmit = (e) => {
+    e.preventDefault();
+    onModeSubmit("new");
+  };
+
+  return html`
+    <form className="pure-form" onSubmit=${onFormSubmit}>
+      ${children}
+      <${ChatSubmitButton}
+        isFetching=${isFetching}
+        hasCompletions=${hasCompletions}
+        onSubmit=${onModeSubmit}
+      />
+    </form>
+  `;
+};
+
+export const ChatInputForm = ({
+  onModeSubmit,
+  isFetching,
+  hasCompletions = false,
+  children,
+}) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   return html`
     <${ChatFormProvider} onDropdownToggle=${setIsDropdownOpen}>
       <div className="chat-input-container">
         <div className="chat-input-container-inner">
-          <${Form} ...${props} />
+          <${ChatForm}
+            onModeSubmit=${onModeSubmit}
+            isFetching=${isFetching}
+            hasCompletions=${hasCompletions}
+          >
+            ${children}
+          </${ChatForm}>
           <div className=${isDropdownOpen ? "chat-input-overlay-mask" : ""}></div>
         </div>
       </div>

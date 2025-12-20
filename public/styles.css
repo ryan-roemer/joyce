@@ -600,6 +600,40 @@ table.pure-table-bordered tr:first-child th:last-child {
   }
 }
 
+/* Chat Submit Button (Ask More / New chat) */
+.chat-submit-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  float: right;
+  gap: 4px;
+}
+
+.chat-submit-new-link {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-submit-new-link:hover {
+  color: var(--color-text-primary);
+}
+
+.chat-submit-new-link:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-submit-new-link i {
+  font-size: 0.9rem;
+}
+
 .form-dropdown {
   display: inline-block;
   margin-right: 8px;
@@ -624,6 +658,11 @@ table.pure-table-bordered tr:first-child th:last-child {
 
 .form-dropdown-icon-changed {
   color: var(--color-primary);
+}
+
+.form-dropdown-icon-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .form-dropdown-content {
