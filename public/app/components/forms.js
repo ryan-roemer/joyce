@@ -137,15 +137,15 @@ const Submit = ({ submitName = "Submit", isFetching }) => html`
 // When unsupported, hide "Ask More" even if FEATURES.chat.conversations is true.
 
 /**
- * Chat submit button with button group for conversations.
+ * Chat submit button with optional reset button for conversations.
  * - Before first completion: shows "Ask" icon button
- * - After first completion (conversations enabled): shows [Ask More][New] icon button group
- * - After first completion (conversations disabled): shows "Ask (New)" icon only
+ * - After first completion (conversations enabled): shows [Ask More] [Reset] button group
+ * - After first completion (conversations disabled): shows "Ask" icon only (each query is independent)
  */
 export const ChatSubmitButton = ({
   isFetching,
   hasCompletions = false,
-  onSubmit,
+  onReset,
 }) => {
   const conversationsEnabled = FEATURES.chat.conversations;
 
@@ -164,12 +164,12 @@ export const ChatSubmitButton = ({
     `;
   }
 
-  // After first completion, conversations disabled - simple Ask (New) icon button
+  // After first completion, conversations disabled - simple Ask icon button (each query is independent)
   if (!conversationsEnabled) {
     return html`
       <button
         type="submit"
-        title="Ask (new conversation)"
+        title="Ask"
         className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
           ? "pure-button-disabled"
           : ""}"
@@ -179,40 +179,33 @@ export const ChatSubmitButton = ({
     `;
   }
 
-  // After first completion, conversations enabled - icon button group
-  const handleAskMore = (e) => {
+  // After first completion, conversations enabled - [Ask More] [Reset] button group
+  const handleReset = (e) => {
     e.preventDefault();
-    onSubmit("more");
-  };
-
-  const handleNew = (e) => {
-    e.preventDefault();
-    onSubmit("new");
+    onReset();
   };
 
   return html`
     <div className="pure-button-group" role="group">
       <button
-        type="button"
-        title="Ask more"
+        type="submit"
+        title="Continue conversation"
         className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
           ? "pure-button-disabled"
           : ""}"
-        onClick=${handleAskMore}
-        disabled=${isFetching}
       >
         <i className="iconoir-arrow-up"></i>
       </button>
       <button
         type="button"
-        title="Start new conversation"
+        title="Clear conversation and start fresh"
         className="pure-button chat-submit-icon-btn ${isFetching
           ? "pure-button-disabled"
           : ""}"
-        onClick=${handleNew}
+        onClick=${handleReset}
         disabled=${isFetching}
       >
-        <i className="iconoir-plus"></i>
+        <i className="iconoir-refresh-double"></i>
       </button>
     </div>
   `;
@@ -814,15 +807,15 @@ export const Form = ({
  * Chat-specific form that uses ChatSubmitButton for conversation support.
  */
 const ChatForm = ({
-  onModeSubmit,
+  onSubmit,
+  onReset,
   isFetching,
   hasCompletions = false,
   children,
 }) => {
-  // Handle form submission - default to "new" mode
   const onFormSubmit = (e) => {
     e.preventDefault();
-    onModeSubmit("new");
+    onSubmit();
   };
 
   return html`
@@ -831,14 +824,15 @@ const ChatForm = ({
       <${ChatSubmitButton}
         isFetching=${isFetching}
         hasCompletions=${hasCompletions}
-        onSubmit=${onModeSubmit}
+        onReset=${onReset}
       />
     </form>
   `;
 };
 
 export const ChatInputForm = ({
-  onModeSubmit,
+  onSubmit,
+  onReset,
   isFetching,
   hasCompletions = false,
   children,
@@ -850,7 +844,8 @@ export const ChatInputForm = ({
       <div className="chat-input-container">
         <div className="chat-input-container-inner">
           <${ChatForm}
-            onModeSubmit=${onModeSubmit}
+            onSubmit=${onSubmit}
+            onReset=${onReset}
             isFetching=${isFetching}
             hasCompletions=${hasCompletions}
           >

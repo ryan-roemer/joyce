@@ -567,10 +567,16 @@ table.pure-table-bordered tr:first-child th:last-child {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
-.chat-input-container-inner button[type="submit"] {
-  margin-right: 0;
-  margin-bottom: 0;
+/* Float the button group or single submit button to the right */
+.chat-input-container-inner .pure-button-group,
+.chat-input-container-inner > form > button[type="submit"] {
   float: right;
+  margin: 0;
+}
+
+/* Remove margins from buttons inside the group */
+.chat-input-container-inner .pure-button-group button {
+  margin: 0;
 }
 
 .chat-input-container-inner .pure-form fieldset {
@@ -607,14 +613,8 @@ table.pure-table-bordered tr:first-child th:last-child {
   }
 }
 
-/* Chat Submit Button Group */
-.chat-input-container-inner .pure-button-group {
-  float: right;
-  margin: 0;
-}
-
+/* Button group border radius within chat input */
 .chat-input-container-inner .pure-button-group .pure-button {
-  margin: 0;
   border-radius: 0;
 }
 

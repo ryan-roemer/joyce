@@ -32,6 +32,7 @@ import {
   DEFAULT_CHAT_MODEL,
   DEFAULT_TEMPERATURE,
   getModelCfg,
+  FEATURES,
 } from "../../config.js";
 import { chat } from "../data/index.js";
 
@@ -129,8 +130,11 @@ export const Chat = () => {
   const [err, setErr] = useState(null);
 
   // Derived state
+  const conversationsEnabled = FEATURES.chat.conversations;
   const isConversationActive = conversation.length > 0;
   const hasCompletions = conversation.some((entry) => entry.answer);
+  // Form inputs are only locked when conversation is active AND conversations feature is enabled
+  const formInputsLocked = isConversationActive && conversationsEnabled;
 
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
@@ -282,9 +286,9 @@ export const Chat = () => {
 
     if (isModelLoaded && pendingQueryRef.current) {
       setIsLoadingModelForChat(false);
-      const { queryParams, mode } = pendingQueryRef.current;
+      const { queryParams, shouldContinue } = pendingQueryRef.current;
       pendingQueryRef.current = null;
-      if (mode === "more") {
+      if (shouldContinue) {
         executeAskMore(queryParams.query);
       } else {
         executeChatQuery(queryParams);
@@ -296,8 +300,9 @@ export const Chat = () => {
     }
   }, [isModelLoaded, isLoadingModelForChat, modelStatus, modelResourceId]);
 
-  // Handle form submission with mode ("new" or "more")
-  const handleModeSubmit = (mode) => {
+  // Handle form submission
+  // Behavior depends on conversation state and whether conversations are enabled
+  const handleSubmit = () => {
     // Get the query from the form
     const queryEl = document.getElementById("query"); // eslint-disable-line no-undef
     const query = queryEl?.value?.trim();
@@ -310,27 +315,34 @@ export const Chat = () => {
     const categoryPrimary = selectedCategoryPrimary.map(({ value }) => value);
     const queryParams = { query, postType, categoryPrimary };
 
+    // Should we continue the existing conversation or start fresh?
+    const shouldContinue = conversationsEnabled && isConversationActive;
+
     // If model not loaded, trigger loading and wait
     if (!isModelLoaded) {
-      pendingQueryRef.current = { queryParams, mode };
+      pendingQueryRef.current = { queryParams, shouldContinue };
       setIsLoadingModelForChat(true);
-      if (mode === "new") {
-        resetForNewConversation();
-      }
       startLoading(modelResourceId);
       return;
     }
 
-    // Model is loaded, proceed based on mode
-    if (mode === "more") {
+    // Model is loaded, proceed
+    if (shouldContinue) {
       executeAskMore(query);
     } else {
       executeChatQuery(queryParams);
     }
   };
 
+  // Handle reset button - clears conversation and unlocks form inputs
+  const handleReset = () => {
+    resetForNewConversation();
+  };
+
   const placeholder = isConversationActive
-    ? "Ask a follow-up question..."
+    ? conversationsEnabled
+      ? "Ask a follow-up question..."
+      : "Ask a new question..."
     : "Ask anything";
 
   return html`
@@ -378,36 +390,37 @@ export const Chat = () => {
 
       <${ChatInputForm}
         isFetching=${isFetching}
-        onModeSubmit=${handleModeSubmit}
+        onSubmit=${handleSubmit}
+        onReset=${handleReset}
         hasCompletions=${hasCompletions}
       >
         <${QueryField} placeholder=${placeholder} />
         <${PostTypeSelectDropdown}
           selected=${selectedPostTypes}
           setSelected=${setSelectedPostTypes}
-          disabled=${isConversationActive}
+          disabled=${formInputsLocked}
         />
         <${PostCategoryPrimarySelectDropdown}
           selected=${selectedCategoryPrimary}
           setSelected=${setSelectedCategoryPrimary}
-          disabled=${isConversationActive}
+          disabled=${formInputsLocked}
         />
         <${PostMinDateDropdown}
           value=${minDate}
           onChange=${setMinDate}
-          disabled=${isConversationActive}
+          disabled=${formInputsLocked}
         />
         <${ModelChatSelectDropdown}
           selected=${modelObj}
           setSelected=${setModelObj}
           providers=${providers}
-          disabled=${isConversationActive}
+          disabled=${formInputsLocked}
         />
         <${TemperatureDropdown}
           hidden=${!isDeveloperMode}
           value=${temperature}
           onChange=${setTemperature}
-          disabled=${isConversationActive}
+          disabled=${formInputsLocked}
         />
       </${ChatInputForm}>
     </${Page}>
