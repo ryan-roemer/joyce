@@ -53,3 +53,14 @@ export const getLlmEngine = async (model = DEFAULT_MODEL) => {
 export const isLlmCached = async (model = DEFAULT_MODEL) => {
   return hasModelInCache(model);
 };
+
+/**
+ * Get capabilities for a web-llm model.
+ * @param {string} model - The model ID (unused, all web-llm models have same capabilities)
+ * @returns {{ supportsMultiTurn: boolean, supportsTokenTracking: boolean }}
+ */
+// eslint-disable-next-line no-unused-vars
+export const getCapabilities = (model) => ({
+  supportsMultiTurn: true, // Full messages array each call
+  supportsTokenTracking: true, // usage object in response
+});

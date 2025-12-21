@@ -396,3 +396,16 @@ export const isLlmCached = async (model) => {
   const status = await checkAvailability(apiType);
   return status.available === true;
 };
+
+/**
+ * Get capabilities for a Chrome AI model.
+ * @param {string} model - The model ID (e.g., "gemini-nano-prompt", "gemini-nano-writer")
+ * @returns {{ supportsMultiTurn: boolean, supportsTokenTracking: boolean }}
+ */
+export const getCapabilities = (model) => {
+  const apiType = getApiType(model);
+  return {
+    supportsMultiTurn: apiType === "prompt", // Writer API is single-turn only
+    supportsTokenTracking: true, // Both APIs have measureInputUsage()
+  };
+};

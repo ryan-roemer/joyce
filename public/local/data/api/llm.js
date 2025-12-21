@@ -55,3 +55,14 @@ export const getLlmEngine = async ({
 export const isLlmCached = async (provider, model) => {
   return getProvider(provider).isLlmCached(model);
 };
+
+/**
+ * Get capabilities for a specific provider and model.
+ * Capabilities are defined in provider implementations (single source of truth).
+ * @param {string} provider - The provider key (e.g., "webLlm", "chrome")
+ * @param {string} model - The model ID
+ * @returns {{ supportsMultiTurn: boolean, supportsTokenTracking: boolean }}
+ */
+export const getProviderCapabilities = (provider, model) => {
+  return getProvider(provider).getCapabilities(model);
+};
