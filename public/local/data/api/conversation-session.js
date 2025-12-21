@@ -3,6 +3,7 @@
 // See plan: Multi-Round Conversation Abstraction
 
 import { getProviderCapabilities } from "./llm.js";
+import { createPromptSession, sendPromptMessage } from "./providers/chrome.js";
 import { getModelCfg, TOKEN_CUSHION_CHAT } from "../../../config.js";
 
 /**
@@ -130,6 +131,7 @@ export const createConversationSession = async ({
   return {
     /**
      * Send a message and get streaming response.
+     * Dispatches to provider-specific implementation based on provider type.
      * @param {string} userMessage - The user's message
      * @yields {{ type: "data" | "usage" | "done", message: any }}
      */
@@ -149,12 +151,75 @@ export const createConversationSession = async ({
       // Add user message to history
       history.push({ role: "user", content: userMessage });
 
-      // TODO: Provider-specific implementation in future phases
-      // For now, yield a placeholder indicating implementation pending
-      // This skeleton establishes the interface; actual LLM calls come later
+      // Provider-specific dispatch
+      if (provider === "chrome" && capabilities.supportsMultiTurn) {
+        // Chrome Prompt API - session-based with automatic history
+        yield* this._sendChromePrompt(userMessage);
+      } else if (provider === "chrome") {
+        // Chrome Writer API - single-turn only
+        // Remove the user message we just added since we can't continue
+        history.pop();
+        throw new Error(
+          "Follow-up questions are not supported with the Writer API. " +
+            "Please start a new conversation or switch to the Prompt API model.",
+        );
+      } else if (provider === "webLlm") {
+        // web-llm - TODO: Implement in next phase
+        yield* this._sendWebLlmPlaceholder(userMessage);
+      } else {
+        throw new Error(`Unknown provider: ${provider}`);
+      }
+    },
 
-      // Placeholder: echo for testing the interface
-      const placeholderResponse = `[Session skeleton] Would send: "${userMessage}" to ${provider}/${model}`;
+    /**
+     * Send message using Chrome Prompt API with session reuse.
+     * Chrome sessions maintain conversation history internally.
+     * @param {string} userMessage - The user's message
+     * @yields {{ type: "data" | "usage" | "done", message: any }}
+     * @private
+     */
+    async *_sendChromePrompt(userMessage) {
+      // Lazy create Chrome session on first message
+      if (!providerSession) {
+        providerSession = await createPromptSession({
+          systemContext: sessionOptions.systemContext,
+          temperature: sessionOptions.temperature,
+        });
+      }
+
+      let assistantContent = "";
+
+      // Stream response from Chrome Prompt API
+      for await (const event of sendPromptMessage(
+        providerSession,
+        userMessage,
+      )) {
+        if (event.type === "data") {
+          assistantContent += event.message;
+          yield event;
+        } else if (event.type === "usage") {
+          // Update token tracking from Chrome's accurate counts
+          // Chrome's inputUsage is cumulative, so we use it directly
+          tokensUsed =
+            event.message.prompt_tokens + event.message.completion_tokens;
+          yield { type: "usage", message: this.getTokenUsage() };
+        }
+      }
+
+      // Add assistant response to history
+      history.push({ role: "assistant", content: assistantContent });
+      yield { type: "done", message: null };
+    },
+
+    /**
+     * Placeholder for web-llm implementation (next phase).
+     * @param {string} userMessage - The user's message
+     * @yields {{ type: "data" | "usage" | "done", message: any }}
+     * @private
+     */
+    async *_sendWebLlmPlaceholder(userMessage) {
+      // TODO: Implement in web-llm phase
+      const placeholderResponse = `[web-llm not yet implemented] Would send: "${userMessage}"`;
       history.push({ role: "assistant", content: placeholderResponse });
 
       yield { type: "data", message: placeholderResponse };

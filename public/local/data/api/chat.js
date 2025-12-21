@@ -13,7 +13,14 @@ import { getPost } from "./posts.js";
 // Set to true to enable detailed token debugging in console
 const DEBUG_TOKENS = false;
 
-const createMessages = ({ query, context = "" }) => [
+/**
+ * Build base system prompts with RAG context.
+ * Used by both OpenAI-style completions and Chrome Prompt API sessions.
+ * Does NOT include the final user query - that's added separately.
+ * @param {string} context - RAG context (XML chunks)
+ * @returns {Array<{role: string, content: string}>}
+ */
+export const buildBasePrompts = (context = "") => [
   { role: "system", content: "You are a helpful assistant" },
   {
     role: "user",
@@ -35,15 +42,18 @@ const createMessages = ({ query, context = "" }) => [
   },
   {
     role: "assistant",
-    content: `Try to use information from <CHUNK /><CONTENT /> context wherever possible in your answer. The chunks are in ranked order from most relevant to least relevant, so have a bias towards the earlier chunks. However, always use the most relevant context from any chunk when constructing your answer and citations.`,
+    content:
+      "Try to use information from <CHUNK /><CONTENT /> context wherever possible in your answer. The chunks are in ranked order from most relevant to least relevant, so have a bias towards the earlier chunks. However, always use the most relevant context from any chunk when constructing your answer and citations.",
   },
   {
     role: "assistant",
-    content: `Do NOT add any links if not directly from <CHUNK><URL /></CHUNK> context.`,
+    content:
+      "Do NOT add any links if not directly from <CHUNK><URL /></CHUNK> context.",
   },
   {
     role: "assistant",
-    content: `If you have <CHUNKS />s, then you MUST add one or more UNIQUE markdown links in the form of [LINK_NAME](URL) where an answer may only contain a URL / <URL /> reference at most ONE TIME. Chunks can repeat URLs, so you must be careful to NOT duplicate links.`,
+    content:
+      "If you have <CHUNKS />s, then you MUST add one or more UNIQUE markdown links in the form of [LINK_NAME](URL) where an answer may only contain a URL / <URL /> reference at most ONE TIME. Chunks can repeat URLs, so you must be careful to NOT duplicate links.",
   },
   {
     role: "assistant",
@@ -52,13 +62,23 @@ const createMessages = ({ query, context = "" }) => [
   },
   {
     role: "assistant",
-    content: `
-        When citing Nearform URLs/links, ALWAYS follow the following rules:
-        - Do NOT hallucinate URLs. Your context must contain a fully complete URL for you to cite it or emit it in an answer.
-        - The URL should begin with "https://nearform.com/". NOT "https://www.nearform.com/" or "https://commerce.nearform.com/". Remove the "www." and "commerce." and other prefixes from the URL.
-        - After the domain, the next path segment should either be "/insights/" or "/digital-community/ or "/work/" or "/services/". If you encounter "/blog/", replace with "/insights/". For other unknown path segments beyond those approved, you can do a best guess -- if you can't tell, then use "/insights/" as your best default guess.
-      `,
+    content: `When citing Nearform URLs/links, ALWAYS follow the following rules:
+- Do NOT hallucinate URLs. Your context must contain a fully complete URL for you to cite it or emit it in an answer.
+- The URL should begin with "https://nearform.com/". NOT "https://www.nearform.com/" or "https://commerce.nearform.com/". Remove the "www." and "commerce." and other prefixes from the URL.
+- After the domain, the next path segment should either be "/insights/" or "/digital-community/ or "/work/" or "/services/". If you encounter "/blog/", replace with "/insights/". For other unknown path segments beyond those approved, you can do a best guess -- if you can't tell, then use "/insights/" as your best default guess.`,
   },
+];
+
+/**
+ * Build full messages array for OpenAI-style completions.
+ * Includes base prompts plus the user query.
+ * @param {Object} options
+ * @param {string} options.query - User's query
+ * @param {string} options.context - RAG context (XML chunks)
+ * @returns {Array<{role: string, content: string}>}
+ */
+const createMessages = ({ query, context = "" }) => [
+  ...buildBasePrompts(context),
   {
     role: "user",
     content: `Generate a short, concise response (with VALID links from URLs from any CHUNKs) to the query: ${query}`,
@@ -68,6 +88,60 @@ const createMessages = ({ query, context = "" }) => [
 const BASE_TOKEN_ESTIMATE = estimateTokens(
   JSON.stringify(createMessages({ query: "" })),
 );
+
+/**
+ * Query wrapper template for RAG responses.
+ * Used to format the first user query in a conversation.
+ * @param {string} query - User's raw query
+ * @returns {string} Formatted query with instructions
+ */
+export const wrapQueryForRag = (query) =>
+  `Generate a short, concise response (with VALID links from URLs from any CHUNKs) to the query: ${query}`;
+
+/**
+ * Build XML context string from search chunks with token limiting.
+ * @param {Object} options
+ * @param {Array} options.chunks - Array of chunk objects from search
+ * @param {string} options.query - User query (for token estimation)
+ * @param {string} options.provider - LLM provider key
+ * @param {string} options.model - Model ID
+ * @returns {Promise<string>} XML context string
+ */
+export const buildContextFromChunks = async ({
+  chunks,
+  query,
+  provider,
+  model,
+}) => {
+  const modelCfg = getModelCfg({ provider, model });
+  const maxContextTokens = modelCfg.maxTokens - TOKEN_CUSHION_CHAT;
+  let totalContextTokens = BASE_TOKEN_ESTIMATE + estimateTokens(query);
+
+  if (totalContextTokens > maxContextTokens) {
+    throw new Error(`Query is too long: ${query}`);
+  }
+
+  let context = "";
+  for (const chunk of chunks) {
+    const post = await getPost(chunk.slug);
+    const chunkText = getChunk(post.content, chunk.start, chunk.end).join(
+      "\n\n",
+    );
+    const contextChunk = `<CHUNK><URL>${post.href}</URL><CONTENT>${chunkText}</CONTENT></CHUNK>`;
+    const chunkTokens = estimateTokens(chunkText);
+
+    // Check if over max context.
+    if (totalContextTokens + chunkTokens > maxContextTokens) {
+      break;
+    }
+
+    // Accumulate context and tokens.
+    totalContextTokens += chunkTokens;
+    context += contextChunk;
+  }
+
+  return context;
+};
 
 if (DEBUG_TOKENS) {
   // eslint-disable-next-line no-undef
@@ -171,6 +245,9 @@ export async function* chat({
       ),
     );
   }
+
+  // Store context in metadata for conversation session reuse
+  metadata.context = context;
 
   // Yield search info.
   yield { type: "posts", message: searchResults.posts };

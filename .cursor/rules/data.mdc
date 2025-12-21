@@ -137,8 +137,7 @@ const session = await LanguageModel.create({
 // Prompt with streaming - returns async iterable ReadableStream
 const stream = session.promptStreaming("What language is spoken there?");
 for await (const chunk of stream) {
-  // NOTE: Chrome streams ACCUMULATED text, not deltas
-  // Each chunk contains the full response so far
+  // Each chunk is a delta (incremental text)
   console.log(chunk);
 }
 
@@ -169,7 +168,7 @@ const writer = await Writer.create({
 // Write with streaming - task is the writing instruction
 const stream = writer.writeStreaming("Write an email about...");
 for await (const chunk of stream) {
-  // NOTE: Chrome streams ACCUMULATED text, not deltas
+  // Each chunk is a delta (incremental text)
   console.log(chunk);
 }
 
@@ -182,7 +181,7 @@ writer.destroy();
 - **Availability check**: `availability()` returns string: `"available"` | `"downloading"` | `"downloadable"` | `"unavailable"`
 - **Download progress**: Use `monitor` callback with `downloadprogress` event
 - **Session cleanup**: ALWAYS call `destroy()` when done to free resources
-- **Streaming behavior**: Chrome returns accumulated text, not deltas. Extract deltas by tracking previous text length.
+- **Streaming behavior**: Chrome streams deltas (incremental text chunks), similar to other streaming APIs.
 - **Conversation history**: Use `initialPrompts` array with `role` and `content` for context
 
 ### Localhost Development

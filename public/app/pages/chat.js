@@ -34,7 +34,13 @@ import {
   getModelCfg,
   FEATURES,
 } from "../../config.js";
-import { chat } from "../data/index.js";
+import {
+  search,
+  buildContextFromChunks,
+  wrapQueryForRag,
+  createConversationSession,
+  ConversationLimitError,
+} from "../data/index.js";
 
 // TODO: REFACTOR TO PUT IN SUBMIT???
 const setQueryValue = getQuerySetter("query");
@@ -156,6 +162,9 @@ export const Chat = () => {
   const [isLoadingModelForChat, setIsLoadingModelForChat] = useState(false);
   const pendingQueryRef = useRef(null);
 
+  // Conversation session for multi-turn (created lazily in executeAskMore)
+  const sessionRef = useRef(null);
+
   // Reset all outputs for a new conversation
   const resetForNewConversation = () => {
     setQueryValue("");
@@ -164,6 +173,11 @@ export const Chat = () => {
     setSearchData(null);
     setAnalyticsDates({ start: null, end: null });
     setErr(null);
+    // Clean up conversation session
+    if (sessionRef.current) {
+      sessionRef.current.destroy();
+      sessionRef.current = null;
+    }
   };
 
   // Update the last conversation entry with the answer
@@ -179,8 +193,10 @@ export const Chat = () => {
   };
 
   // Execute the actual chat query (first question in conversation)
+  // Uses unified session approach - same session for first and follow-up messages
   const executeChatQuery = async (queryParams) => {
     const { query, postType, categoryPrimary } = queryParams;
+    const start = new Date();
 
     // Reset for new conversation and add the first entry
     resetForNewConversation();
@@ -189,56 +205,71 @@ export const Chat = () => {
     ]);
     setIsFetching(true);
 
-    // Do the query.
     try {
-      let chunks = [];
-      let fetchedPosts = [];
-      let metadata = null;
-      let usage = null;
-      for await (let part of chat({
+      // Step 1: RAG search
+      const searchResults = await search({
         query,
         postType,
         minDate,
         categoryPrimary,
         withContent: false,
-        model: modelObj.model,
+      });
+      const { posts: fetchedPosts, chunks, metadata } = searchResults;
+      metadata.elapsed.search = new Date() - start;
+
+      // Step 2: Build context from chunks
+      const context = await buildContextFromChunks({
+        chunks,
+        query,
         provider: modelObj.provider,
+        model: modelObj.model,
+      });
+      metadata.context = context;
+
+      // Update UI with search results
+      setSearchData({ posts: fetchedPosts, chunks, metadata });
+      setPosts(searchResultsToPosts({ posts: fetchedPosts, chunks }));
+      setAnalyticsDates(metadata?.analytics?.dates);
+
+      // Step 3: Create conversation session (reused for follow-ups)
+      sessionRef.current = await createConversationSession({
+        provider: modelObj.provider,
+        model: modelObj.model,
         temperature,
-      })) {
-        if (part.type === "chunks") {
-          chunks.push(...part.message);
-        } else if (part.type === "posts") {
-          fetchedPosts = part.message;
-        } else if (part.type === "metadata") {
-          metadata = part.message;
-        } else if (part.type === "usage") {
-          usage = part.message;
-        } else if (part.type === "data") {
+        systemContext: context,
+      });
+
+      // Step 4: Send first message via session (wrapped for RAG)
+      const wrappedQuery = wrapQueryForRag(query);
+      let usage = null;
+      for await (const event of sessionRef.current.sendMessage(wrappedQuery)) {
+        if (event.type === "data") {
           // Stream answer into the last conversation entry
-          // Must use functional update to get current state (not stale closure)
           setConversation((prev) => {
             const updated = [...prev];
             const lastIdx = updated.length - 1;
             if (lastIdx >= 0) {
               updated[lastIdx] = {
                 ...updated[lastIdx],
-                answer: (updated[lastIdx].answer ?? "") + part.message,
+                answer: (updated[lastIdx].answer ?? "") + event.message,
               };
             }
             return updated;
           });
+        } else if (event.type === "usage") {
+          usage = event.message;
         }
       }
 
-      // Set RAG context (persists for conversation)
-      setSearchData({ posts: fetchedPosts, chunks, metadata });
-      setPosts(searchResultsToPosts({ posts: fetchedPosts, chunks }));
-      setAnalyticsDates(metadata?.analytics?.dates);
-
       // Finalize the conversation entry with queryInfo
       const entryQueryInfo = {
-        usage,
-        elapsed: metadata?.elapsed,
+        usage: usage
+          ? {
+              input: { tokens: usage.used, cachedTokens: 0 },
+              output: { tokens: 0, reasoningTokens: 0 },
+            }
+          : null,
+        elapsed: { ...metadata?.elapsed, tokensLast: new Date() - start },
         internal: metadata?.internal,
         model: modelObj.model,
         provider: modelObj.provider,
@@ -260,24 +291,73 @@ export const Chat = () => {
     }
   };
 
-  // Execute an "Ask More" query (echo response for now)
-  const executeAskMore = (query) => {
+  // Execute a follow-up query using existing conversation session
+  // Session is created in executeChatQuery and reused here
+  const executeAskMore = async (query) => {
     setQueryValue("");
+    setIsFetching(true);
+    setErr(null);
 
-    // Add new entry with echo response
-    const echoAnswer = `ECHO: ${query}`;
-    const echoQueryInfo = {
-      model: modelObj.model,
-      provider: modelObj.provider,
-      elapsed: null,
-      usage: null,
-      chunks: null,
-    };
-
+    // Add new entry (loading state)
     setConversation((prev) => [
       ...prev,
-      { query, answer: echoAnswer, queryInfo: echoQueryInfo, isLoading: false },
+      { query, answer: null, queryInfo: null, isLoading: true },
     ]);
+
+    try {
+      if (!sessionRef.current) {
+        throw new Error(
+          "No conversation session available. Please start a new conversation.",
+        );
+      }
+
+      let usage = null;
+      // Follow-up queries don't need the RAG wrapper - just send raw query
+      for await (const event of sessionRef.current.sendMessage(query)) {
+        if (event.type === "data") {
+          // Stream answer into the last conversation entry
+          setConversation((prev) => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (lastIdx >= 0) {
+              updated[lastIdx] = {
+                ...updated[lastIdx],
+                answer: (updated[lastIdx].answer ?? "") + event.message,
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === "usage") {
+          usage = event.message;
+        }
+      }
+
+      // Finalize entry with queryInfo
+      const entryQueryInfo = {
+        usage: usage
+          ? {
+              input: { tokens: usage.used, cachedTokens: 0 },
+              output: { tokens: 0, reasoningTokens: 0 },
+            }
+          : null,
+        elapsed: null,
+        internal: null,
+        model: modelObj.model,
+        provider: modelObj.provider,
+        chunks: null,
+      };
+      updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
+    } catch (respErr) {
+      console.error(respErr); // eslint-disable-line no-undef
+      if (respErr instanceof ConversationLimitError) {
+        setErr(new Error(respErr.message));
+      } else {
+        setErr(respErr);
+      }
+      updateLastEntry({ isLoading: false });
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   // Effect to execute pending query once model is loaded, or handle load error

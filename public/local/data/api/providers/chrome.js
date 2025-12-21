@@ -8,6 +8,7 @@ import {
   CHROME_HAS_PROMPT_API,
   CHROME_HAS_WRITER_API,
 } from "../../../../config.js";
+import { buildBasePrompts } from "../chat.js";
 
 // Set to true to enable detailed token debugging in console
 const DEBUG_TOKENS = false;
@@ -31,7 +32,6 @@ const modelState = new Map();
 
 /**
  * Convert Chrome's streaming response to OpenAI-style async iterator.
- * Chrome streams accumulated full text, so we extract deltas.
  * @param {Object} options
  * @param {AsyncIterable} options.stream - Chrome AI streaming response
  * @param {number} options.inputTokens - Pre-captured input token count
@@ -99,6 +99,33 @@ const createDownloadMonitor = (progressCallback) => (m) => {
       progress: e.loaded,
     });
   });
+};
+
+/**
+ * Internal: Single place for LanguageModel.create.
+ * Used by both single-shot engine and multi-turn session creation.
+ * @param {Object} options
+ * @param {Array} options.initialPrompts - Initial prompts for the session
+ * @param {number} options.temperature - Sampling temperature
+ * @param {Function|null} options.progressCallback - Optional download progress callback
+ * @returns {Promise<Object>} Chrome LanguageModel session
+ */
+const _createPromptSession = async ({
+  initialPrompts,
+  temperature,
+  progressCallback,
+}) => {
+  console.log("DEBUG(CONVO) Chrome _createPromptSession:", { initialPrompts });
+  const session = await LanguageModel.create({
+    ...PROMPT_OPTIONS,
+    topK: CHROME_DEFAULT_TOP_K,
+    temperature,
+    initialPrompts: initialPrompts?.length > 0 ? initialPrompts : undefined,
+    monitor: progressCallback
+      ? createDownloadMonitor(progressCallback)
+      : undefined,
+  });
+  return session;
 };
 
 /**
@@ -198,16 +225,10 @@ const createPromptEngine = (options = {}) => ({
         const { initialPrompts, lastUserMessage } =
           createPromptMessages(messages);
 
-        const session = await LanguageModel.create({
-          ...PROMPT_OPTIONS,
-          topK: CHROME_DEFAULT_TOP_K,
+        const session = await _createPromptSession({
+          initialPrompts,
           temperature,
-          initialPrompts:
-            initialPrompts.length > 0 ? initialPrompts : undefined,
-          monitor: createDownloadMonitor(options.progressCallback),
-        }).catch((err) => {
-          // console.error("ERROR: PROMPT SESSION CREATE", err);
-          throw err;
+          progressCallback: options.progressCallback,
         });
 
         // Capture inputUsage BEFORE streaming (it represents tokens from initialPrompts)
@@ -409,3 +430,105 @@ export const getCapabilities = (model) => {
     supportsTokenTracking: true, // Both APIs have measureInputUsage()
   };
 };
+
+// ============================================================================
+// Multi-Round Conversation Support (Session-based)
+// ============================================================================
+
+/**
+ * Create a Chrome Prompt API session for multi-round conversation.
+ * The session maintains conversation history internally - just call promptStreaming()
+ * for each user message without needing to pass the full history.
+ * @param {Object} options
+ * @param {string} options.systemContext - RAG context (XML chunks) to include in initialPrompts
+ * @param {number} options.temperature - Sampling temperature
+ * @returns {Promise<Object>} Chrome LanguageModel session
+ */
+export const createPromptSession = async ({ systemContext, temperature }) => {
+  // Check availability first
+  const status = await checkAvailability("prompt");
+  if (!status.available && !status.downloading) {
+    throw new Error(
+      `Chrome Prompt API not available: ${status.reason}. ` +
+        "Ensure you're using Chrome 138+ with AI features enabled.",
+    );
+  }
+
+  // Use shared base prompts from chat.js (single source of truth)
+  const initialPrompts = buildBasePrompts(systemContext);
+
+  const session = await _createPromptSession({
+    initialPrompts,
+    temperature,
+    progressCallback: null,
+  });
+
+  if (DEBUG_TOKENS) {
+    // eslint-disable-next-line no-undef
+    console.log(
+      "DEBUG(TOKENS) Chrome createPromptSession:",
+      JSON.stringify(
+        {
+          inputUsage: session.inputUsage,
+          inputQuota: session.inputQuota,
+          initialPromptsCount: initialPrompts.length,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
+  return session;
+};
+
+/**
+ * Send a message using an existing Chrome Prompt session.
+ * The session maintains conversation history internally.
+ * @param {Object} session - Chrome LanguageModel session
+ * @param {string} userMessage - User's message
+ * @yields {{ type: "data" | "usage", message: any }}
+ */
+export async function* sendPromptMessage(session, userMessage) {
+  const stream = session.promptStreaming(userMessage);
+  let content = "";
+
+  for await (const chunk of stream) {
+    if (chunk) {
+      yield { type: "data", message: chunk };
+      content += chunk;
+    }
+  }
+
+  // Get token usage AFTER streaming completes
+  // inputUsage is cumulative (includes all previous turns)
+  const inputTokens = session.inputUsage ?? 0;
+  const outputTokensEst = Math.ceil(content.length / 4);
+
+  if (DEBUG_TOKENS) {
+    // eslint-disable-next-line no-undef
+    console.log(
+      "DEBUG(TOKENS) Chrome sendPromptMessage:",
+      JSON.stringify(
+        {
+          inputTokens,
+          outputTokensEst,
+          inputQuota: session.inputQuota,
+          contentLength: content.length,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
+  yield {
+    type: "usage",
+    message: {
+      prompt_tokens: inputTokens,
+      completion_tokens: outputTokensEst,
+      total_tokens: inputTokens + outputTokensEst,
+      inputQuota: session.inputQuota,
+    },
+  };
+}
