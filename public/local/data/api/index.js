@@ -4,7 +4,7 @@
 export { posts } from "./posts.js";
 export { search } from "./search.js";
 export { chat } from "./chat.js";
-export { createChatSession, ConversationLimitError } from "./chat-session.js";
+export { createChatSession } from "./chat-session.js";
 
 // ==============================
 // API - Internal (for data layer use)

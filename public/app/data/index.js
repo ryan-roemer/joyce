@@ -6,5 +6,4 @@ export {
   chat,
   posts,
   createChatSession,
-  ConversationLimitError,
 } from "../../local/data/api/index.js";

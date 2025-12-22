@@ -33,7 +33,7 @@ import {
   getModelCfg,
   FEATURES,
 } from "../../config.js";
-import { createChatSession, ConversationLimitError } from "../data/index.js";
+import { createChatSession } from "../data/index.js";
 
 // TODO: REFACTOR TO PUT IN SUBMIT???
 const setQueryValue = getQuerySetter("query");
@@ -365,11 +365,7 @@ export const Chat = () => {
       updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
     } catch (respErr) {
       console.error(respErr); // eslint-disable-line no-undef
-      if (respErr instanceof ConversationLimitError) {
-        setErr(new Error(respErr.message));
-      } else {
-        setErr(respErr);
-      }
+      setErr(respErr);
       updateLastEntry({ isLoading: false });
     } finally {
       setIsFetching(false);

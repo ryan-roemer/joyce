@@ -4,15 +4,9 @@
 
 import { search } from "./search.js";
 import { buildContextFromChunks, wrapQueryForRag } from "./chat.js";
-import {
-  createConversationSession,
-  ConversationLimitError,
-} from "./conversation-session.js";
+import { createConversationSession } from "./conversation-session.js";
 import { getProviderCapabilities } from "./llm.js";
 import { searchResultsToPosts } from "../../../app/data/util.js";
-
-// Re-export for convenience
-export { ConversationLimitError };
 
 /**
  * @typedef {Object} ChatSession

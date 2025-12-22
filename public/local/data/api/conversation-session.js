@@ -51,24 +51,6 @@ import { getModelCfg, TOKEN_CUSHION_CHAT } from "../../../config.js";
 const MIN_TOKENS_FOR_EXCHANGE = 500;
 
 /**
- * Error thrown when a conversation exceeds its token limit.
- */
-export class ConversationLimitError extends Error {
-  /**
-   * @param {string} message - Error message
-   * @param {Object} details - Token details
-   * @param {number} details.tokensUsed - Tokens used so far
-   * @param {number} details.tokensLimit - Maximum tokens allowed
-   */
-  constructor(message, { tokensUsed, tokensLimit }) {
-    super(message);
-    this.name = "ConversationLimitError";
-    this.tokensUsed = tokensUsed;
-    this.tokensLimit = tokensLimit;
-  }
-}
-
-/**
  * @typedef {Object} TokenUsage
  * @property {number} used - Total tokens used so far
  * @property {number} available - Tokens available for next turn
@@ -168,9 +150,8 @@ export const createConversationSession = async ({
 
       // Check if we can continue before sending
       if (!this.canContinue()) {
-        throw new ConversationLimitError(
+        throw new Error(
           "This conversation has reached its token limit. Please start a new conversation.",
-          { tokensUsed, tokensLimit: maxTokens },
         );
       }
 
