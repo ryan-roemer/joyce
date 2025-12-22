@@ -209,6 +209,21 @@ export const Chat = () => {
     });
   };
 
+  // Append text to the last conversation entry's answer (for streaming)
+  const appendToLastAnswer = (text) => {
+    setConversation((prev) => {
+      const updated = [...prev];
+      const lastIdx = updated.length - 1;
+      if (lastIdx >= 0) {
+        updated[lastIdx] = {
+          ...updated[lastIdx],
+          answer: (updated[lastIdx].answer ?? "") + text,
+        };
+      }
+      return updated;
+    });
+  };
+
   // Execute the actual chat query (first question in conversation)
   // Uses chat session facade for RAG search + context + session creation
   const executeChatQuery = async (queryParams) => {
@@ -252,17 +267,7 @@ export const Chat = () => {
           setAnalyticsDates(metadata?.analytics?.dates);
         } else if (event.type === "data") {
           // Stream answer into the last conversation entry
-          setConversation((prev) => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (lastIdx >= 0) {
-              updated[lastIdx] = {
-                ...updated[lastIdx],
-                answer: (updated[lastIdx].answer ?? "") + event.message,
-              };
-            }
-            return updated;
-          });
+          appendToLastAnswer(event.message);
         } else if (event.type === "usage") {
           usage = event.message;
         }
@@ -328,17 +333,7 @@ export const Chat = () => {
       for await (const event of chatSessionRef.current.continue(query)) {
         if (event.type === "data") {
           // Stream answer into the last conversation entry
-          setConversation((prev) => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (lastIdx >= 0) {
-              updated[lastIdx] = {
-                ...updated[lastIdx],
-                answer: (updated[lastIdx].answer ?? "") + event.message,
-              };
-            }
-            return updated;
-          });
+          appendToLastAnswer(event.message);
         } else if (event.type === "usage") {
           usage = event.message;
         }
