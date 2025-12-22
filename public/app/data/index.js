@@ -6,4 +6,5 @@ export {
   wrapQueryForRag,
   createConversationSession,
   ConversationLimitError,
+  getProviderCapabilities,
 } from "../../local/data/api/index.js";

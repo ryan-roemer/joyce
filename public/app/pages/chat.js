@@ -40,6 +40,7 @@ import {
   wrapQueryForRag,
   createConversationSession,
   ConversationLimitError,
+  getProviderCapabilities,
 } from "../data/index.js";
 
 // TODO: REFACTOR TO PUT IN SUBMIT???
@@ -135,11 +136,37 @@ export const Chat = () => {
   // Other state
   const [err, setErr] = useState(null);
 
+  // Refs for conversation session
+  const pendingQueryRef = useRef(null);
+  const sessionRef = useRef(null);
+  const sessionModelRef = useRef(null);
+
   // Derived state
-  const conversationsEnabled = FEATURES.chat.conversations;
   const isConversationActive = conversation.length > 0;
   const hasCompletions = conversation.some((entry) => entry.answer);
+
+  // Check if current model supports multi-turn conversations
+  const modelCapabilities = getProviderCapabilities(
+    modelObj.provider,
+    modelObj.model,
+  );
+  const modelSupportsMultiTurn = modelCapabilities.supportsMultiTurn;
+
+  // Check if model changed since current session was created
+  // When model changes, we treat the next submit as a fresh start (not a follow-up)
+  const modelChanged =
+    sessionModelRef.current && sessionModelRef.current !== modelObj.model;
+
+  // Conversations are only enabled if:
+  // 1. Feature flag is on AND
+  // 2. Current model supports multi-turn AND
+  // 3. Model hasn't changed since session was created
+  const conversationsEnabled =
+    FEATURES.chat.conversations && modelSupportsMultiTurn && !modelChanged;
+
   // Form inputs are only locked when conversation is active AND conversations feature is enabled
+  // Single-turn models (Writer API) keep form unlocked so users can submit new questions freely
+  // When model changes, form stays unlocked (next submit starts fresh with new model)
   const formInputsLocked = isConversationActive && conversationsEnabled;
 
   const [settings] = useSettings();
@@ -160,10 +187,6 @@ export const Chat = () => {
 
   // Track when we're waiting for model to load before chat
   const [isLoadingModelForChat, setIsLoadingModelForChat] = useState(false);
-  const pendingQueryRef = useRef(null);
-
-  // Conversation session for multi-turn (created lazily in executeAskMore)
-  const sessionRef = useRef(null);
 
   // Reset all outputs for a new conversation
   const resetForNewConversation = () => {
@@ -178,6 +201,7 @@ export const Chat = () => {
       sessionRef.current.destroy();
       sessionRef.current = null;
     }
+    sessionModelRef.current = null;
   };
 
   // Update the last conversation entry with the answer
@@ -238,6 +262,7 @@ export const Chat = () => {
         temperature,
         systemContext: context,
       });
+      sessionModelRef.current = modelObj.model;
 
       // Step 4: Send first message via session (wrapped for RAG)
       const wrappedQuery = wrapQueryForRag(query);
@@ -429,6 +454,7 @@ export const Chat = () => {
     const queryParams = { query, postType, categoryPrimary };
 
     // Should we continue the existing conversation or start fresh?
+    // conversationsEnabled already accounts for: feature flag, model capability, model changes
     const shouldContinue = conversationsEnabled && isConversationActive;
 
     // If model not loaded, trigger loading and wait
@@ -506,6 +532,7 @@ export const Chat = () => {
         onSubmit=${handleSubmit}
         onReset=${handleReset}
         hasCompletions=${hasCompletions}
+        conversationsEnabled=${conversationsEnabled}
       >
         <${QueryField} placeholder=${placeholder} />
         <${PostTypeSelectDropdown}

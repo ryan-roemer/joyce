@@ -101,7 +101,7 @@ const QueryInfo = ({
               <strong>Usage:</strong>
             </div>
             <ul>
-              ${turnNumber && html` <li>Turn: ${turnNumber}</li> `}
+              ${turnNumber && html`<li>Turn: ${turnNumber}</li>`}
               <li>
                 Input: ${hasCost && html`$${formatFloat(usage.input.cost)}, `}${formatInt(usage.input.tokens)} tokens
                 ${usage.input.cachedTokens > 0 && html` (${formatInt(usage.input.cachedTokens)} cached)`}
@@ -113,11 +113,13 @@ const QueryInfo = ({
               ${
                 hasConversationTokens &&
                 html`
-                  <li>Total: ${formatInt(usage.totalTokens)} tokens used</li>
-                  <li>
-                    Available: ${formatInt(usage.available)} /
-                    ${" "}${formatInt(usage.limit)} tokens
-                  </li>
+                  <${Fragment} key="conversation-tokens">
+                    <li>Total: ${formatInt(usage.totalTokens)} tokens used</li>
+                    <li>
+                      Available: ${formatInt(usage.available)} /
+                      ${" "}${formatInt(usage.limit)} tokens
+                    </li>
+                  </${Fragment}>
                 `
               }
             </ul>

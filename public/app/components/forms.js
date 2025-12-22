@@ -11,7 +11,6 @@ import {
   DEFAULT_DATASTORE,
   DEFAULT_API,
   DEFAULT_TEMPERATURE,
-  FEATURES,
 } from "../../config.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { useState, createContext, useContext } from "react";
@@ -141,14 +140,16 @@ const Submit = ({ submitName = "Submit", isFetching }) => html`
  * - Before first completion: shows "Ask" icon button
  * - After first completion (conversations enabled): shows [Ask More] [Reset] button group
  * - After first completion (conversations disabled): shows "Ask" icon only (each query is independent)
+ *
+ * @param {boolean} conversationsEnabled - Whether conversation mode is active (passed from parent
+ *   to account for model capabilities and model changes, not just the feature flag)
  */
 export const ChatSubmitButton = ({
   isFetching,
   hasCompletions = false,
+  conversationsEnabled = false,
   onReset,
 }) => {
-  const conversationsEnabled = FEATURES.chat.conversations;
-
   // Before first completion - simple Ask icon button
   if (!hasCompletions) {
     return html`
@@ -811,6 +812,7 @@ const ChatForm = ({
   onReset,
   isFetching,
   hasCompletions = false,
+  conversationsEnabled = false,
   children,
 }) => {
   const onFormSubmit = (e) => {
@@ -824,6 +826,7 @@ const ChatForm = ({
       <${ChatSubmitButton}
         isFetching=${isFetching}
         hasCompletions=${hasCompletions}
+        conversationsEnabled=${conversationsEnabled}
         onReset=${onReset}
       />
     </form>
@@ -835,6 +838,7 @@ export const ChatInputForm = ({
   onReset,
   isFetching,
   hasCompletions = false,
+  conversationsEnabled = false,
   children,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -848,6 +852,7 @@ export const ChatInputForm = ({
             onReset=${onReset}
             isFetching=${isFetching}
             hasCompletions=${hasCompletions}
+            conversationsEnabled=${conversationsEnabled}
           >
             ${children}
           </${ChatForm}>

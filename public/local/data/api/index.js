@@ -8,3 +8,4 @@ export {
   createConversationSession,
   ConversationLimitError,
 } from "./conversation-session.js";
+export { getProviderCapabilities } from "./llm.js";

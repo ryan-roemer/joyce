@@ -115,7 +115,6 @@ const _createPromptSession = async ({
   temperature,
   progressCallback,
 }) => {
-  console.log("DEBUG(CONVO) Chrome _createPromptSession:", { initialPrompts });
   const session = await LanguageModel.create({
     ...PROMPT_OPTIONS,
     topK: CHROME_DEFAULT_TOP_K,
@@ -548,4 +547,93 @@ export async function* sendPromptMessage(session, userMessage) {
       inputQuota: session.inputQuota,
     },
   };
+}
+
+/**
+ * Send a single message using Chrome Writer API.
+ * Writer API is single-turn only - each call creates a fresh Writer instance.
+ *
+ * @param {Object} options
+ * @param {string} options.sharedContext - RAG context (XML chunks from buildContextFromChunks)
+ * @param {string} options.writingTask - The user's question/task
+ * @yields {{ type: "data" | "usage", message: any }}
+ */
+export async function* sendWriterMessage({ sharedContext, writingTask }) {
+  const status = await checkAvailability("writer");
+  if (!status.available && !status.downloading) {
+    throw new Error(
+      `Chrome Writer API not available: ${status.reason}. ` +
+        "Ensure you're using Chrome 138+ with AI features enabled.",
+    );
+  }
+
+  // Build full context from base prompts + RAG context
+  const basePrompts = buildBasePrompts(sharedContext);
+  const fullSharedContext = basePrompts.map((m) => m.content).join("\n\n");
+
+  // Create Writer instance
+  const writer = await Writer.create({
+    tone: "neutral",
+    length: "medium",
+    format: "markdown",
+    sharedContext: fullSharedContext,
+    ...WRITER_OPTIONS,
+    outputLanguage: "en",
+  });
+
+  try {
+    // Measure input tokens before streaming
+    // NOTE: measureInputUsage only measures writingTask, not sharedContext
+    const inputTokens = await writer.measureInputUsage(writingTask, {
+      context: "",
+    });
+
+    if (DEBUG_TOKENS) {
+      // eslint-disable-next-line no-undef
+      console.log(
+        "DEBUG(TOKENS) Chrome sendWriterMessage:",
+        JSON.stringify(
+          {
+            inputTokens,
+            inputQuota: writer.inputQuota,
+            writingTaskLength: writingTask.length,
+            sharedContextLength: fullSharedContext.length,
+          },
+          null,
+          2,
+        ),
+      );
+    }
+
+    // Stream the response
+    const stream = writer.writeStreaming(writingTask, { context: "" });
+    let content = "";
+
+    for await (const chunk of stream) {
+      if (chunk) {
+        yield { type: "data", message: chunk };
+        content += chunk;
+      }
+    }
+
+    // Estimate output tokens
+    const outputTokensEst = Math.ceil(content.length / 4);
+
+    yield {
+      type: "usage",
+      message: {
+        // Input tokens (from measureInputUsage - may undercount sharedContext)
+        inputTokens,
+        // Output tokens (estimated)
+        outputTokens: outputTokensEst,
+        // Total for this single-turn call
+        totalTokens: inputTokens + outputTokensEst,
+        // Chrome's quota
+        inputQuota: writer.inputQuota,
+      },
+    };
+  } finally {
+    // Always destroy the writer to free resources
+    writer.destroy();
+  }
 }

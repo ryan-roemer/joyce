@@ -3,7 +3,11 @@
 // See plan: Multi-Round Conversation Abstraction
 
 import { getProviderCapabilities } from "./llm.js";
-import { createPromptSession, sendPromptMessage } from "./providers/chrome.js";
+import {
+  createPromptSession,
+  sendPromptMessage,
+  sendWriterMessage,
+} from "./providers/chrome.js";
 import { getModelCfg, TOKEN_CUSHION_CHAT } from "../../../config.js";
 
 /**
@@ -177,12 +181,16 @@ export const createConversationSession = async ({
         yield* this._sendChromePrompt(userMessage);
       } else if (provider === "chrome") {
         // Chrome Writer API - single-turn only
-        // Remove the user message we just added since we can't continue
-        history.pop();
-        throw new Error(
-          "Follow-up questions are not supported with the Writer API. " +
-            "Please start a new conversation or switch to the Prompt API model.",
-        );
+        // history.length === 1 means just the user message we added (first message OK)
+        // history.length > 1 means prior conversation exists (follow-ups blocked)
+        if (history.length > 1) {
+          history.pop(); // Remove the user message since we can't process it
+          throw new Error(
+            "Follow-up questions are not supported with the Writer API. " +
+              "Please start a new conversation or switch to the Prompt API model.",
+          );
+        }
+        yield* this._sendChromeWriter(userMessage);
       } else if (provider === "webLlm") {
         // web-llm - TODO: Implement in next phase
         yield* this._sendWebLlmPlaceholder(userMessage);
@@ -264,6 +272,60 @@ export const createConversationSession = async ({
       }
 
       // Add assistant response to history
+      history.push({ role: "assistant", content: assistantContent });
+      yield { type: "done", message: null };
+    },
+
+    /**
+     * Send message using Chrome Writer API (single-turn only).
+     * Writer API doesn't support multi-turn - each call is independent.
+     * The systemContext (RAG chunks) is passed to Writer as sharedContext.
+     *
+     * @param {string} userMessage - The user's message/writing task
+     * @yields {{ type: "data" | "usage" | "done", message: any }}
+     * @private
+     */
+    async *_sendChromeWriter(userMessage) {
+      let assistantContent = "";
+
+      // Stream response from Chrome Writer API
+      for await (const event of sendWriterMessage({
+        sharedContext: sessionOptions.systemContext,
+        writingTask: userMessage,
+      })) {
+        if (event.type === "data") {
+          assistantContent += event.message;
+          yield event;
+        } else if (event.type === "usage") {
+          // Writer API is single-turn, so all values are for this turn only
+          // (no cumulative tracking needed)
+          tokensUsed = event.message.totalTokens;
+
+          // Turn number is always 1 for Writer API (single-turn)
+          const turnNumber = 1;
+
+          yield {
+            type: "usage",
+            message: {
+              // Per-turn tokens (same as total for single-turn)
+              inputTokens: event.message.inputTokens,
+              outputTokens: event.message.outputTokens,
+              // Cumulative tokens (same as per-turn for single-turn)
+              totalInputTokens: event.message.inputTokens,
+              totalOutputTokens: event.message.outputTokens,
+              totalTokens: event.message.totalTokens,
+              // Capacity
+              available: this.getTokenUsage().available,
+              limit: maxTokens,
+              inputQuota: event.message.inputQuota,
+              // Conversation info
+              turnNumber,
+            },
+          };
+        }
+      }
+
+      // Add assistant response to history (for display purposes)
       history.push({ role: "assistant", content: assistantContent });
       yield { type: "done", message: null };
     },
