@@ -14,6 +14,7 @@ const QueryInfo = ({
   providerApi,
   chunks,
   internal,
+  turnNumber,
 } = {}) => {
   if (!elapsed && !usage && !model && !chunks) return null;
 
@@ -29,6 +30,9 @@ const QueryInfo = ({
   const totalCost = hasCost
     ? (usage.input.cost + usage.output.cost).toFixed(2)
     : null;
+
+  // Check for conversation-specific fields
+  const hasConversationTokens = usage?.available != null;
 
   const ElapsedDelta = ({ delta }) => {
     if (delta == null || Number.isNaN(delta)) return null;
@@ -97,14 +101,25 @@ const QueryInfo = ({
               <strong>Usage:</strong>
             </div>
             <ul>
+              ${turnNumber && html` <li>Turn: ${turnNumber}</li> `}
               <li>
                 Input: ${hasCost && html`$${formatFloat(usage.input.cost)}, `}${formatInt(usage.input.tokens)} tokens
-                ${" "}(${formatInt(usage.input.cachedTokens)} cached)
+                ${usage.input.cachedTokens > 0 && html` (${formatInt(usage.input.cachedTokens)} cached)`}
               </li>
               <li>
                 Output: ${hasCost && html`$${formatFloat(usage.output.cost)}, `}${formatInt(usage.output.tokens)} tokens
-                ${" "}(${formatInt(usage.output.reasoningTokens)} reasoning)
+                ${usage.output.reasoningTokens > 0 && html` (${formatInt(usage.output.reasoningTokens)} reasoning)`}
               </li>
+              ${
+                hasConversationTokens &&
+                html`
+                  <li>Total: ${formatInt(usage.totalTokens)} tokens used</li>
+                  <li>
+                    Available: ${formatInt(usage.available)} /
+                    ${" "}${formatInt(usage.limit)} tokens
+                  </li>
+                `
+              }
             </ul>
           </${Fragment}>
         `}

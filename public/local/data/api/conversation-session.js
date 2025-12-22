@@ -116,6 +116,26 @@ export const createConversationSession = async ({
   let tokensUsed = 0;
   let destroyed = false;
 
+  // ============================================================================
+  // Per-Turn Token Delta Tracking
+  // ============================================================================
+  // Chrome's session.inputUsage behaves unexpectedly for delta calculations:
+  // - BEFORE promptStreaming(): inputUsage includes initialPrompts tokens (~6000)
+  // - AFTER promptStreaming(): inputUsage may DECREASE or reset to a smaller value
+  //
+  // This causes before/after delta calculations to produce NEGATIVE values.
+  //
+  // SOLUTION: Track cumulative tokens ourselves and calculate deltas from our
+  // tracked values, using Chrome's post-streaming inputUsage as the authoritative
+  // cumulative count.
+  //
+  // - lastInputTokens: Our tracked cumulative input tokens from previous turns
+  // - totalOutputTokens: Our tracked cumulative output tokens across all turns
+  // - Delta = currentCumulative - lastTracked
+  // ============================================================================
+  let lastInputTokens = 0;
+  let totalOutputTokens = 0;
+
   // Provider-specific session handle (for Chrome Prompt API session reuse)
   // Will be populated by provider-specific implementations in future phases
   let providerSession = null;
@@ -198,11 +218,48 @@ export const createConversationSession = async ({
           assistantContent += event.message;
           yield event;
         } else if (event.type === "usage") {
-          // Update token tracking from Chrome's accurate counts
-          // Chrome's inputUsage is cumulative, so we use it directly
-          tokensUsed =
-            event.message.prompt_tokens + event.message.completion_tokens;
-          yield { type: "usage", message: this.getTokenUsage() };
+          // ================================================================
+          // Per-Turn Delta Calculation (Fixed)
+          // ================================================================
+          // Chrome's sendPromptMessage yields totalInputTokens (the cumulative
+          // input count AFTER this turn). We calculate the per-turn delta by
+          // comparing to our tracked lastInputTokens from the previous turn.
+          //
+          // This avoids the bug where Chrome's before/after inputUsage within
+          // a single promptStreaming() call can produce negative deltas due to
+          // unexpected Chrome behavior.
+          // ================================================================
+          const thisInputTokens =
+            event.message.totalInputTokens - lastInputTokens;
+          lastInputTokens = event.message.totalInputTokens;
+
+          // Update cumulative output token tracking
+          totalOutputTokens += event.message.outputTokens;
+          tokensUsed = event.message.totalInputTokens + totalOutputTokens;
+
+          // Calculate turn number (count of Q&A pairs, including current)
+          // history has user message already, assistant will be added after
+          const turnNumber = Math.ceil(history.length / 2);
+
+          // Yield rich usage data
+          yield {
+            type: "usage",
+            message: {
+              // Per-turn tokens (calculated from our tracked cumulative)
+              inputTokens: thisInputTokens,
+              outputTokens: event.message.outputTokens,
+              // Cumulative tokens
+              totalInputTokens: event.message.totalInputTokens,
+              totalOutputTokens,
+              totalTokens: tokensUsed,
+              // Capacity
+              available: this.getTokenUsage().available,
+              limit: maxTokens,
+              inputQuota: event.message.inputQuota,
+              // Conversation info
+              turnNumber,
+            },
+          };
         }
       }
 

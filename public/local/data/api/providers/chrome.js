@@ -485,6 +485,20 @@ export const createPromptSession = async ({ systemContext, temperature }) => {
 /**
  * Send a message using an existing Chrome Prompt session.
  * The session maintains conversation history internally.
+ *
+ * NOTE ON TOKEN TRACKING:
+ * Chrome's session.inputUsage behaves unexpectedly for before/after delta
+ * calculations within a single promptStreaming() call:
+ * - BEFORE streaming: inputUsage may include initialPrompts (~6000 tokens)
+ * - AFTER streaming: inputUsage may DECREASE or reset to a smaller value
+ *
+ * This causes before/after delta to produce NEGATIVE values (a bug).
+ *
+ * SOLUTION: We yield the post-streaming inputUsage as totalInputTokens.
+ * The caller (conversation-session.js) tracks cumulative values across turns
+ * and calculates per-turn deltas from its own tracked state, avoiding the
+ * unreliable Chrome before/after behavior.
+ *
  * @param {Object} session - Chrome LanguageModel session
  * @param {string} userMessage - User's message
  * @yields {{ type: "data" | "usage", message: any }}
@@ -501,8 +515,8 @@ export async function* sendPromptMessage(session, userMessage) {
   }
 
   // Get token usage AFTER streaming completes
-  // inputUsage is cumulative (includes all previous turns)
-  const inputTokens = session.inputUsage ?? 0;
+  // This is the authoritative cumulative input count for this session
+  const totalInputTokens = session.inputUsage ?? 0;
   const outputTokensEst = Math.ceil(content.length / 4);
 
   if (DEBUG_TOKENS) {
@@ -511,7 +525,7 @@ export async function* sendPromptMessage(session, userMessage) {
       "DEBUG(TOKENS) Chrome sendPromptMessage:",
       JSON.stringify(
         {
-          inputTokens,
+          totalInputTokens,
           outputTokensEst,
           inputQuota: session.inputQuota,
           contentLength: content.length,
@@ -525,9 +539,12 @@ export async function* sendPromptMessage(session, userMessage) {
   yield {
     type: "usage",
     message: {
-      prompt_tokens: inputTokens,
-      completion_tokens: outputTokensEst,
-      total_tokens: inputTokens + outputTokensEst,
+      // Output tokens for this turn (estimated from content length)
+      outputTokens: outputTokensEst,
+      // Cumulative input tokens (from Chrome's session.inputUsage)
+      // Per-turn input delta is calculated by caller using tracked state
+      totalInputTokens,
+      // Chrome's quota (max tokens allowed)
       inputQuota: session.inputQuota,
     },
   };

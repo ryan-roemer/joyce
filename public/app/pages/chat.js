@@ -242,8 +242,13 @@ export const Chat = () => {
       // Step 4: Send first message via session (wrapped for RAG)
       const wrappedQuery = wrapQueryForRag(query);
       let usage = null;
+      let firstTokenTime = null;
       for await (const event of sessionRef.current.sendMessage(wrappedQuery)) {
         if (event.type === "data") {
+          // Track first token time
+          if (firstTokenTime === null) {
+            firstTokenTime = new Date() - start;
+          }
           // Stream answer into the last conversation entry
           setConversation((prev) => {
             const updated = [...prev];
@@ -261,15 +266,26 @@ export const Chat = () => {
         }
       }
 
-      // Finalize the conversation entry with queryInfo
+      const endTime = new Date();
+
+      // Finalize the conversation entry with rich queryInfo
       const entryQueryInfo = {
         usage: usage
           ? {
-              input: { tokens: usage.used, cachedTokens: 0 },
-              output: { tokens: 0, reasoningTokens: 0 },
+              input: { tokens: usage.inputTokens, cachedTokens: 0 },
+              output: { tokens: usage.outputTokens, reasoningTokens: 0 },
+              // Add conversation-specific fields
+              totalTokens: usage.totalTokens,
+              available: usage.available,
+              limit: usage.limit,
             }
           : null,
-        elapsed: { ...metadata?.elapsed, tokensLast: new Date() - start },
+        elapsed: {
+          ...metadata?.elapsed,
+          tokensFirst: firstTokenTime,
+          tokensLast: endTime - start,
+        },
+        turnNumber: usage?.turnNumber ?? 1,
         internal: metadata?.internal,
         model: modelObj.model,
         provider: modelObj.provider,
@@ -294,6 +310,7 @@ export const Chat = () => {
   // Execute a follow-up query using existing conversation session
   // Session is created in executeChatQuery and reused here
   const executeAskMore = async (query) => {
+    const start = new Date();
     setQueryValue("");
     setIsFetching(true);
     setErr(null);
@@ -312,9 +329,14 @@ export const Chat = () => {
       }
 
       let usage = null;
+      let firstTokenTime = null;
       // Follow-up queries don't need the RAG wrapper - just send raw query
       for await (const event of sessionRef.current.sendMessage(query)) {
         if (event.type === "data") {
+          // Track first token time
+          if (firstTokenTime === null) {
+            firstTokenTime = new Date() - start;
+          }
           // Stream answer into the last conversation entry
           setConversation((prev) => {
             const updated = [...prev];
@@ -332,15 +354,26 @@ export const Chat = () => {
         }
       }
 
-      // Finalize entry with queryInfo
+      const endTime = new Date();
+      const duration = endTime - start;
+
+      // Finalize entry with rich queryInfo
       const entryQueryInfo = {
         usage: usage
           ? {
-              input: { tokens: usage.used, cachedTokens: 0 },
-              output: { tokens: 0, reasoningTokens: 0 },
+              input: { tokens: usage.inputTokens, cachedTokens: 0 },
+              output: { tokens: usage.outputTokens, reasoningTokens: 0 },
+              // Add conversation-specific fields
+              totalTokens: usage.totalTokens,
+              available: usage.available,
+              limit: usage.limit,
             }
           : null,
-        elapsed: null,
+        elapsed: {
+          tokensFirst: firstTokenTime,
+          tokensLast: duration,
+        },
+        turnNumber: usage?.turnNumber ?? null,
         internal: null,
         model: modelObj.model,
         provider: modelObj.provider,
