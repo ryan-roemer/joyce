@@ -27,21 +27,13 @@ import { SuggestedQueries } from "../components/suggested-queries.js";
 import { LoadingBubble } from "../components/loading-bubble.js";
 import { QueryDisplay } from "../components/query-display.js";
 import { Description } from "../components/description.js";
-import { searchResultsToPosts } from "../data/util.js";
 import {
   DEFAULT_CHAT_MODEL,
   DEFAULT_TEMPERATURE,
   getModelCfg,
   FEATURES,
 } from "../../config.js";
-import {
-  search,
-  buildContextFromChunks,
-  wrapQueryForRag,
-  createConversationSession,
-  ConversationLimitError,
-  getProviderCapabilities,
-} from "../data/index.js";
+import { createChatSession, ConversationLimitError } from "../data/index.js";
 
 // TODO: REFACTOR TO PUT IN SUBMIT???
 const setQueryValue = getQuerySetter("query");
@@ -136,26 +128,28 @@ export const Chat = () => {
   // Other state
   const [err, setErr] = useState(null);
 
-  // Refs for conversation session
+  // Refs for chat session (facade) and pending queries
   const pendingQueryRef = useRef(null);
-  const sessionRef = useRef(null);
-  const sessionModelRef = useRef(null);
+  const chatSessionRef = useRef(null);
 
   // Derived state
   const isConversationActive = conversation.length > 0;
   const hasCompletions = conversation.some((entry) => entry.answer);
 
   // Check if current model supports multi-turn conversations
-  const modelCapabilities = getProviderCapabilities(
-    modelObj.provider,
-    modelObj.model,
-  );
-  const modelSupportsMultiTurn = modelCapabilities.supportsMultiTurn;
+  // Get capabilities from existing session if available, otherwise create temp session to check
+  const modelSupportsMultiTurn = chatSessionRef.current
+    ? chatSessionRef.current.getCapabilities().supportsMultiTurn
+    : createChatSession({
+        provider: modelObj.provider,
+        model: modelObj.model,
+        temperature,
+      }).getCapabilities().supportsMultiTurn;
 
   // Check if model changed since current session was created
   // When model changes, we treat the next submit as a fresh start (not a follow-up)
-  const modelChanged =
-    sessionModelRef.current && sessionModelRef.current !== modelObj.model;
+  const sessionModel = chatSessionRef.current?.getModel();
+  const modelChanged = sessionModel && sessionModel.model !== modelObj.model;
 
   // Conversations are only enabled if:
   // 1. Feature flag is on AND
@@ -196,12 +190,11 @@ export const Chat = () => {
     setSearchData(null);
     setAnalyticsDates({ start: null, end: null });
     setErr(null);
-    // Clean up conversation session
-    if (sessionRef.current) {
-      sessionRef.current.destroy();
-      sessionRef.current = null;
+    // Clean up chat session
+    if (chatSessionRef.current) {
+      chatSessionRef.current.destroy();
+      chatSessionRef.current = null;
     }
-    sessionModelRef.current = null;
   };
 
   // Update the last conversation entry with the answer
@@ -217,10 +210,9 @@ export const Chat = () => {
   };
 
   // Execute the actual chat query (first question in conversation)
-  // Uses unified session approach - same session for first and follow-up messages
+  // Uses chat session facade for RAG search + context + session creation
   const executeChatQuery = async (queryParams) => {
     const { query, postType, categoryPrimary } = queryParams;
-    const start = new Date();
 
     // Reset for new conversation and add the first entry
     resetForNewConversation();
@@ -230,50 +222,35 @@ export const Chat = () => {
     setIsFetching(true);
 
     try {
-      // Step 1: RAG search
-      const searchResults = await search({
-        query,
-        postType,
-        minDate,
-        categoryPrimary,
-        withContent: false,
-      });
-      const { posts: fetchedPosts, chunks, metadata } = searchResults;
-      metadata.elapsed.search = new Date() - start;
-
-      // Step 2: Build context from chunks
-      const context = await buildContextFromChunks({
-        chunks,
-        query,
-        provider: modelObj.provider,
-        model: modelObj.model,
-      });
-      metadata.context = context;
-
-      // Update UI with search results
-      setSearchData({ posts: fetchedPosts, chunks, metadata });
-      setPosts(searchResultsToPosts({ posts: fetchedPosts, chunks }));
-      setAnalyticsDates(metadata?.analytics?.dates);
-
-      // Step 3: Create conversation session (reused for follow-ups)
-      sessionRef.current = await createConversationSession({
+      // Create chat session facade
+      chatSessionRef.current = createChatSession({
         provider: modelObj.provider,
         model: modelObj.model,
         temperature,
-        systemContext: context,
       });
-      sessionModelRef.current = modelObj.model;
 
-      // Step 4: Send first message via session (wrapped for RAG)
-      const wrappedQuery = wrapQueryForRag(query);
       let usage = null;
-      let firstTokenTime = null;
-      for await (const event of sessionRef.current.sendMessage(wrappedQuery)) {
-        if (event.type === "data") {
-          // Track first token time
-          if (firstTokenTime === null) {
-            firstTokenTime = new Date() - start;
-          }
+      let searchMetadata = null;
+
+      // Start conversation (does RAG search + context + first message)
+      for await (const event of chatSessionRef.current.start(query, {
+        postType,
+        minDate,
+        categoryPrimary,
+      })) {
+        if (event.type === "search") {
+          // Update UI with search results
+          const {
+            posts: fetchedPosts,
+            chunks,
+            metadata,
+            displayPosts,
+          } = event.message;
+          searchMetadata = metadata;
+          setSearchData({ posts: fetchedPosts, chunks, metadata });
+          setPosts(displayPosts);
+          setAnalyticsDates(metadata?.analytics?.dates);
+        } else if (event.type === "data") {
           // Stream answer into the last conversation entry
           setConversation((prev) => {
             const updated = [...prev];
@@ -291,34 +268,28 @@ export const Chat = () => {
         }
       }
 
-      const endTime = new Date();
-
-      // Finalize the conversation entry with rich queryInfo
+      // Finalize the conversation entry with queryInfo
+      const chunks = chatSessionRef.current.getSearchData()?.chunks ?? [];
       const entryQueryInfo = {
         usage: usage
           ? {
               input: { tokens: usage.inputTokens, cachedTokens: 0 },
               output: { tokens: usage.outputTokens, reasoningTokens: 0 },
-              // Add conversation-specific fields
               totalTokens: usage.totalTokens,
               available: usage.available,
               limit: usage.limit,
             }
           : null,
-        elapsed: {
-          ...metadata?.elapsed,
-          tokensFirst: firstTokenTime,
-          tokensLast: endTime - start,
-        },
+        elapsed: usage?.elapsed ?? searchMetadata?.elapsed,
         turnNumber: usage?.turnNumber ?? 1,
-        internal: metadata?.internal,
+        internal: searchMetadata?.internal,
         model: modelObj.model,
         provider: modelObj.provider,
         chunks: {
           numChunks: chunks.length,
-          similarityMin: metadata?.chunks?.similarity?.min,
-          similarityMax: metadata?.chunks?.similarity?.max,
-          similarityAvg: metadata?.chunks?.similarity?.avg,
+          similarityMin: searchMetadata?.chunks?.similarity?.min,
+          similarityMax: searchMetadata?.chunks?.similarity?.max,
+          similarityAvg: searchMetadata?.chunks?.similarity?.avg,
         },
       };
       updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
@@ -332,10 +303,8 @@ export const Chat = () => {
     }
   };
 
-  // Execute a follow-up query using existing conversation session
-  // Session is created in executeChatQuery and reused here
+  // Execute a follow-up query using existing chat session
   const executeAskMore = async (query) => {
-    const start = new Date();
     setQueryValue("");
     setIsFetching(true);
     setErr(null);
@@ -347,21 +316,17 @@ export const Chat = () => {
     ]);
 
     try {
-      if (!sessionRef.current) {
+      if (!chatSessionRef.current) {
         throw new Error(
           "No conversation session available. Please start a new conversation.",
         );
       }
 
       let usage = null;
-      let firstTokenTime = null;
-      // Follow-up queries don't need the RAG wrapper - just send raw query
-      for await (const event of sessionRef.current.sendMessage(query)) {
+
+      // Continue conversation using existing session
+      for await (const event of chatSessionRef.current.continue(query)) {
         if (event.type === "data") {
-          // Track first token time
-          if (firstTokenTime === null) {
-            firstTokenTime = new Date() - start;
-          }
           // Stream answer into the last conversation entry
           setConversation((prev) => {
             const updated = [...prev];
@@ -379,25 +344,18 @@ export const Chat = () => {
         }
       }
 
-      const endTime = new Date();
-      const duration = endTime - start;
-
-      // Finalize entry with rich queryInfo
+      // Finalize entry with queryInfo
       const entryQueryInfo = {
         usage: usage
           ? {
               input: { tokens: usage.inputTokens, cachedTokens: 0 },
               output: { tokens: usage.outputTokens, reasoningTokens: 0 },
-              // Add conversation-specific fields
               totalTokens: usage.totalTokens,
               available: usage.available,
               limit: usage.limit,
             }
           : null,
-        elapsed: {
-          tokensFirst: firstTokenTime,
-          tokensLast: duration,
-        },
+        elapsed: usage?.elapsed,
         turnNumber: usage?.turnNumber ?? null,
         internal: null,
         model: modelObj.model,
