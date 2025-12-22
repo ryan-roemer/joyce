@@ -42,6 +42,7 @@ const QueryInfo = ({
   return html`
     <details className="query-info">
       <summary>
+        <i className="iconoir-nav-arrow-right"></i>
         <em>Query Info</em> (
         ${model && html`${model}${(totalElapsed || usage) && ", "}`}
         ${totalElapsed && html`${totalElapsed}${hasCost && ", "}`}

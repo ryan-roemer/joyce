@@ -899,30 +899,26 @@ table.pure-table-bordered tr:first-child th:last-child {
   }
 }
 
+/* Collapsed state - subtle, minimal styling */
 .query-info {
   margin-top: 15px;
   margin-bottom: 1.5rem;
   width: fit-content;
   font-size: 0.9em;
-  background-color: var(--color-bg-modal);
-  border: 1px solid var(--color-border-query);
   border-radius: 12px;
-  padding: 8px 12px;
-  box-shadow: 0 2px 4px var(--color-overlay-very-light);
   transition: all 0.2s ease;
 }
 
-.query-info:hover {
-  box-shadow: 0 4px 8px var(--color-overlay-light);
-  border-color: var(--color-border-query-hover);
-}
-
 .query-info summary {
+  list-style: none;
   color: var(--color-text-query);
   font-weight: 500;
   cursor: pointer;
   user-select: none;
   transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .query-info summary:hover {
@@ -930,7 +926,34 @@ table.pure-table-bordered tr:first-child th:last-child {
 }
 
 .query-info summary::-webkit-details-marker {
-  color: var(--color-text-query);
+  display: none;
+}
+
+.query-info summary::marker {
+  display: none;
+  content: "";
+}
+
+/* Icon rotation on expand */
+.query-info summary i {
+  transition: transform 0.2s ease;
+}
+
+.query-info[open] summary i {
+  transform: rotate(90deg);
+}
+
+/* Expanded state - styled container */
+.query-info[open] {
+  background-color: var(--color-bg-modal);
+  border: 1px solid var(--color-border-query);
+  padding: 8px 12px;
+  box-shadow: 0 2px 4px var(--color-overlay-very-light);
+}
+
+.query-info[open]:hover {
+  box-shadow: 0 4px 8px var(--color-overlay-light);
+  border-color: var(--color-border-query-hover);
 }
 
 .query-info > div {
