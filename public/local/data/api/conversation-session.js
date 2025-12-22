@@ -8,6 +8,8 @@ import {
   sendPromptMessage,
   sendWriterMessage,
 } from "./providers/chrome.js";
+import { getLlmEngine } from "./providers/web-llm.js";
+import { buildBasePrompts } from "./chat.js";
 import { getModelCfg, TOKEN_CUSHION_CHAT } from "../../../config.js";
 
 /**
@@ -192,8 +194,9 @@ export const createConversationSession = async ({
         }
         yield* this._sendChromeWriter(userMessage);
       } else if (provider === "webLlm") {
-        // web-llm - TODO: Implement in next phase
-        yield* this._sendWebLlmPlaceholder(userMessage);
+        // Single-turn for now (supportsMultiTurn: false means this is first message only)
+        // TODO(WEB-LLM-MULTI-TURN): Enable multi-turn after implementation
+        yield* this._sendWebLlm(userMessage);
       } else {
         throw new Error(`Unknown provider: ${provider}`);
       }
@@ -331,18 +334,70 @@ export const createConversationSession = async ({
     },
 
     /**
-     * Placeholder for web-llm implementation (next phase).
+     * Send message using web-llm (single-turn for now).
+     *
+     * TODO(WEB-LLM-MULTI-TURN): Future multi-turn implementation:
+     * 1. Store rawChunks in session for dynamic context reduction
+     * 2. Build messages array: buildBasePrompts(context) + history
+     * 3. Track tokens correctly (prompt_tokens includes history, don't double-count)
+     * 4. When approaching limit, reduce chunks: rebuildContextWithLimit(REDUCED_CHUNK_COUNT)
+     * 5. Change getCapabilities to supportsMultiTurn: true
+     *
      * @param {string} userMessage - The user's message
      * @yields {{ type: "data" | "usage" | "done", message: any }}
      * @private
      */
-    async *_sendWebLlmPlaceholder(userMessage) {
-      // TODO: Implement in web-llm phase
-      const placeholderResponse = `[web-llm not yet implemented] Would send: "${userMessage}"`;
-      history.push({ role: "assistant", content: placeholderResponse });
+    async *_sendWebLlm(userMessage) {
+      // Single-turn: use existing engine with just this message
+      const engine = await getLlmEngine(sessionOptions.model);
 
-      yield { type: "data", message: placeholderResponse };
-      yield { type: "usage", message: this.getTokenUsage() };
+      // Build messages with context + user message only (no history for single-turn)
+      const messages = [
+        ...buildBasePrompts(sessionOptions.systemContext),
+        { role: "user", content: userMessage },
+      ];
+
+      const stream = await engine.chat.completions.create({
+        messages,
+        temperature: sessionOptions.temperature,
+        stream: true,
+        stream_options: { include_usage: true },
+      });
+
+      let assistantContent = "";
+      let usage = null;
+
+      for await (const chunk of stream) {
+        if (chunk.choices[0]?.delta?.content) {
+          const delta = chunk.choices[0].delta.content;
+          assistantContent += delta;
+          yield { type: "data", message: delta };
+        }
+        if (chunk.usage) {
+          usage = chunk.usage;
+        }
+      }
+
+      // Update token tracking
+      if (usage) {
+        tokensUsed = usage.prompt_tokens + usage.completion_tokens;
+
+        yield {
+          type: "usage",
+          message: {
+            inputTokens: usage.prompt_tokens,
+            outputTokens: usage.completion_tokens,
+            totalInputTokens: usage.prompt_tokens,
+            totalOutputTokens: usage.completion_tokens,
+            totalTokens: tokensUsed,
+            available: this.getTokenUsage().available,
+            limit: maxTokens,
+            turnNumber: 1,
+          },
+        };
+      }
+
+      history.push({ role: "assistant", content: assistantContent });
       yield { type: "done", message: null };
     },
 
