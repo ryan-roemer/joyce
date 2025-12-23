@@ -26,7 +26,11 @@ const DEBUG_TOKENS = true;
  * @returns {Array<{role: string, content: string}>}
  */
 export const buildBasePrompts = (context = "") => [
-  { role: "system", content: "You are a helpful assistant" },
+  {
+    role: "system",
+    content:
+      "You are a helpful assistant. All responses must only use facts and URLs from retrieved CHUNKs. URLs must be real and explicitly present in the CHUNKs. If none exist, say so.",
+  },
   {
     role: "user",
     content: "I'm a Nearform employee or interested in Nearform.",
@@ -43,7 +47,11 @@ export const buildBasePrompts = (context = "") => [
   },
   {
     role: "assistant",
-    content: `The following content posts are provided as context in XML format and in CHUNKS of the each original piece of content. Each chunk is a <CHUNK> element containing text content <CONTENT> with a reference url/hyperlink/link of <URL>. The posts chunk content is as follows:\n\n${context}`,
+    content: `The following content posts are provided as context in XML format and in CHUNKS of the each original piece of content. Each chunk is a <CHUNK> element containing text content <CONTENT> with a reference url/hyperlink/link of <URL> and a post title of <TITLE>.`,
+  },
+  {
+    role: "assistant",
+    content: `The posts chunk content is as follows:\n\n${context}`,
   },
   {
     role: "assistant",
@@ -53,12 +61,12 @@ export const buildBasePrompts = (context = "") => [
   {
     role: "assistant",
     content:
-      "Do NOT add any links if not directly from <CHUNK><URL /></CHUNK> context.",
+      "Do NOT add any links if not directly from <CHUNK><TITLE /><URL /></CHUNK> context.",
   },
   {
     role: "assistant",
     content:
-      "If you have <CHUNKS />s, then you MUST add one or more UNIQUE markdown links in the form of [LINK_NAME](URL) where an answer may only contain a URL / <URL /> reference at most ONE TIME. Chunks can repeat URLs, so you must be careful to NOT duplicate links.",
+      "If you have <CHUNKS />s, then you MUST add one or more UNIQUE markdown links in the form of [<TITLE>](<URL>) where an answer may only contain a URL / <URL /> reference at most ONE TIME. Chunks can repeat URLs, so you must be careful to NOT duplicate links.",
   },
   {
     role: "assistant",
@@ -86,22 +94,13 @@ const createMessages = ({ query, context = "" }) => [
   ...buildBasePrompts(context),
   {
     role: "user",
-    content: `Generate a short, concise response (with VALID links from URLs from any CHUNKs) to the query: ${query}`,
+    content: query,
   },
 ];
 
 export const BASE_TOKEN_ESTIMATE = estimateTokens(
   JSON.stringify(createMessages({ query: "" })),
 );
-
-/**
- * Query wrapper template for RAG responses.
- * Used to format the first user query in a conversation.
- * @param {string} query - User's raw query
- * @returns {string} Formatted query with instructions
- */
-export const wrapQueryForRag = (query) =>
-  `Generate a short, concise response (with VALID links from URLs from any CHUNKs) to the query: ${query}`;
 
 /**
  * Build XML context string from search chunks with token limiting.
@@ -187,6 +186,7 @@ export const buildContextFromChunks = async ({
     const entryIndex = contextEntries.length;
     contextEntries.push({
       url: post.href,
+      title: post.title,
       content: chunkText,
     });
     seenSlugs.set(chunk.slug, entryIndex);
@@ -200,7 +200,7 @@ export const buildContextFromChunks = async ({
   const context = contextEntries
     .map(
       (entry) =>
-        `<CHUNK><URL>${entry.url}</URL><CONTENT>${entry.content}</CONTENT></CHUNK>`,
+        `<CHUNK><URL>${entry.url}</URL><TITLE>${entry.title}</TITLE><CONTENT>${entry.content}</CONTENT></CHUNK>`,
     )
     .join("");
 

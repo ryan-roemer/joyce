@@ -3,7 +3,7 @@
 // Encapsulates: search → context building → conversation session → messaging
 
 import { search } from "./search.js";
-import { buildContextFromChunks, wrapQueryForRag } from "./chat.js";
+import { buildContextFromChunks } from "./chat.js";
 import { createConversationSession } from "./conversation-session.js";
 import { getProviderCapabilities } from "./llm.js";
 import { searchResultsToPosts } from "../../../app/data/util.js";
@@ -136,11 +136,10 @@ export const createChatSession = ({ provider, model, temperature }) => {
         initialTokenBreakdown: tokenBreakdown,
       });
 
-      // Step 4: Send first message (wrapped for RAG)
-      const wrappedQuery = wrapQueryForRag(query);
+      // Step 4: Send first message
       let firstTokenTime = null;
 
-      for await (const event of conversationSession.sendMessage(wrappedQuery)) {
+      for await (const event of conversationSession.sendMessage(query)) {
         if (event.type === "data") {
           if (firstTokenTime === null) {
             firstTokenTime = Date.now() - startTime;

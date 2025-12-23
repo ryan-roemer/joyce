@@ -9,6 +9,6 @@ export { createChatSession } from "./chat-session.js";
 // ==============================
 // API - Internal (for data layer use)
 // ==============================
-export { buildContextFromChunks, wrapQueryForRag } from "./chat.js";
+export { buildContextFromChunks } from "./chat.js";
 export { createConversationSession } from "./conversation-session.js";
 export { getProviderCapabilities } from "./llm.js";

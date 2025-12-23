@@ -21,6 +21,8 @@ const prettifyXml = (xmlString) => {
     .replace(/<\/CHUNK>/g, "\n</CHUNK>")
     .replace(/<URL>/g, "<URL>")
     .replace(/<\/URL>/g, "</URL>\n  ")
+    .replace(/<TITLE>/g, "<TITLE>")
+    .replace(/<\/TITLE>/g, "</TITLE>\n  ")
     .replace(/<CONTENT>/g, "<CONTENT>\n    ")
     .replace(/<\/CONTENT>/g, "\n  </CONTENT>")
     .trim();
