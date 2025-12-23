@@ -368,7 +368,6 @@ export const createConversationSession = async ({
         ...history.slice(0, -1), // All history except current user message (already added)
         { role: "user", content: userMessage },
       ];
-      console.log("DEBUG(CONVO) web-llm _sendWebLlm - messages:", messages);
 
       if (DEBUG_TOKENS) {
         // eslint-disable-next-line no-undef

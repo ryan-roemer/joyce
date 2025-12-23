@@ -76,6 +76,13 @@ export const MIN_CONTEXT_CHUNKS = 5;
 // Remainder is reserved for conversation history growth across turns
 export const MULTI_TURN_CONTEXT_RATIO = 0.7;
 
+// How to handle multiple chunks from the same post when building context
+// "duplicate" - add all chunks in order (current behavior)
+// "combine" - merge text with separator into single chunk per post
+// "skip" - only use first chunk per post
+export const CHUNK_DEDUP_MODE = "combine";
+export const CHUNK_COMBINE_SEPARATOR = "\n\n...\n\n";
+
 // TODO(CHAT): Can we programmatically get these values?
 export const GEMMA_NANO_MAX_TOKENS = 32768;
 export const GEMMA_NANO_MAX_TOKENS_ADJUSTED_PROMPT = 8192; // Session max input is much smaller, like around 9K on my mac.

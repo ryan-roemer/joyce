@@ -10,6 +10,8 @@ import {
   getMultiTurnCushion,
   MIN_CONTEXT_CHUNKS,
   MULTI_TURN_CONTEXT_RATIO,
+  CHUNK_DEDUP_MODE,
+  CHUNK_COMBINE_SEPARATOR,
 } from "../../../config.js";
 import { getPost } from "./posts.js";
 
@@ -138,28 +140,69 @@ export const buildContextFromChunks = async ({
     throw new Error(`Query is too long: ${query}`);
   }
 
-  let context = "";
   const usedChunks = [];
   const chunksToProcess = maxChunks ? chunks.slice(0, maxChunks) : chunks;
+
+  // Track context entries by slug for dedup modes
+  // Each entry: { url, content, tokenCount }
+  const contextEntries = [];
+  const seenSlugs = new Map(); // slug -> index in contextEntries
 
   for (const chunk of chunksToProcess) {
     const post = await getPost(chunk.slug);
     const chunkText = getChunk(post.content, chunk.start, chunk.end).join(
       "\n\n",
     );
-    const contextChunk = `<CHUNK><URL>${post.href}</URL><CONTENT>${chunkText}</CONTENT></CHUNK>`;
     const chunkTokens = estimateTokens(chunkText);
 
-    // Check if over max context.
+    // Check if we've seen this post before
+    const existingIndex = seenSlugs.get(chunk.slug);
+
+    if (existingIndex !== undefined) {
+      // Handle duplicate post based on dedup mode
+      if (CHUNK_DEDUP_MODE === "skip") {
+        // Skip this chunk entirely
+        continue;
+      } else if (CHUNK_DEDUP_MODE === "combine") {
+        // Check if combining would exceed token limit
+        if (totalContextTokens + chunkTokens > maxContextTokens) {
+          break;
+        }
+        // Append to existing entry with separator
+        const entry = contextEntries[existingIndex];
+        entry.content += CHUNK_COMBINE_SEPARATOR + chunkText;
+        totalContextTokens += chunkTokens;
+        usedChunks.push(chunk);
+        continue;
+      }
+      // "duplicate" mode falls through to add as new entry
+    }
+
+    // Check if over max context
     if (totalContextTokens + chunkTokens > maxContextTokens) {
       break;
     }
 
-    // Accumulate context and tokens.
+    // Add new context entry
+    const entryIndex = contextEntries.length;
+    contextEntries.push({
+      url: post.href,
+      content: chunkText,
+    });
+    seenSlugs.set(chunk.slug, entryIndex);
+
+    // Accumulate tokens and track chunk
     totalContextTokens += chunkTokens;
-    context += contextChunk;
     usedChunks.push(chunk);
   }
+
+  // Build final context string from entries
+  const context = contextEntries
+    .map(
+      (entry) =>
+        `<CHUNK><URL>${entry.url}</URL><CONTENT>${entry.content}</CONTENT></CHUNK>`,
+    )
+    .join("");
 
   return {
     context,
@@ -251,33 +294,18 @@ export async function* chat({
   const metadata = { ...searchResults.metadata };
   metadata.elapsed.chunks = new Date() - start;
 
-  // Start assembling prompt, starting with the query.
+  // Build context from chunks (handles token limiting and dedup modes)
+  const contextResult = await buildContextFromChunks({
+    chunks: searchResults.chunks,
+    query,
+    provider,
+    model,
+  });
+  const { context, tokenEstimate: totalContextTokens } = contextResult;
+
+  // For debug logging
   const modelCfg = getModelCfg({ provider, model });
   const maxContextTokens = modelCfg.maxTokens - TOKEN_CUSHION_CHAT;
-  let totalContextTokens = BASE_TOKEN_ESTIMATE + estimateTokens(query);
-  if (totalContextTokens > maxContextTokens) {
-    throw new Error(`Query is too long: ${query}`);
-  }
-
-  // Add chunks to context.
-  let context = "";
-  for (const chunk of searchResults.chunks) {
-    const post = await getPost(chunk.slug);
-    const chunkText = getChunk(post.content, chunk.start, chunk.end).join(
-      "\n\n",
-    );
-    const contextChunk = `<CHUNK><URL>${post.href}</URL><CONTENT>${chunkText}</CONTENT></CHUNK>`;
-    const chunkTokens = estimateTokens(chunkText);
-
-    // Check if over max context.
-    if (totalContextTokens + chunkTokens > maxContextTokens) {
-      break;
-    }
-
-    // Accumulate context and tokens.
-    totalContextTokens += chunkTokens;
-    context += contextChunk;
-  }
 
   if (DEBUG_TOKENS) {
     // eslint-disable-next-line no-undef
