@@ -407,7 +407,7 @@ export const ModelChatSelect = ({
       return label;
     }
 
-    const { modelShortName, quantization, vramMb, maxTokens } = getModelCfg({
+    const { quantization, vramMb, maxTokens } = getModelCfg({
       provider,
       model,
     });
@@ -421,7 +421,7 @@ export const ModelChatSelect = ({
     const statsString = [maxTokensString, vramString, quantizationString]
       .filter(Boolean)
       .join(", ");
-    return `${modelShortName} ${statsString ? `(${statsString})` : ""}`;
+    return `${label} ${statsString ? `(${statsString})` : ""}`;
   };
 
   let options = [];
@@ -435,7 +435,7 @@ export const ModelChatSelect = ({
         return {
           id: `${provider}-${model}`,
           title: modelStats(cfg),
-          label: getLabel(model, { provider, model }),
+          label: getLabel(cfg.modelShortName, { provider, model }),
           value: modelObjToOption({ provider, model }),
           model, // Store model ID for status lookup
         };

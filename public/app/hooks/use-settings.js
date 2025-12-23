@@ -4,36 +4,30 @@ import { useState, useEffect } from "react";
 const STORAGE_KEY = "app_settings";
 const SETTINGS_CHANGE_EVENT = "app-settings-change";
 
-// TODO REENABLE: SETTINGS
-// /**
-//  * Default settings values
-//  * @type {Object}
-//  */
-// const DEFAULT_SETTINGS = {
-//   isDeveloperMode: false,
-//   displayModelStats: false,
-// };
+/**
+ * Default settings values
+ * @type {Object}
+ */
+const DEFAULT_SETTINGS = {
+  isDeveloperMode: true,
+  displayModelStats: true,
+};
 
 /**
  * Get settings from localStorage with defaults
  * @returns {Object} Settings object
  */
 function getSettings() {
-  return {
-    isDeveloperMode: true,
-    displayModelStats: true,
-  };
-  // TODO REENABLE: SETTINGS
-  // try {
-  //   const stored = localStorage.getItem(STORAGE_KEY);
-  //   if (!stored) {
-  //     return DEFAULT_SETTINGS;
-  //   }
-  //   return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
-  // } catch (err) {
-  //   console.error("Failed to load settings:", err);
-  //   return DEFAULT_SETTINGS;
-  // }
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) {
+      return DEFAULT_SETTINGS;
+    }
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+  } catch (err) {
+    console.error("Failed to load settings:", err);
+    return DEFAULT_SETTINGS;
+  }
 }
 
 /**
