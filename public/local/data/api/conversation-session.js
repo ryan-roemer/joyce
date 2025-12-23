@@ -360,9 +360,9 @@ export const createConversationSession = async ({
           const turnNumber = 1;
 
           // Build prompt representation for Chrome Writer API
-          // Writer API doesn't have multi-turn, so prompt is just the writing task with context
+          // This matches what sendWriterMessage actually uses (buildBasePrompts + user message)
           const promptMessages = [
-            { role: "system", content: sessionOptions.systemContext },
+            ...buildBasePrompts(sessionOptions.systemContext),
             { role: "user", content: userMessage },
           ];
 
