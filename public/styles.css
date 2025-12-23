@@ -934,12 +934,12 @@ table.pure-table-bordered tr:first-child th:last-child {
   content: "";
 }
 
-/* Icon rotation on expand */
-.query-info summary i {
+/* Icon rotation on expand - only for the nav arrow, not other icons */
+.query-info summary > i.iconoir-nav-arrow-right {
   transition: transform 0.2s ease;
 }
 
-.query-info[open] summary i {
+.query-info[open] summary > i.iconoir-nav-arrow-right {
   transform: rotate(90deg);
 }
 

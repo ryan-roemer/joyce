@@ -1,3 +1,4 @@
+/* global window:false */
 import { useState, Fragment } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -5,6 +6,67 @@ import { html } from "../util/html.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ALL_PROVIDERS, getModelCfg } from "../../config.js";
 import { formatInt, formatFloat, formatElapsed } from "../../shared-util.js";
+
+/**
+ * Prettify XML context string with proper indentation.
+ * Transforms compact XML into readable format with each CHUNK on its own line.
+ * @param {string} xmlString - The raw XML context string
+ * @returns {string} Prettified XML
+ */
+const prettifyXml = (xmlString) => {
+  if (!xmlString) return "";
+  // Add newlines and indentation for CHUNK elements
+  return xmlString
+    .replace(/<CHUNK>/g, "\n<CHUNK>\n  ")
+    .replace(/<\/CHUNK>/g, "\n</CHUNK>")
+    .replace(/<URL>/g, "<URL>")
+    .replace(/<\/URL>/g, "</URL>\n  ")
+    .replace(/<CONTENT>/g, "<CONTENT>\n    ")
+    .replace(/<\/CONTENT>/g, "\n  </CONTENT>")
+    .trim();
+};
+
+/**
+ * Icon link that opens the full prompt (messages array) as JSON in a new page.
+ */
+const PromptDataLink = ({ data }) => {
+  if (!data) return null;
+
+  const handleOpen = () => {
+    const win = window.open("", "_blank");
+    win.document.write("<html><body><pre></pre></body></html>");
+    win.document.close();
+    const pre = win.document.querySelector("pre");
+    pre.innerText = JSON.stringify(data, null, 2);
+  };
+
+  return html`
+    <span onClick=${handleOpen} title="Open full prompt as JSON">
+      <i className="ui-icon-button iconoir-message-text"></i>
+    </span>
+  `;
+};
+
+/**
+ * Icon link that opens the full context (XML chunks) prettified in a new page.
+ */
+const ContextDataLink = ({ data }) => {
+  if (!data) return null;
+
+  const handleOpen = () => {
+    const win = window.open("", "_blank");
+    win.document.write("<html><body><pre></pre></body></html>");
+    win.document.close();
+    const pre = win.document.querySelector("pre");
+    pre.innerText = prettifyXml(data);
+  };
+
+  return html`
+    <span onClick=${handleOpen} title="Open full context as XML">
+      <i className="ui-icon-button iconoir-page"></i>
+    </span>
+  `;
+};
 
 const QueryInfo = ({
   elapsed,
@@ -16,6 +78,8 @@ const QueryInfo = ({
   context,
   internal,
   turnNumber,
+  prompt,
+  rawContext,
 } = {}) => {
   if (!elapsed && !usage && !model && !chunks && !context) return null;
 
@@ -47,7 +111,9 @@ const QueryInfo = ({
         <em>Query Info</em> (
         ${model && html`${model}${(totalElapsed || usage) && ", "}`}
         ${totalElapsed && html`${totalElapsed}${hasCost && ", "}`}
-        ${hasCost && html`$${totalCost}`})
+        ${hasCost && html`$${totalCost}`}) ${" "}
+        <${PromptDataLink} data=${prompt} />
+        <${ContextDataLink} data=${rawContext} />
       </summary>
 
       <div>

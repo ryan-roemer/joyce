@@ -298,6 +298,9 @@ export const Chat = () => {
         },
         // Context info from usage event (recalculated per-turn with query tokens)
         context: usage?.contextTokens ?? null,
+        // Full prompt and context for developer inspection
+        prompt: usage?.prompt ?? null,
+        rawContext: usage?.context ?? null,
       };
       updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
     } catch (respErr) {
@@ -360,6 +363,9 @@ export const Chat = () => {
         chunks: null,
         // Context info from usage event (recalculated per-turn with query tokens)
         context: usage?.contextTokens ?? null,
+        // Full prompt and context for developer inspection
+        prompt: usage?.prompt ?? null,
+        rawContext: usage?.context ?? null,
       };
       updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
     } catch (respErr) {

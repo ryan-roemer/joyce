@@ -292,6 +292,13 @@ export const createConversationSession = async ({
           // history has user message already, assistant will be added after
           const turnNumber = Math.ceil(history.length / 2);
 
+          // Build prompt representation for Chrome Prompt API
+          // Chrome maintains history internally, so we represent what was sent this turn
+          const promptMessages = [
+            ...buildBasePrompts(sessionOptions.systemContext),
+            ...history, // Includes current user message
+          ];
+
           // Yield rich usage data
           yield {
             type: "usage",
@@ -311,6 +318,9 @@ export const createConversationSession = async ({
               turnNumber,
               // Context info (recalculated per-turn)
               contextTokens: buildContextTokens(userMessage),
+              // Full prompt and context for developer inspection
+              prompt: promptMessages,
+              context: sessionOptions.systemContext,
             },
           };
         }
@@ -349,6 +359,13 @@ export const createConversationSession = async ({
           // Turn number is always 1 for Writer API (single-turn)
           const turnNumber = 1;
 
+          // Build prompt representation for Chrome Writer API
+          // Writer API doesn't have multi-turn, so prompt is just the writing task with context
+          const promptMessages = [
+            { role: "system", content: sessionOptions.systemContext },
+            { role: "user", content: userMessage },
+          ];
+
           yield {
             type: "usage",
             message: {
@@ -367,6 +384,9 @@ export const createConversationSession = async ({
               turnNumber,
               // Context info (recalculated per-turn)
               contextTokens: buildContextTokens(userMessage),
+              // Full prompt and context for developer inspection
+              prompt: promptMessages,
+              context: sessionOptions.systemContext,
             },
           };
         }
@@ -490,6 +510,9 @@ export const createConversationSession = async ({
             turnNumber,
             // Context info (recalculated per-turn)
             contextTokens: buildContextTokens(userMessage),
+            // Full prompt and context for developer inspection
+            prompt: messages,
+            context: sessionOptions.systemContext,
           },
         };
       }
