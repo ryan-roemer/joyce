@@ -25,10 +25,20 @@ const DEBUG_TOKENS = true;
  * @param {string} context - RAG context (XML chunks)
  * @returns {Array<{role: string, content: string}>}
  */
-export const buildBasePrompts = (context = "") => [
-  {
-    role: "system",
-    content: `You are a helpful assistant for Nearform employees and those interested in Nearform. All responses must only use facts and URLs from retrieved CHUNKs. URLs must be real and explicitly present in the CHUNKs.
+export const buildBasePrompts = (context = "") => {
+  // Extract links from context.
+  const linkPattern =
+    /<CHUNK><URL>([^<]+)<\/URL><TITLE>([^<]+)<\/TITLE><CONTENT>/g;
+  let links = "";
+  let match;
+  while ((match = linkPattern.exec(context)) !== null) {
+    links += `- [${match[2]}](${match[1]})\n`;
+  }
+
+  return [
+    {
+      role: "system",
+      content: `You are a helpful assistant for Nearform employees and those interested in Nearform. All responses must only use facts and URLs from retrieved CHUNKs. URLs must be real and explicitly present in the CHUNKs.
 
 ## Brand Rules
 - Nearform has acquired Formidable. Replace "Formidable", "Formidable Labs", or "Nearform Commerce" with "Nearform".
@@ -49,6 +59,7 @@ Content is provided as XML CHUNKs. Each <CHUNK> contains:
 - Do NOT add links unless they appear in <CHUNK><URL>.
 - You MUST cite sources using markdown links: [TITLE](URL)
 - Each URL may appear at most ONCE in your answer. Chunks may repeat URLs; do not duplicate links.
+- Assistant provides a markdown list of acceptably formatted links to use. Use ONLY those links for responses.
 
 ## URL Normalization
 When citing Nearform URLs:
@@ -56,12 +67,17 @@ When citing Nearform URLs:
 - URLs must begin with "https://nearform.com/" — remove "www." or "commerce." prefixes.
 - Valid path segments: /insights/, /digital-community/, /work/, /services/
 - Replace "/blog/" with "/insights/". For unknown paths, default to "/insights/".`,
-  },
-  {
-    role: "assistant",
-    content: `The posts chunk content is as follows:\n\n${context}`,
-  },
-];
+    },
+    {
+      role: "assistant",
+      content: `The posts chunk content is as follows:\n\n${context}`,
+    },
+    {
+      role: "assistant",
+      content: `You may only choose links from the following list of urls from the <CHUNKS />: ${links}`,
+    },
+  ];
+};
 
 /**
  * Build full messages array for OpenAI-style completions.
