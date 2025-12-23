@@ -90,7 +90,7 @@ const createMessages = ({ query, context = "" }) => [
   },
 ];
 
-const BASE_TOKEN_ESTIMATE = estimateTokens(
+export const BASE_TOKEN_ESTIMATE = estimateTokens(
   JSON.stringify(createMessages({ query: "" })),
 );
 
@@ -112,7 +112,7 @@ export const wrapQueryForRag = (query) =>
  * @param {string} options.model - Model ID
  * @param {number} [options.maxChunks] - Optional max number of chunks to include
  * @param {boolean} [options.forMultiTurn=false] - Use larger cushion for multi-turn
- * @returns {Promise<{context: string, usedChunks: Array, chunkCount: number, tokenEstimate: number}>}
+ * @returns {Promise<{context: string, usedChunks: Array, chunkCount: number, tokenEstimate: number, tokenBreakdown: {basePromptTokens: number, queryTokens: number, chunksTokens: number, totalTokens: number}}>}
  */
 export const buildContextFromChunks = async ({
   chunks,
@@ -204,11 +204,22 @@ export const buildContextFromChunks = async ({
     )
     .join("");
 
+  // Calculate granular token breakdown
+  const queryTokens = estimateTokens(query);
+  const chunksTokens = totalContextTokens - BASE_TOKEN_ESTIMATE - queryTokens;
+
   return {
     context,
     usedChunks,
     chunkCount: usedChunks.length,
     tokenEstimate: totalContextTokens,
+    // Granular token breakdown for UI display
+    tokenBreakdown: {
+      basePromptTokens: BASE_TOKEN_ESTIMATE,
+      queryTokens,
+      chunksTokens,
+      totalTokens: totalContextTokens,
+    },
   };
 };
 
@@ -221,7 +232,7 @@ export const buildContextFromChunks = async ({
  * @param {string} options.provider - LLM provider key
  * @param {string} options.model - Model ID
  * @param {number} options.targetChunkCount - Target number of chunks (will be clamped to MIN_CONTEXT_CHUNKS)
- * @returns {Promise<{context: string, usedChunks: Array, chunkCount: number, tokenEstimate: number}>}
+ * @returns {Promise<{context: string, usedChunks: Array, chunkCount: number, tokenEstimate: number, tokenBreakdown: {basePromptTokens: number, queryTokens: number, chunksTokens: number, totalTokens: number}}>}
  */
 export const rebuildContextWithLimit = async ({
   chunks,

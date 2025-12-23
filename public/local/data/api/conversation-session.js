@@ -9,7 +9,12 @@ import {
   sendWriterMessage,
 } from "./providers/chrome.js";
 import { getLlmEngine } from "./providers/web-llm.js";
-import { buildBasePrompts, rebuildContextWithLimit } from "./chat.js";
+import {
+  buildBasePrompts,
+  rebuildContextWithLimit,
+  BASE_TOKEN_ESTIMATE,
+} from "./chat.js";
+import { estimateTokens } from "../util.js";
 import {
   getModelCfg,
   TOKEN_CUSHION_CHAT,
@@ -98,6 +103,7 @@ const MIN_TOKENS_FOR_EXCHANGE = 500;
  * @param {Array} [options.rawChunks] - Original search chunks for context reduction
  * @param {string} [options.initialQuery] - Initial query (for context rebuilding)
  * @param {number} [options.initialChunkCount] - Initial number of chunks used
+ * @param {Object} [options.initialTokenBreakdown] - Initial token breakdown from context building
  * @returns {Promise<ConversationSession>}
  */
 export const createConversationSession = async ({
@@ -108,6 +114,7 @@ export const createConversationSession = async ({
   rawChunks = [],
   initialQuery = "",
   initialChunkCount = 0,
+  initialTokenBreakdown = null,
 }) => {
   // Get model config and capabilities
   const modelCfg = getModelCfg({ provider, model });
@@ -122,6 +129,8 @@ export const createConversationSession = async ({
   // Context reduction state (for web-llm multi-turn)
   let currentSystemContext = systemContext;
   let currentChunkCount = initialChunkCount;
+  // Token breakdown state - tracks base prompt, chunks, and will be updated per-turn with query tokens
+  let currentTokenBreakdown = initialTokenBreakdown;
 
   // ============================================================================
   // Per-Turn Token Delta Tracking
@@ -157,6 +166,25 @@ export const createConversationSession = async ({
     },
     rawChunks,
     initialQuery,
+  };
+
+  /**
+   * Build contextTokens object for usage events.
+   * Recalculates query tokens for the current turn's message.
+   * @param {string} userMessage - The current turn's user message
+   * @returns {Object|null} contextTokens object or null if breakdown unavailable
+   */
+  const buildContextTokens = (userMessage) => {
+    if (!currentTokenBreakdown) return null;
+    const queryTokens = estimateTokens(userMessage);
+    return {
+      basePromptTokens: BASE_TOKEN_ESTIMATE,
+      queryTokens,
+      chunksTokens: currentTokenBreakdown.chunksTokens,
+      chunkCount: currentChunkCount,
+      totalTokens:
+        BASE_TOKEN_ESTIMATE + currentTokenBreakdown.chunksTokens + queryTokens,
+    };
   };
 
   return {
@@ -281,6 +309,8 @@ export const createConversationSession = async ({
               inputQuota: event.message.inputQuota,
               // Conversation info
               turnNumber,
+              // Context info (recalculated per-turn)
+              contextTokens: buildContextTokens(userMessage),
             },
           };
         }
@@ -335,6 +365,8 @@ export const createConversationSession = async ({
               inputQuota: event.message.inputQuota,
               // Conversation info
               turnNumber,
+              // Context info (recalculated per-turn)
+              contextTokens: buildContextTokens(userMessage),
             },
           };
         }
@@ -456,7 +488,8 @@ export const createConversationSession = async ({
             limit: maxTokens,
             // Conversation info
             turnNumber,
-            chunkCount: currentChunkCount,
+            // Context info (recalculated per-turn)
+            contextTokens: buildContextTokens(userMessage),
           },
         };
       }
@@ -512,6 +545,8 @@ export const createConversationSession = async ({
 
         currentSystemContext = result.context;
         currentChunkCount = result.chunkCount;
+        // Update token breakdown with new chunk values (base prompt stays same)
+        currentTokenBreakdown = result.tokenBreakdown;
         return true;
       } catch (err) {
         // eslint-disable-next-line no-undef

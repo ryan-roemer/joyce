@@ -13,10 +13,11 @@ const QueryInfo = ({
   provider,
   providerApi,
   chunks,
+  context,
   internal,
   turnNumber,
 } = {}) => {
-  if (!elapsed && !usage && !model && !chunks) return null;
+  if (!elapsed && !usage && !model && !chunks && !context) return null;
 
   const totalElapsed = elapsed?.tokensLast
     ? formatElapsed(elapsed.tokensLast)
@@ -139,6 +140,20 @@ const QueryInfo = ({
               <li>
                 Similarity: ${formatFloat(chunks.similarityMin)} - ${formatFloat(chunks.similarityMax)} (avg: ${formatFloat(chunks.similarityAvg)})
               </li>
+            </ul>
+          </${Fragment}>
+        `}
+        ${context &&
+        html`
+          <${Fragment}>
+            <div>
+              <strong>Context:</strong>
+            </div>
+            <ul>
+              <li>Base prompt: ${formatInt(context.basePromptTokens)} tokens (est)</li>
+              <li>Chunks: ${formatInt(context.chunkCount)} chunks, ${formatInt(context.chunksTokens)} tokens (est)</li>
+              <li>User query: ${formatInt(context.queryTokens)} tokens (est)</li>
+              <li>Total: ${formatInt(context.totalTokens)} tokens (est)</li>
             </ul>
           </${Fragment}>
         `}

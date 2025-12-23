@@ -97,10 +97,12 @@ export const createChatSession = ({ provider, model, temperature }) => {
         model,
         forMultiTurn: capabilities.supportsMultiTurn,
       });
-      const { context, chunkCount, tokenEstimate } = contextResult;
+      const { context, chunkCount, tokenEstimate, tokenBreakdown } =
+        contextResult;
       metadata.context = context;
       metadata.contextChunkCount = chunkCount;
       metadata.contextTokenEstimate = tokenEstimate;
+      metadata.contextTokens = tokenBreakdown;
 
       // Store search data for later retrieval (includes raw chunks for potential context reduction)
       searchData = {
@@ -131,6 +133,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
         rawChunks: chunks,
         initialQuery: query,
         initialChunkCount: chunkCount,
+        initialTokenBreakdown: tokenBreakdown,
       });
 
       // Step 4: Send first message (wrapped for RAG)

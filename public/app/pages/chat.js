@@ -296,6 +296,8 @@ export const Chat = () => {
           similarityMax: searchMetadata?.chunks?.similarity?.max,
           similarityAvg: searchMetadata?.chunks?.similarity?.avg,
         },
+        // Context info from usage event (recalculated per-turn with query tokens)
+        context: usage?.contextTokens ?? null,
       };
       updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
     } catch (respErr) {
@@ -356,6 +358,8 @@ export const Chat = () => {
         model: modelObj.model,
         provider: modelObj.provider,
         chunks: null,
+        // Context info from usage event (recalculated per-turn with query tokens)
+        context: usage?.contextTokens ?? null,
       };
       updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
     } catch (respErr) {
