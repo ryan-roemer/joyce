@@ -7,11 +7,14 @@ import {
   DEFAULT_TEMPERATURE,
   DEFAULT_CHAT_MODEL,
   TOKEN_CUSHION_CHAT,
+  getMultiTurnCushion,
+  MIN_CONTEXT_CHUNKS,
+  MULTI_TURN_CONTEXT_RATIO,
 } from "../../../config.js";
 import { getPost } from "./posts.js";
 
 // Set to true to enable detailed token debugging in console
-const DEBUG_TOKENS = false;
+const DEBUG_TOKENS = true;
 
 /**
  * Build base system prompts with RAG context.
@@ -105,16 +108,30 @@ export const wrapQueryForRag = (query) =>
  * @param {string} options.query - User query (for token estimation)
  * @param {string} options.provider - LLM provider key
  * @param {string} options.model - Model ID
- * @returns {Promise<string>} XML context string
+ * @param {number} [options.maxChunks] - Optional max number of chunks to include
+ * @param {boolean} [options.forMultiTurn=false] - Use larger cushion for multi-turn
+ * @returns {Promise<{context: string, usedChunks: Array, chunkCount: number, tokenEstimate: number}>}
  */
 export const buildContextFromChunks = async ({
   chunks,
   query,
   provider,
   model,
+  maxChunks,
+  forMultiTurn = false,
 }) => {
   const modelCfg = getModelCfg({ provider, model });
-  const maxContextTokens = modelCfg.maxTokens - TOKEN_CUSHION_CHAT;
+  const maxTokens = modelCfg.maxTokens;
+  const cushion = forMultiTurn
+    ? getMultiTurnCushion(maxTokens)
+    : TOKEN_CUSHION_CHAT;
+
+  // For multi-turn, limit context to MULTI_TURN_CONTEXT_RATIO of available space
+  // leaving the remainder for conversation history growth across turns
+  const availableTokens = maxTokens - cushion;
+  const maxContextTokens = forMultiTurn
+    ? Math.floor(availableTokens * MULTI_TURN_CONTEXT_RATIO)
+    : availableTokens;
   let totalContextTokens = BASE_TOKEN_ESTIMATE + estimateTokens(query);
 
   if (totalContextTokens > maxContextTokens) {
@@ -122,7 +139,10 @@ export const buildContextFromChunks = async ({
   }
 
   let context = "";
-  for (const chunk of chunks) {
+  const usedChunks = [];
+  const chunksToProcess = maxChunks ? chunks.slice(0, maxChunks) : chunks;
+
+  for (const chunk of chunksToProcess) {
     const post = await getPost(chunk.slug);
     const chunkText = getChunk(post.content, chunk.start, chunk.end).join(
       "\n\n",
@@ -138,9 +158,44 @@ export const buildContextFromChunks = async ({
     // Accumulate context and tokens.
     totalContextTokens += chunkTokens;
     context += contextChunk;
+    usedChunks.push(chunk);
   }
 
-  return context;
+  return {
+    context,
+    usedChunks,
+    chunkCount: usedChunks.length,
+    tokenEstimate: totalContextTokens,
+  };
+};
+
+/**
+ * Rebuild context with a reduced number of chunks.
+ * Used for dynamic context reduction in multi-turn conversations.
+ * @param {Object} options
+ * @param {Array} options.chunks - Original array of chunk objects from search
+ * @param {string} options.query - User query (for token estimation)
+ * @param {string} options.provider - LLM provider key
+ * @param {string} options.model - Model ID
+ * @param {number} options.targetChunkCount - Target number of chunks (will be clamped to MIN_CONTEXT_CHUNKS)
+ * @returns {Promise<{context: string, usedChunks: Array, chunkCount: number, tokenEstimate: number}>}
+ */
+export const rebuildContextWithLimit = async ({
+  chunks,
+  query,
+  provider,
+  model,
+  targetChunkCount,
+}) => {
+  const effectiveMax = Math.max(targetChunkCount, MIN_CONTEXT_CHUNKS);
+  return buildContextFromChunks({
+    chunks,
+    query,
+    provider,
+    model,
+    maxChunks: effectiveMax,
+    forMultiTurn: true,
+  });
 };
 
 if (DEBUG_TOKENS) {

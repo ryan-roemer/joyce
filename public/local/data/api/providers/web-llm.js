@@ -61,7 +61,6 @@ export const isLlmCached = async (model = DEFAULT_MODEL) => {
  */
 // eslint-disable-next-line no-unused-vars
 export const getCapabilities = (model) => ({
-  // TODO(WEB-LLM-MULTI-TURN): Enable after multi-turn implementation
-  supportsMultiTurn: false,
+  supportsMultiTurn: true, // Web-LLM multi-turn via stateless message history
   supportsTokenTracking: true, // usage object in response
 });

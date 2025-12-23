@@ -9,8 +9,16 @@ import {
   sendWriterMessage,
 } from "./providers/chrome.js";
 import { getLlmEngine } from "./providers/web-llm.js";
-import { buildBasePrompts } from "./chat.js";
-import { getModelCfg, TOKEN_CUSHION_CHAT } from "../../../config.js";
+import { buildBasePrompts, rebuildContextWithLimit } from "./chat.js";
+import {
+  getModelCfg,
+  TOKEN_CUSHION_CHAT,
+  getMultiTurnCushion,
+  MIN_CONTEXT_CHUNKS,
+} from "../../../config.js";
+
+// Set to true to enable detailed token debugging in console
+const DEBUG_TOKENS = true;
 
 /**
  * TOKEN TRACKING CAPABILITY
@@ -80,12 +88,16 @@ const MIN_TOKENS_FOR_EXCHANGE = 500;
  * - RAG context is pre-fetched by caller and passed as systemContext
  * - Follow-up messages reuse the same context (no new searches)
  * - Single-turn providers (Writer API) show UI messaging about limitation
+ * - For multi-turn providers, raw chunks are stored for dynamic context reduction
  *
  * @param {Object} options
  * @param {string} options.provider - Provider key ("webLlm" | "chrome")
  * @param {string} options.model - Model ID
  * @param {number} options.temperature - Sampling temperature
  * @param {string} options.systemContext - RAG context (XML chunks from caller)
+ * @param {Array} [options.rawChunks] - Original search chunks for context reduction
+ * @param {string} [options.initialQuery] - Initial query (for context rebuilding)
+ * @param {number} [options.initialChunkCount] - Initial number of chunks used
  * @returns {Promise<ConversationSession>}
  */
 export const createConversationSession = async ({
@@ -93,6 +105,9 @@ export const createConversationSession = async ({
   model,
   temperature,
   systemContext,
+  rawChunks = [],
+  initialQuery = "",
+  initialChunkCount = 0,
 }) => {
   // Get model config and capabilities
   const modelCfg = getModelCfg({ provider, model });
@@ -103,6 +118,10 @@ export const createConversationSession = async ({
   const history = []; // { role, content }[]
   let tokensUsed = 0;
   let destroyed = false;
+
+  // Context reduction state (for web-llm multi-turn)
+  let currentSystemContext = systemContext;
+  let currentChunkCount = initialChunkCount;
 
   // ============================================================================
   // Per-Turn Token Delta Tracking
@@ -133,7 +152,11 @@ export const createConversationSession = async ({
     provider,
     model,
     temperature,
-    systemContext,
+    get systemContext() {
+      return currentSystemContext;
+    },
+    rawChunks,
+    initialQuery,
   };
 
   return {
@@ -175,8 +198,16 @@ export const createConversationSession = async ({
         }
         yield* this._sendChromeWriter(userMessage);
       } else if (provider === "webLlm") {
-        // Single-turn for now (supportsMultiTurn: false means this is first message only)
-        // TODO(WEB-LLM-MULTI-TURN): Enable multi-turn after implementation
+        // Web-LLM with multi-turn support
+        // Check if we need to reduce context before sending
+        const { available } = this.getTokenUsage();
+        if (
+          available <= MIN_TOKENS_FOR_EXCHANGE &&
+          sessionOptions.rawChunks?.length > 0 &&
+          currentChunkCount > MIN_CONTEXT_CHUNKS
+        ) {
+          await this._reduceContext();
+        }
         yield* this._sendWebLlm(userMessage);
       } else {
         throw new Error(`Unknown provider: ${provider}`);
@@ -315,28 +346,47 @@ export const createConversationSession = async ({
     },
 
     /**
-     * Send message using web-llm (single-turn for now).
+     * Send message using web-llm with multi-turn support.
      *
-     * TODO(WEB-LLM-MULTI-TURN): Future multi-turn implementation:
-     * 1. Store rawChunks in session for dynamic context reduction
-     * 2. Build messages array: buildBasePrompts(context) + history
-     * 3. Track tokens correctly (prompt_tokens includes history, don't double-count)
-     * 4. When approaching limit, reduce chunks: rebuildContextWithLimit(REDUCED_CHUNK_COUNT)
-     * 5. Change getCapabilities to supportsMultiTurn: true
+     * Web-LLM uses a stateless OpenAI-compatible API, so we must:
+     * 1. Build full messages array each call: basePrompts + history + userMessage
+     * 2. Track tokens correctly: prompt_tokens is TOTAL input, not delta
+     * 3. Dynamically reduce context when approaching token limit
      *
      * @param {string} userMessage - The user's message
      * @yields {{ type: "data" | "usage" | "done", message: any }}
      * @private
      */
     async *_sendWebLlm(userMessage) {
-      // Single-turn: use existing engine with just this message
       const engine = await getLlmEngine(sessionOptions.model);
 
-      // Build messages with context + user message only (no history for single-turn)
+      // Build full messages array: system context + history + current message
+      // history already contains prior user/assistant pairs (excluding current user message)
+      // Note: history was already updated with userMessage in sendMessage() before dispatch
       const messages = [
         ...buildBasePrompts(sessionOptions.systemContext),
+        ...history.slice(0, -1), // All history except current user message (already added)
         { role: "user", content: userMessage },
       ];
+      console.log("DEBUG(CONVO) web-llm _sendWebLlm - messages:", messages);
+
+      if (DEBUG_TOKENS) {
+        // eslint-disable-next-line no-undef
+        console.log(
+          "DEBUG(TOKENS) web-llm _sendWebLlm - messages:",
+          JSON.stringify(
+            {
+              basePromptsCount: buildBasePrompts(sessionOptions.systemContext)
+                .length,
+              historyCount: history.length - 1,
+              totalMessagesCount: messages.length,
+              currentChunkCount,
+            },
+            null,
+            2,
+          ),
+        );
+      }
 
       const stream = await engine.chat.completions.create({
         messages,
@@ -360,20 +410,54 @@ export const createConversationSession = async ({
       }
 
       // Update token tracking
+      // IMPORTANT: prompt_tokens is the TOTAL input for this call (context + history + user)
+      // NOT a delta. We track output tokens cumulatively.
       if (usage) {
-        tokensUsed = usage.prompt_tokens + usage.completion_tokens;
+        // Accumulate output tokens across turns
+        totalOutputTokens += usage.completion_tokens;
+
+        // tokensUsed = current input (which includes history) + cumulative output
+        // This correctly represents total consumption for capacity planning
+        tokensUsed = usage.prompt_tokens + totalOutputTokens;
+
+        // Calculate turn number (count of Q&A pairs, including current)
+        const turnNumber = Math.ceil(history.length / 2);
+
+        if (DEBUG_TOKENS) {
+          // eslint-disable-next-line no-undef
+          console.log(
+            "DEBUG(TOKENS) web-llm _sendWebLlm - usage:",
+            JSON.stringify(
+              {
+                promptTokens: usage.prompt_tokens,
+                completionTokens: usage.completion_tokens,
+                totalOutputTokens,
+                tokensUsed,
+                available: this.getTokenUsage().available,
+                turnNumber,
+              },
+              null,
+              2,
+            ),
+          );
+        }
 
         yield {
           type: "usage",
           message: {
+            // Per-turn tokens
             inputTokens: usage.prompt_tokens,
             outputTokens: usage.completion_tokens,
+            // Cumulative tokens
             totalInputTokens: usage.prompt_tokens,
-            totalOutputTokens: usage.completion_tokens,
+            totalOutputTokens,
             totalTokens: tokensUsed,
+            // Capacity
             available: this.getTokenUsage().available,
             limit: maxTokens,
-            turnNumber: 1,
+            // Conversation info
+            turnNumber,
+            chunkCount: currentChunkCount,
           },
         };
       }
@@ -383,14 +467,73 @@ export const createConversationSession = async ({
     },
 
     /**
+     * Reduce context by rebuilding with fewer chunks.
+     * Called when approaching token limit in multi-turn conversations.
+     * @returns {Promise<boolean>} Whether reduction was successful
+     * @private
+     */
+    async _reduceContext() {
+      if (
+        !sessionOptions.rawChunks?.length ||
+        currentChunkCount <= MIN_CONTEXT_CHUNKS
+      ) {
+        return false; // Can't reduce further
+      }
+
+      // Reduce to half, but not below minimum
+      const targetChunks = Math.max(
+        Math.floor(currentChunkCount / 2),
+        MIN_CONTEXT_CHUNKS,
+      );
+
+      if (DEBUG_TOKENS) {
+        // eslint-disable-next-line no-undef
+        console.log(
+          "DEBUG(TOKENS) _reduceContext:",
+          JSON.stringify(
+            {
+              currentChunkCount,
+              targetChunks,
+              minChunks: MIN_CONTEXT_CHUNKS,
+            },
+            null,
+            2,
+          ),
+        );
+      }
+
+      try {
+        const result = await rebuildContextWithLimit({
+          chunks: sessionOptions.rawChunks,
+          query: sessionOptions.initialQuery,
+          provider: sessionOptions.provider,
+          model: sessionOptions.model,
+          targetChunkCount: targetChunks,
+        });
+
+        currentSystemContext = result.context;
+        currentChunkCount = result.chunkCount;
+        return true;
+      } catch (err) {
+        // eslint-disable-next-line no-undef
+        console.warn("Failed to reduce context:", err);
+        return false;
+      }
+    },
+
+    /**
      * Get current token usage.
+     * Uses proportional cushion for multi-turn capable providers (web-llm).
      * @returns {TokenUsage}
      */
     getTokenUsage() {
-      const available = Math.max(
-        0,
-        maxTokens - TOKEN_CUSHION_CHAT - tokensUsed,
-      );
+      // Use proportional cushion for stateless multi-turn providers (web-llm)
+      // since they need room for growing history
+      const cushion =
+        provider === "webLlm"
+          ? getMultiTurnCushion(maxTokens)
+          : TOKEN_CUSHION_CHAT;
+      const available = Math.max(0, maxTokens - cushion - tokensUsed);
       return { used: tokensUsed, available, limit: maxTokens };
     },
 
@@ -404,6 +547,7 @@ export const createConversationSession = async ({
 
     /**
      * Check if the conversation can continue with more turns.
+     * For web-llm, may return true even near limit if context can be reduced.
      * @returns {boolean}
      */
     canContinue() {
@@ -413,8 +557,23 @@ export const createConversationSession = async ({
       }
 
       const { available } = this.getTokenUsage();
-      // Need minimum tokens for a meaningful exchange
-      return available > MIN_TOKENS_FOR_EXCHANGE;
+
+      // If we have enough tokens, we can continue
+      if (available > MIN_TOKENS_FOR_EXCHANGE) {
+        return true;
+      }
+
+      // For web-llm with reducible context, we might be able to continue
+      // by reducing context in the next sendMessage call
+      if (
+        provider === "webLlm" &&
+        sessionOptions.rawChunks?.length > 0 &&
+        currentChunkCount > MIN_CONTEXT_CHUNKS
+      ) {
+        return true; // Context reduction possible
+      }
+
+      return false;
     },
 
     /**
@@ -435,7 +594,6 @@ export const createConversationSession = async ({
     },
 
     // Expose internal state for provider implementations (not part of public API)
-    // These will be used by provider-specific code in future phases
     _internal: {
       get history() {
         return history;
@@ -460,6 +618,12 @@ export const createConversationSession = async ({
       },
       get maxTokens() {
         return maxTokens;
+      },
+      get currentChunkCount() {
+        return currentChunkCount;
+      },
+      get currentSystemContext() {
+        return currentSystemContext;
       },
     },
   };

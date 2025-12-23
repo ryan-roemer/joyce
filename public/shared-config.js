@@ -46,6 +46,36 @@ const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 export const TOKEN_CUSHION_CHAT = 512; // 250 ok for web-llm
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
 
+/**
+ * Calculate token cushion for multi-turn conversations.
+ * Scales proportionally with model size, with floor and ceiling.
+ * Reserves space for the next user question + assistant response.
+ * @param {number} maxTokens - Model's maximum context window
+ * @returns {number} Token cushion to reserve
+ */
+export const getMultiTurnCushion = (maxTokens) => {
+  if (maxTokens <= 2048) {
+    // Small models (1-2K): fixed minimum for one exchange
+    return 350;
+  } else if (maxTokens <= 4096) {
+    // Medium models (4K): ~12% = 491 tokens
+    return Math.floor(maxTokens * 0.12);
+  } else if (maxTokens <= 8192) {
+    // Large models (8K Gemini): ~10% = 819 tokens
+    return Math.floor(maxTokens * 0.1);
+  } else {
+    // Very large models: ~8% with 2000 token cap
+    return Math.min(2000, Math.floor(maxTokens * 0.08));
+  }
+};
+
+// Minimum number of context chunks to maintain in multi-turn conversations
+export const MIN_CONTEXT_CHUNKS = 5;
+
+// Ratio of available tokens to use for RAG context in multi-turn conversations
+// Remainder is reserved for conversation history growth across turns
+export const MULTI_TURN_CONTEXT_RATIO = 0.7;
+
 // TODO(CHAT): Can we programmatically get these values?
 export const GEMMA_NANO_MAX_TOKENS = 32768;
 export const GEMMA_NANO_MAX_TOKENS_ADJUSTED_PROMPT = 8192; // Session max input is much smaller, like around 9K on my mac.

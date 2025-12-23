@@ -89,19 +89,23 @@ export const createChatSession = ({ provider, model, temperature }) => {
       const { posts: fetchedPosts, chunks, metadata } = searchResults;
       metadata.elapsed.search = Date.now() - startTime;
 
-      // Step 2: Build context from chunks
-      const context = await buildContextFromChunks({
+      // Step 2: Build context from chunks (use multi-turn cushion for stateless providers)
+      const contextResult = await buildContextFromChunks({
         chunks,
         query,
         provider,
         model,
+        forMultiTurn: capabilities.supportsMultiTurn,
       });
+      const { context, chunkCount, tokenEstimate } = contextResult;
       metadata.context = context;
+      metadata.contextChunkCount = chunkCount;
+      metadata.contextTokenEstimate = tokenEstimate;
 
-      // Store search data for later retrieval
+      // Store search data for later retrieval (includes raw chunks for potential context reduction)
       searchData = {
         posts: fetchedPosts,
-        chunks,
+        chunks, // Raw chunks from search (for context rebuilding)
         metadata,
         // Pre-compute posts for UI display
         displayPosts: searchResultsToPosts({ posts: fetchedPosts, chunks }),
@@ -118,12 +122,15 @@ export const createChatSession = ({ provider, model, temperature }) => {
         },
       };
 
-      // Step 3: Create conversation session
+      // Step 3: Create conversation session (pass raw chunks for dynamic context reduction)
       conversationSession = await createConversationSession({
         provider,
         model,
         temperature,
         systemContext: context,
+        rawChunks: chunks,
+        initialQuery: query,
+        initialChunkCount: chunkCount,
       });
 
       // Step 4: Send first message (wrapped for RAG)

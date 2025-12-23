@@ -11,7 +11,7 @@ import {
 import { buildBasePrompts } from "../chat.js";
 
 // Set to true to enable detailed token debugging in console
-const DEBUG_TOKENS = false;
+const DEBUG_TOKENS = true;
 
 const PROMPT_OPTIONS = {
   expectedInputs: [{ type: "text", languages: ["en"] }],
