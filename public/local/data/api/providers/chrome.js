@@ -30,6 +30,10 @@ const WRITER_OPTIONS = {
 const modelState = new Map();
 // TODO: Specify language model output language.
 
+// Aggregate tracking for DEBUG(TOKENS)(ACTUALS) logging
+let aggregatePromptInputUsage = 0;
+let aggregateWriterInputUsage = 0;
+
 /**
  * Convert Chrome's streaming response to OpenAI-style async iterator.
  * @param {Object} options
@@ -321,14 +325,21 @@ const createWriterEngine = (options = {}) => ({
           context,
         });
 
+        aggregateWriterInputUsage += inputTokens;
+
         if (DEBUG_TOKENS) {
           // eslint-disable-next-line no-undef
           console.log(
-            "DEBUG(TOKENS) Chrome Writer API - token capture:",
+            "DEBUG(TOKENS)(ACTUALS) Chrome Writer API:",
             JSON.stringify(
               {
-                inputTokens,
-                inputQuota: writer.inputQuota,
+                current: {
+                  measuredInputUsage: inputTokens,
+                  inputQuota: writer.inputQuota,
+                },
+                aggregates: {
+                  measuredInputUsage: aggregateWriterInputUsage,
+                },
               },
               null,
               2,
@@ -475,6 +486,7 @@ export const createPromptSession = async ({ systemContext, temperature }) => {
         null,
         2,
       ),
+      session,
     );
   }
 
@@ -518,16 +530,21 @@ export async function* sendPromptMessage(session, userMessage) {
   const totalInputTokens = session.inputUsage ?? 0;
   const outputTokensEst = Math.ceil(content.length / 4);
 
+  aggregatePromptInputUsage += totalInputTokens;
+
   if (DEBUG_TOKENS) {
     // eslint-disable-next-line no-undef
     console.log(
-      "DEBUG(TOKENS) Chrome sendPromptMessage:",
+      "DEBUG(TOKENS)(ACTUALS) Chrome Prompt API:",
       JSON.stringify(
         {
-          totalInputTokens,
-          outputTokensEst,
-          inputQuota: session.inputQuota,
-          contentLength: content.length,
+          current: {
+            inputUsage: session.inputUsage,
+            inputQuota: session.inputQuota,
+          },
+          aggregates: {
+            inputUsage: aggregatePromptInputUsage,
+          },
         },
         null,
         2,

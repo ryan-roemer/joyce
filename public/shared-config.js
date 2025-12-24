@@ -46,6 +46,10 @@ const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 export const TOKEN_CUSHION_CHAT = 512; // 250 ok for web-llm
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
 
+// When false: token limit checks warn and proceed, letting real API errors occur
+// When true: token limit checks throw errors immediately (current behavior)
+export const THROW_ON_TOKEN_LIMIT = false;
+
 /**
  * Calculate token cushion for multi-turn conversations.
  * Scales proportionally with model size, with floor and ceiling.

@@ -12,6 +12,7 @@ import {
   MULTI_TURN_CONTEXT_RATIO,
   CHUNK_DEDUP_MODE,
   CHUNK_COMBINE_SEPARATOR,
+  THROW_ON_TOKEN_LIMIT,
 } from "../../../config.js";
 import { getPost } from "./posts.js";
 
@@ -133,7 +134,12 @@ export const buildContextFromChunks = async ({
   let totalContextTokens = BASE_TOKEN_ESTIMATE + estimateTokens(query);
 
   if (totalContextTokens > maxContextTokens) {
-    throw new Error(`Query is too long: ${query}`);
+    const msg = `Query is too long: ${query}`;
+    if (THROW_ON_TOKEN_LIMIT) {
+      throw new Error(msg);
+    }
+    console.warn(msg); // eslint-disable-line no-undef
+    // Proceed anyway - let real API error happen
   }
 
   const usedChunks = [];
@@ -149,7 +155,9 @@ export const buildContextFromChunks = async ({
     const chunkText = getChunk(post.content, chunk.start, chunk.end).join(
       "\n\n",
     );
-    const chunkTokens = estimateTokens(chunkText);
+    // Use markup factor since chunks will be wrapped in XML tags
+    // (<CHUNK><URL>...</URL><TITLE>...</TITLE><CONTENT>...</CONTENT></CHUNK>)
+    const chunkTokens = estimateTokens(chunkText, true);
 
     // Check if we've seen this post before
     const existingIndex = seenSlugs.get(chunk.slug);
@@ -376,13 +384,11 @@ export async function* chat({
       if (DEBUG_TOKENS) {
         // eslint-disable-next-line no-undef
         console.log(
-          "DEBUG(TOKENS) chat.js - raw usage from provider:",
+          "DEBUG(TOKENS)(ACTUALS) web-llm chat.js:",
           JSON.stringify(
             {
-              provider,
-              model,
-              rawUsage: chunk.usage,
-              chunkNumber: chunkCount,
+              current: chunk.usage,
+              aggregates: chunk.usage,
             },
             null,
             2,
