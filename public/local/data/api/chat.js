@@ -378,6 +378,10 @@ export async function* chat({
         metadata.elapsed.tokensFirst ?? new Date() - start;
       yield { type: "data", message: chunk.choices[0].delta.content };
     }
+    const finishReason = chunk.choices[0]?.finish_reason;
+    if (finishReason) {
+      yield { type: "finishReason", message: finishReason };
+    }
     if (chunk.usage) {
       usageReceived = true;
       reportedInputTokens = chunk.usage.prompt_tokens ?? 0;
@@ -409,6 +413,7 @@ export async function* chat({
           tokens: chunk.usage.completion_tokens ?? 0,
           reasoningTokens: 0,
         },
+        totalTokens: chunk.usage.total_tokens ?? 0,
       };
       yield { type: "usage", message: usage };
     }

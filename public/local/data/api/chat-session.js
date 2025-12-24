@@ -58,7 +58,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
      * @param {string[]} searchOptions.postType - Post types to filter
      * @param {string} searchOptions.minDate - Minimum date filter
      * @param {string[]} searchOptions.categoryPrimary - Categories to filter
-     * @yields {{ type: "search" | "data" | "usage" | "done", message: any }}
+     * @yields {{ type: "search" | "data" | "finishReason" | "usage" | "done", message: any }}
      */
     async *start(
       query,
@@ -150,6 +150,8 @@ export const createChatSession = ({ provider, model, temperature }) => {
             firstTokenTime = Date.now() - startTime;
           }
           yield event;
+        } else if (event.type === "finishReason") {
+          yield event;
         } else if (event.type === "usage") {
           // Enrich usage with timing
           yield {
@@ -176,7 +178,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
      * Follow-up queries don't need RAG wrapper - sent as-is.
      *
      * @param {string} query - User's follow-up query
-     * @yields {{ type: "data" | "usage" | "done", message: any }}
+     * @yields {{ type: "data" | "finishReason" | "usage" | "done", message: any }}
      */
     async *continue(query) {
       if (destroyed) {
@@ -198,6 +200,8 @@ export const createChatSession = ({ provider, model, temperature }) => {
           if (firstTokenTime === null) {
             firstTokenTime = Date.now() - startTime;
           }
+          yield event;
+        } else if (event.type === "finishReason") {
           yield event;
         } else if (event.type === "usage") {
           // Enrich usage with timing

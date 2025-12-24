@@ -502,6 +502,10 @@ export const createConversationSession = async ({
           assistantContent += delta;
           yield { type: "data", message: delta };
         }
+        const finishReason = chunk.choices[0]?.finish_reason;
+        if (finishReason) {
+          yield { type: "finishReason", message: finishReason };
+        }
         if (chunk.usage) {
           usage = chunk.usage;
           aggregatePromptTokens += chunk.usage.prompt_tokens ?? 0;

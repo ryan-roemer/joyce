@@ -76,6 +76,7 @@ const QueryInfo = ({
   model,
   provider,
   providerApi,
+  finishReason,
   chunks,
   context,
   internal,
@@ -127,6 +128,7 @@ const QueryInfo = ({
               ${provider && html`<li>Provider: ${ALL_PROVIDERS[provider]}</li>`}
               ${providerApi && html`<li>API: ${providerApi}</li>`}
               ${maxTokens && html`<li>Input: ${maxTokens} max tokens</li>`}
+              ${finishReason && html`<li>Finish reason: ${finishReason}</li>`}
             </ul>
           </div>
         `}

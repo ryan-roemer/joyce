@@ -262,6 +262,7 @@ export const Chat = () => {
 
       let usage = null;
       let searchMetadata = null;
+      let finishReason = null;
 
       // Start conversation (does RAG search + context + first message)
       for await (const event of chatSessionRef.current.start(query, {
@@ -284,6 +285,8 @@ export const Chat = () => {
         } else if (event.type === "data") {
           // Stream answer into the last conversation entry
           appendToLastAnswer(event.message);
+        } else if (event.type === "finishReason") {
+          finishReason = event.message;
         } else if (event.type === "usage") {
           usage = event.message;
         }
@@ -306,6 +309,7 @@ export const Chat = () => {
         internal: searchMetadata?.internal,
         model: modelObj.model,
         provider: modelObj.provider,
+        finishReason,
         chunks: {
           numChunks: chunks.length,
           similarityMin: searchMetadata?.chunks?.similarity?.min,
@@ -349,12 +353,15 @@ export const Chat = () => {
       }
 
       let usage = null;
+      let finishReason = null;
 
       // Continue conversation using existing session
       for await (const event of chatSessionRef.current.continue(query)) {
         if (event.type === "data") {
           // Stream answer into the last conversation entry
           appendToLastAnswer(event.message);
+        } else if (event.type === "finishReason") {
+          finishReason = event.message;
         } else if (event.type === "usage") {
           usage = event.message;
         }
@@ -376,6 +383,7 @@ export const Chat = () => {
         internal: null,
         model: modelObj.model,
         provider: modelObj.provider,
+        finishReason,
         chunks: null,
         // Context info from usage event (recalculated per-turn with query tokens)
         context: usage?.contextTokens ?? null,
