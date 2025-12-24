@@ -45,6 +45,7 @@ const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 
 export const TOKEN_CUSHION_CHAT = 512; // 250 ok for web-llm
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
+export const MAX_OUTPUT_TOKENS = 1024; // Limit LLM response length
 
 // When false: token limit checks warn and proceed, letting real API errors occur
 // When true: token limit checks throw errors immediately (current behavior)

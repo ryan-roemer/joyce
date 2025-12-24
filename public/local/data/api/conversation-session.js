@@ -20,6 +20,7 @@ import {
   TOKEN_CUSHION_CHAT,
   MIN_CONTEXT_CHUNKS,
   THROW_ON_TOKEN_LIMIT,
+  MAX_OUTPUT_TOKENS,
 } from "../../../config.js";
 
 // Set to true to enable detailed token debugging in console
@@ -486,6 +487,7 @@ export const createConversationSession = async ({
       const stream = await engine.chat.completions.create({
         messages,
         temperature: sessionOptions.temperature,
+        max_tokens: MAX_OUTPUT_TOKENS,
         stream: true,
         stream_options: { include_usage: true },
       });

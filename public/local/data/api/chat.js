@@ -13,6 +13,7 @@ import {
   CHUNK_DEDUP_MODE,
   CHUNK_COMBINE_SEPARATOR,
   THROW_ON_TOKEN_LIMIT,
+  MAX_OUTPUT_TOKENS,
 } from "../../../config.js";
 import { getPost } from "./posts.js";
 
@@ -360,6 +361,7 @@ export async function* chat({
   const stream = await engine.chat.completions.create({
     messages,
     temperature,
+    max_tokens: MAX_OUTPUT_TOKENS,
     stream: true,
     stream_options: { include_usage: true },
   });
