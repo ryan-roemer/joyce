@@ -41,8 +41,21 @@ const setQueryValue = getQuerySetter("query");
 const SUGGESTIONS = [
   "Tell me 2 sentences about Nearform's expertise in using AI for software development.",
   "Give me a single paragraph about Nearform's React and React Native expertise.",
-  "Give me 3 articles by Nearform on AI in engineering teams.",
+  "What case studies show Nearform building design systems for global brands?",
+  "How does Nearform approach accessibility in mobile applications?",
+  "Summarize Nearform's work with Node.js in enterprise companies.",
+  "What open source tools has Nearform contributed to the React ecosystem?",
+  "Explain in 2 sentences how Nearform uses GraphQL in their projects.",
+  "What are Nearform's recommendations for choosing between open and closed AI models?",
+  "Give me a brief overview of Nearform's serverless and cloud expertise.",
+  "How has Nearform helped companies modernize their frontend architectures?",
 ];
+
+// Randomly select N items from an array
+const getRandomItems = (array, count) => {
+  const shuffled = [...array].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+};
 
 export const ShortDescription = () => html`
   <p>
@@ -96,6 +109,9 @@ const DescriptionButton = () => {
 };
 
 export const Chat = () => {
+  // Randomly select 3 suggestions on mount (persists during session)
+  const [displayedSuggestions] = useState(() => getRandomItems(SUGGESTIONS, 3));
+
   // Conversation state - array of Q&A entries
   // Each entry: { query: string, answer: string, queryInfo: object, isLoading: boolean }
   // TODO(TOKENS): Track conversation token usage
@@ -455,7 +471,7 @@ export const Chat = () => {
       </p>
 
       <${DescriptionButton} />
-      <${SuggestedQueries} ...${{ suggestions: SUGGESTIONS, isFetching }} />
+      <${SuggestedQueries} ...${{ suggestions: displayedSuggestions, isFetching }} />
       ${posts && html`<${PostsFound} ...${{ posts, analyticsDates }} />`}
 
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
