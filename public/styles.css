@@ -146,6 +146,10 @@
   font-size: 14px;
 }
 
+.conversation-entry {
+  margin-bottom: 1rem;
+}
+
 /* Query Display Component */
 .query-display {
   margin-left: auto;
@@ -902,7 +906,6 @@ table.pure-table-bordered tr:first-child th:last-child {
 /* Collapsed state - subtle, minimal styling */
 .query-info {
   margin-top: 15px;
-  margin-bottom: 1.5rem;
   width: fit-content;
   font-size: 0.9em;
   border-radius: 12px;
