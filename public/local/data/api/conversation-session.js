@@ -179,6 +179,7 @@ export const createConversationSession = async ({
   // Aggregate tracking for DEBUG(TOKENS)(ACTUALS) logging
   let aggregatePromptTokens = 0;
   let aggregateCompletionTokens = 0;
+  let aggregateTotalTokens = 0;
 
   // Provider-specific session handle (for Chrome Prompt API session reuse)
   // Will be populated by provider-specific implementations in future phases
@@ -505,6 +506,7 @@ export const createConversationSession = async ({
           usage = chunk.usage;
           aggregatePromptTokens += chunk.usage.prompt_tokens ?? 0;
           aggregateCompletionTokens += chunk.usage.completion_tokens ?? 0;
+          aggregateTotalTokens += chunk.usage.total_tokens ?? 0;
           if (DEBUG_TOKENS) {
             // eslint-disable-next-line no-undef
             console.log(
@@ -515,6 +517,7 @@ export const createConversationSession = async ({
                   aggregates: {
                     prompt_tokens: aggregatePromptTokens,
                     completion_tokens: aggregateCompletionTokens,
+                    total_tokens: aggregateTotalTokens,
                   },
                 },
                 null,
