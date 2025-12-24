@@ -17,7 +17,6 @@ import {
 import { estimateTokens } from "../util.js";
 import {
   getModelCfg,
-  TOKEN_CUSHION_CHAT,
   MIN_CONTEXT_CHUNKS,
   THROW_ON_TOKEN_LIMIT,
   MAX_OUTPUT_TOKENS,
@@ -33,55 +32,13 @@ const DEBUG_TOKENS = true;
  * - Chrome APIs: Use `measureInputUsage()` and `inputUsage` properties
  * - web-llm: Use `usage` object from response (prompt_tokens, completion_tokens)
  *
- * ============================================================================
- * WEB-LLM KV-CACHE BEHAVIOR
- * ============================================================================
- * web-llm's MLC Engine uses KV-cache for performance optimization.
+ * Both providers use cumulative token tracking. The context window limit applies
+ * to the full conversation context (system prompt + RAG chunks + history + query).
  *
- * References:
- * - web-llm GitHub: https://github.com/mlc-ai/web-llm
- * - MLC-LLM (underlying engine): https://github.com/mlc-ai/mlc-llm
- * - MLC-LLM KV-cache docs: https://llm.mlc.ai/docs/deploy/rest.html (see "prefix caching")
- *
- * NOTE: The behavior below was empirically observed and verified through testing.
- * The `prompt_tokens` reporting behavior is an implementation detail of MLC engine.
- * This fundamentally changes how token limits work for multi-turn conversations:
- *
- * HOW IT WORKS:
- * - The engine caches key-value pairs from previous prompts
- * - On subsequent calls, it reuses the cached prefix (system + context + history)
- * - `usage.prompt_tokens` reports only NEW tokens being processed
- * - CACHED TOKENS DO NOT COUNT AGAINST THE CONTEXT WINDOW
- *
- * OBSERVED BEHAVIOR (TinyLlama 2K context, 6 turns):
- * | Turn | Full Context Est. | prompt_tokens Reported | Worked? |
- * |------|-------------------|------------------------|---------|
- * |  1   | 985               | 877                    | Yes     |
- * |  2   | 1264              | 22                     | Yes     |
- * |  3   | 1415              | 25                     | Yes     |
- * |  4   | 1502              | 18                     | Yes     |
- * |  5   | 1589              | 18                     | Yes     |
- * |  6   | 1676              | 18                     | Yes     |
- *
- * KEY INSIGHT: Conversation worked at "2,316 cumulative tokens" on a 2K model
- * because only per-turn tokens (~18-25) count, not cumulative!
- *
- * TOKEN MODEL FOR WEB-LLM:
- * - Turn 1: Full context must fit (base + chunks + query + response)
- * - Turn 2+: Only NEW tokens need to fit (user message + assistant response)
- * - The KV-cache handles the rest transparently
- *
- * IMPLEMENTATION:
- * - Track per-turn tokens (prompt_tokens + completion_tokens) not cumulative
- * - canContinue() always returns true for web-llm (KV-cache handles history)
- * - getTokenUsage().available reflects per-turn capacity, not cumulative
- * - Context reduction is NOT needed (cached prefix doesn't consume capacity)
- *
- * ============================================================================
- * CHROME PROVIDER
- * ============================================================================
- * Chrome APIs work differently - they maintain session state and report
- * cumulative token usage. Standard cumulative tracking applies.
+ * NOTE: web-llm's `usage.prompt_tokens` may only report newly processed tokens
+ * due to internal KV-cache optimization, but the context window limit still applies
+ * to the full cumulative context. We estimate tokens from message content rather
+ * than relying solely on the API-reported prompt_tokens.
  */
 
 // Minimum tokens needed for a meaningful exchange (question + response)
@@ -260,8 +217,6 @@ export const createConversationSession = async ({
         yield* this._sendChromeWriter(userMessage);
       } else if (provider === "webLlm") {
         // Web-LLM with multi-turn support
-        // Note: Context reduction is NOT needed with KV-cache.
-        // The cached prefix doesn't count against per-turn token limits.
         yield* this._sendWebLlm(userMessage);
       } else {
         throw new Error(`Unknown provider: ${provider}`);
@@ -428,13 +383,12 @@ export const createConversationSession = async ({
      *
      * Web-LLM uses a stateless OpenAI-compatible API, so we must:
      * 1. Build full messages array each call: basePrompts + history + userMessage
-     * 2. Track tokens ourselves (see KV-cache note below)
+     * 2. Track cumulative tokens ourselves
      * 3. Dynamically reduce context when approaching token limit
      *
-     * KV-CACHE NOTE: web-llm's MLC engine caches prompt prefixes between calls.
-     * This means `usage.prompt_tokens` may only report NEW tokens, not the full
-     * prompt. We work around this by estimating tokens from message content
-     * rather than relying on the API-reported prompt_tokens.
+     * NOTE: web-llm's `usage.prompt_tokens` may only report newly processed tokens
+     * due to internal optimizations. We estimate cumulative tokens from message
+     * content rather than relying solely on the API-reported prompt_tokens.
      *
      * @param {string} userMessage - The user's message
      * @yields {{ type: "data" | "usage" | "done", message: any }}
@@ -452,7 +406,7 @@ export const createConversationSession = async ({
         { role: "user", content: userMessage },
       ];
 
-      // Calculate content metrics for token tracking and KV-cache diagnosis
+      // Calculate content metrics for cumulative token tracking
       const contentLength = messages.reduce(
         (acc, m) => acc + m.content.length,
         0,
@@ -474,8 +428,6 @@ export const createConversationSession = async ({
               historyCount: history.length - 1,
               totalMessagesCount: messages.length,
               currentChunkCount,
-              // KV-cache diagnostic: if contentLength is large but API reports few tokens,
-              // confirms web-llm is reusing cached prefix and only counting new tokens
               contentLength,
               estimatedTokensFromContent: estimatedInputTokens,
             },
@@ -532,64 +484,24 @@ export const createConversationSession = async ({
         }
       }
 
-      // Update token tracking
-      // IMPORTANT: web-llm uses KV-cache which changes how token limits work:
-      // - prompt_tokens reports only NEW tokens being processed (not full context)
-      // - Cached prefix tokens don't count against the context window for new requests
-      // - The real constraint is: can THIS turn's tokens fit (new input + output)
-      //
-      // Therefore, we track:
-      // - perTurnTokens: what matters for capacity (prompt_tokens + completion_tokens)
-      // - cumulativeEstimate: for informational display only (doesn't affect capacity)
+      // Update cumulative token tracking using actual reported values
       if (usage) {
-        // Track per-turn tokens (what actually matters with KV-cache)
-        const perTurnInputTokens = usage.prompt_tokens;
-        const perTurnOutputTokens = usage.completion_tokens;
-        const perTurnTokens = perTurnInputTokens + perTurnOutputTokens;
-
-        // Also track cumulative for informational purposes
-        totalOutputTokens += usage.completion_tokens;
-        // tokensUsed now reflects per-turn reality, not cumulative estimate
-        tokensUsed = perTurnTokens;
+        // Use cumulative aggregates from actual API-reported values
+        tokensUsed = aggregatePromptTokens + aggregateCompletionTokens;
 
         // Calculate turn number (count of Q&A pairs, including current)
         const turnNumber = Math.ceil(history.length / 2);
 
         if (DEBUG_TOKENS) {
-          // KV-Cache Verification Experiment:
-          // If ratio ≈ 1.0, confirms prompt_tokens = only new user message tokens
-          // If ratio >> 1.0, prompt_tokens includes more than just user message
-          const estimatedNewMessageTokens = estimateTokens(userMessage);
-          const kvCacheRatio =
-            estimatedNewMessageTokens > 0
-              ? (usage.prompt_tokens / estimatedNewMessageTokens).toFixed(2)
-              : "N/A";
-
-          // Calculate discrepancy between full context estimate vs reported
-          const discrepancy = estimatedInputTokens - usage.prompt_tokens;
-          const discrepancyPct =
-            usage.prompt_tokens > 0
-              ? ((discrepancy / usage.prompt_tokens) * 100).toFixed(1)
-              : "N/A";
           // eslint-disable-next-line no-undef
           console.log(
             "DEBUG(TOKENS) web-llm _sendWebLlm - usage:",
             JSON.stringify(
               {
-                promptTokensReported: usage.prompt_tokens,
-                estimatedNewMessageTokens,
-                // KV-Cache indicator: ratio ≈ 1.0 means only new message counted
-                // ratio >> 1.0 means more tokens were processed (no cache or partial cache)
-                // NOTE: kvCacheActive will be FALSE on turn 1 (ratio ~50) because
-                // the full context is processed on first turn. This is expected behavior.
-                // KV-cache only activates on turn 2+ when prefix can be reused.
-                kvCacheRatio,
-                kvCacheActive: parseFloat(kvCacheRatio) < 2.0,
-                estimatedFullContext: estimatedInputTokens,
-                discrepancy,
-                discrepancyPct: `${discrepancyPct}%`,
+                promptTokens: usage.prompt_tokens,
                 completionTokens: usage.completion_tokens,
-                totalOutputTokens,
+                aggregatePromptTokens,
+                aggregateCompletionTokens,
                 tokensUsed,
                 available: this.getTokenUsage().available,
                 turnNumber,
@@ -603,16 +515,16 @@ export const createConversationSession = async ({
         yield {
           type: "usage",
           message: {
-            // Per-turn tokens (actual tokens processed this turn due to KV-cache)
-            inputTokens: perTurnInputTokens, // What API actually processed
-            outputTokens: perTurnOutputTokens,
-            totalTokens: perTurnTokens, // Per-turn total (input + output)
+            // Per-turn tokens from API
+            inputTokens: usage.prompt_tokens,
+            outputTokens: usage.completion_tokens,
 
-            // Informational: full context estimate (doesn't affect capacity with KV-cache)
-            estimatedFullContext: estimatedInputTokens,
-            cumulativeOutputTokens: totalOutputTokens,
+            // Cumulative tokens (what matters for capacity)
+            totalInputTokens: aggregatePromptTokens,
+            totalOutputTokens: aggregateCompletionTokens,
+            totalTokens: tokensUsed,
 
-            // Capacity (with KV-cache, nearly full window available each turn)
+            // Capacity
             available: this.getTokenUsage().available,
             limit: maxTokens,
 
@@ -636,11 +548,6 @@ export const createConversationSession = async ({
     /**
      * Reduce context by rebuilding with fewer chunks.
      * Called when approaching token limit in multi-turn conversations.
-     *
-     * NOTE: This method is NOT currently called for web-llm because KV-cache
-     * eliminates the need for context reduction - cached prefix tokens don't
-     * count against per-turn capacity. Kept for potential future use with
-     * other providers or if KV-cache behavior changes.
      *
      * @returns {Promise<boolean>} Whether reduction was successful
      * @private
@@ -698,26 +605,11 @@ export const createConversationSession = async ({
 
     /**
      * Get current token usage.
-     *
-     * For web-llm with KV-cache:
-     * - tokensUsed reflects per-turn tokens (last turn's actual usage)
-     * - available reflects how much space remains for the NEXT turn
-     * - The context window is effectively "refreshed" each turn due to KV-cache
-     *
+     * Uses cumulative tracking for all providers.
      * @returns {TokenUsage}
      */
     getTokenUsage() {
-      if (provider === "webLlm") {
-        // With KV-cache, available space is nearly the full context window
-        // minus a buffer for response tokens. The cached prefix doesn't count.
-        const responseBuffer = 500; // Reserve space for assistant response
-        const available = Math.max(0, maxTokens - responseBuffer);
-        return { used: tokensUsed, available, limit: maxTokens };
-      }
-
-      // For other providers (Chrome), use cushion-based calculation
-      const cushion = TOKEN_CUSHION_CHAT;
-      const available = Math.max(0, maxTokens - cushion - tokensUsed);
+      const available = Math.max(0, maxTokens - tokensUsed);
       return { used: tokensUsed, available, limit: maxTokens };
     },
 
@@ -731,15 +623,7 @@ export const createConversationSession = async ({
 
     /**
      * Check if the conversation can continue with more turns.
-     *
-     * For web-llm with KV-cache:
-     * - The cached prefix doesn't count against the context window
-     * - Each turn only needs space for new input + output
-     * - We can effectively always continue (KV-cache handles the history)
-     *
-     * For other providers:
-     * - Standard cumulative token check applies
-     *
+     * Uses cumulative token tracking for all providers.
      * @returns {boolean}
      */
     canContinue() {
@@ -748,13 +632,7 @@ export const createConversationSession = async ({
         return false;
       }
 
-      // For web-llm with KV-cache, we can always continue
-      // The cached prefix doesn't count against per-turn capacity
-      if (provider === "webLlm") {
-        return true;
-      }
-
-      // For other providers, check if we have enough tokens
+      // Check if we have enough tokens for another exchange
       const { available } = this.getTokenUsage();
       return available > MIN_TOKENS_FOR_EXCHANGE;
     },

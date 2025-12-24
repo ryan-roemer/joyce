@@ -90,17 +90,13 @@ export const createChatSession = ({ provider, model, temperature }) => {
       metadata.elapsed.search = Date.now() - startTime;
 
       // Step 2: Build context from chunks
-      // For web-llm with KV-cache: use full available tokens (forMultiTurn: false)
-      // KV-cache handles history transparently, so no need to reserve space
-      // For other providers: use multi-turn restrictions if they support it
-      const useMultiTurnRestrictions =
-        capabilities.supportsMultiTurn && provider !== "webLlm";
+      // Use multi-turn restrictions if the provider supports it (reserves space for history)
       const contextResult = await buildContextFromChunks({
         chunks,
         query,
         provider,
         model,
-        forMultiTurn: useMultiTurnRestrictions,
+        forMultiTurn: capabilities.supportsMultiTurn,
       });
       const { context, chunkCount, tokenEstimate, tokenBreakdown } =
         contextResult;
