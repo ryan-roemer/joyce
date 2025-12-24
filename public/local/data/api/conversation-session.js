@@ -29,16 +29,12 @@ const DEBUG_TOKENS = true;
  * TOKEN TRACKING CAPABILITY
  *
  * PROVIDER BEHAVIOR:
- * - Chrome APIs: Use `measureInputUsage()` and `inputUsage` properties
+ * - Chrome APIs: Use `inputUsage` property for cumulative input tokens
  * - web-llm: Use `usage` object from response (prompt_tokens, completion_tokens)
  *
- * Both providers use cumulative token tracking. The context window limit applies
- * to the full conversation context (system prompt + RAG chunks + history + query).
- *
- * NOTE: web-llm's `usage.prompt_tokens` may only report newly processed tokens
- * due to internal KV-cache optimization, but the context window limit still applies
- * to the full cumulative context. We estimate tokens from message content rather
- * than relying solely on the API-reported prompt_tokens.
+ * Both providers use cumulative token tracking. We aggregate the API-reported
+ * prompt_tokens and completion_tokens across all turns to track total usage.
+ * The context window limit applies to this cumulative total.
  */
 
 // Minimum tokens needed for a meaningful exchange (question + response)
