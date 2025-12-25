@@ -588,6 +588,8 @@ export async function* sendPromptMessage(session, userMessage) {
     );
   }
 
+  // TODO(CHROME)(PROMPT): Detect if response was truncated due to context limit
+  // and yield "length" instead of "stop" to trigger ContextLimitWarning UI.
   yield { type: "finishReason", message: "stop" };
 
   yield {
@@ -687,6 +689,8 @@ export async function* sendWriterMessage({ sharedContext, writingTask }) {
     // Estimate output tokens
     const outputTokensEst = Math.ceil(content.length / 4);
 
+    // TODO(CHROME)(PROMPT): Detect if response was truncated due to context limit
+    // and yield "length" instead of "stop" to trigger ContextLimitWarning UI.
     yield { type: "finishReason", message: "stop" };
 
     yield {
