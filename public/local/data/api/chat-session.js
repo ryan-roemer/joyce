@@ -192,7 +192,8 @@ export const createChatSession = ({ provider, model, temperature }) => {
       }
     }
 
-    // Add to history
+    // Add to history AFTER streaming completes successfully.
+    // If streaming throws, history remains unchanged (intentional).
     history.push({ role: "user", content: userMessage });
     history.push({ role: "assistant", content: assistantContent });
   }
@@ -563,6 +564,8 @@ export const createChatSession = ({ provider, model, temperature }) => {
       }
 
       // Check token limit
+      // TODO(UI): Surface token limit warning in UI before it's hit, not just after.
+      // Currently warns in console but proceeds, which may cause API errors.
       if (!checkCanContinue()) {
         const msg =
           "This conversation has reached its token limit. Please start a new conversation.";
