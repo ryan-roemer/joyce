@@ -31,10 +31,6 @@ const WRITER_OPTIONS = {
 const modelState = new Map();
 // TODO: Specify language model output language.
 
-// Aggregate tracking for DEBUG(TOKENS)(ACTUALS) logging
-let aggregatePromptInputUsage = 0;
-let aggregateWriterInputUsage = 0;
-
 /**
  * Measure input tokens using Chrome API and compare with estimate.
  * Useful for calibrating estimates and debugging token discrepancies.
@@ -88,7 +84,7 @@ async function* streamToAsyncIterator({ stream, inputTokens }) {
   }
 
   yield {
-    choices: [{ delta: {} }],
+    choices: [{ delta: {}, finish_reason: "stop" }],
     usage: getUsage({ inputTokens, content }),
   };
 }
@@ -367,21 +363,14 @@ const createWriterEngine = (options = {}) => ({
           context,
         });
 
-        aggregateWriterInputUsage += inputTokens;
-
         if (DEBUG_TOKENS) {
           // eslint-disable-next-line no-undef
           console.log(
             "DEBUG(TOKENS)(ACTUALS) Chrome Writer API:",
             JSON.stringify(
               {
-                current: {
-                  measuredInputUsage: inputTokens,
-                  inputQuota: writer.inputQuota,
-                },
-                aggregates: {
-                  measuredInputUsage: aggregateWriterInputUsage,
-                },
+                measuredInputUsage: inputTokens,
+                inputQuota: writer.inputQuota,
               },
               null,
               2,
@@ -584,27 +573,22 @@ export async function* sendPromptMessage(session, userMessage) {
   const totalInputTokens = session.inputUsage ?? 0;
   const outputTokensEst = Math.ceil(content.length / 4);
 
-  aggregatePromptInputUsage += totalInputTokens;
-
   if (DEBUG_TOKENS) {
     // eslint-disable-next-line no-undef
     console.log(
       "DEBUG(TOKENS)(ACTUALS) Chrome Prompt API:",
       JSON.stringify(
         {
-          current: {
-            inputUsage: session.inputUsage,
-            inputQuota: session.inputQuota,
-          },
-          aggregates: {
-            inputUsage: aggregatePromptInputUsage,
-          },
+          inputUsage: session.inputUsage,
+          inputQuota: session.inputQuota,
         },
         null,
         2,
       ),
     );
   }
+
+  yield { type: "finishReason", message: "stop" };
 
   yield {
     type: "usage",
@@ -702,6 +686,8 @@ export async function* sendWriterMessage({ sharedContext, writingTask }) {
 
     // Estimate output tokens
     const outputTokensEst = Math.ceil(content.length / 4);
+
+    yield { type: "finishReason", message: "stop" };
 
     yield {
       type: "usage",
