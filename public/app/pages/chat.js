@@ -23,6 +23,10 @@ import { useConfig } from "../contexts/config.js";
 import { useLoading } from "../../local/app/context/loading.js";
 import { LoadingButton } from "../../local/app/components/loading/button.js";
 import { Alert } from "../components/alert.js";
+import {
+  ContextExceededError,
+  isContextExceededError,
+} from "../components/context-exceeded-error.js";
 import { SuggestedQueries } from "../components/suggested-queries.js";
 import { LoadingBubble } from "../components/loading-bubble.js";
 import { QueryDisplay } from "../components/query-display.js";
@@ -143,6 +147,7 @@ export const Chat = () => {
 
   // Other state
   const [err, setErr] = useState(null);
+  const [contextExceededErr, setContextExceededErr] = useState(null);
 
   // Refs for chat session (facade) and pending queries
   const pendingQueryRef = useRef(null);
@@ -206,6 +211,7 @@ export const Chat = () => {
     setSearchData(null);
     setAnalyticsDates({ start: null, end: null });
     setErr(null);
+    setContextExceededErr(null);
     // Clean up chat session
     if (chatSessionRef.current) {
       chatSessionRef.current.destroy();
@@ -325,7 +331,11 @@ export const Chat = () => {
       updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
     } catch (respErr) {
       console.error(respErr); // eslint-disable-line no-undef
-      setErr(respErr);
+      if (isContextExceededError(respErr)) {
+        setContextExceededErr(respErr);
+      } else {
+        setErr(respErr);
+      }
       updateLastEntry({ isLoading: false });
       return;
     } finally {
@@ -394,7 +404,11 @@ export const Chat = () => {
       updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
     } catch (respErr) {
       console.error(respErr); // eslint-disable-line no-undef
-      setErr(respErr);
+      if (isContextExceededError(respErr)) {
+        setContextExceededErr(respErr);
+      } else {
+        setErr(respErr);
+      }
       updateLastEntry({ isLoading: false });
     } finally {
       setIsFetching(false);
@@ -510,6 +524,11 @@ export const Chat = () => {
           </div>
         `,
       )}
+
+      <${ContextExceededError}
+        error=${contextExceededErr}
+        onNewConversation=${handleReset}
+      />
 
       <${ChatInputForm}
         isFetching=${isFetching}

@@ -424,6 +424,37 @@ table.pure-table-bordered tr:first-child th:last-child {
   align-self: flex-start;
 }
 
+.context-exceeded-error-container {
+  margin-top: 1rem;
+}
+
+.context-exceeded-error {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.context-exceeded-error-content {
+  display: flex;
+  gap: 0.75em;
+  align-items: flex-start;
+}
+
+.context-exceeded-error-content > i {
+  font-size: 1.25em;
+  flex-shrink: 0;
+  margin-top: 0.1em;
+}
+
+.context-exceeded-error-content p {
+  margin: 0.25em 0 0 0;
+  font-size: 0.9em;
+}
+
+.context-exceeded-error button {
+  align-self: flex-start;
+}
+
 .alert-details {
   margin-top: 0.5em;
   font-size: 0.9em;
