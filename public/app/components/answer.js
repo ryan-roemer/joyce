@@ -1,8 +1,7 @@
-/* global window:false */
 import { useState, Fragment } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
-import { html } from "../util/html.js";
+import { html, openTextInNewWindow } from "../util/html.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ALL_PROVIDERS, getModelCfg } from "../../config.js";
 import { formatInt, formatFloat, formatElapsed } from "../../shared-util.js";
@@ -35,13 +34,7 @@ const prettifyXml = (xmlString) => {
 const PromptDataLink = ({ data }) => {
   if (!data) return null;
 
-  const handleOpen = () => {
-    const win = window.open("", "_blank");
-    win.document.write("<html><body><pre></pre></body></html>");
-    win.document.close();
-    const pre = win.document.querySelector("pre");
-    pre.innerText = JSON.stringify(data, null, 2);
-  };
+  const handleOpen = () => openTextInNewWindow(JSON.stringify(data, null, 2));
 
   return html`
     <span onClick=${handleOpen} title="Open full prompt as JSON">
@@ -56,13 +49,7 @@ const PromptDataLink = ({ data }) => {
 const ContextDataLink = ({ data }) => {
   if (!data) return null;
 
-  const handleOpen = () => {
-    const win = window.open("", "_blank");
-    win.document.write("<html><body><pre></pre></body></html>");
-    win.document.close();
-    const pre = win.document.querySelector("pre");
-    pre.innerText = prettifyXml(data);
-  };
+  const handleOpen = () => openTextInNewWindow(prettifyXml(data));
 
   return html`
     <span onClick=${handleOpen} title="Open full context as XML">
