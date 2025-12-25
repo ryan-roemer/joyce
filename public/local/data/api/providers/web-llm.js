@@ -66,78 +66,93 @@ export const getCapabilities = (model) => ({
 });
 
 // ============================================================================
-// Unified Provider Interface (matching Chrome provider pattern)
+// Unified Provider Interface
 // ============================================================================
 
 /**
- * Create a web-llm session for conversations.
- * Unlike Chrome's stateful sessions, web-llm is stateless - the session holds
- * config and the caller must pass message history to sendMessage().
+ * Create a conversation handler for web-llm.
+ * Web-LLM is stateless - history must be passed to sendMessage().
+ * Manages token aggregation and yields normalized cumulative usage.
  *
  * @param {Object} options
  * @param {string} options.model - Model ID
  * @param {number} options.temperature - Sampling temperature
  * @param {number} options.maxOutputTokens - Max tokens for response
- * @returns {Promise<Object>} Session object with engine reference
+ * @returns {Promise<Object>} Handler with sendMessage and destroy
  */
-export const createSession = async ({
+export const createHandler = async ({
   model,
   temperature,
   maxOutputTokens,
 }) => {
   const engine = await getLlmEngine(model);
+
+  // Token tracking: web-llm gives per-call usage, we aggregate
+  let aggregatePromptTokens = 0;
+  let aggregateCompletionTokens = 0;
+
   return {
-    engine,
-    model,
-    temperature,
-    maxOutputTokens,
-    destroy: () => {
+    /**
+     * Send a message and stream response.
+     * Yields normalized cumulative usage for consistent interface.
+     * @param {Array<{role: string, content: string}>} messages - Full messages array
+     * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
+     */
+    async *sendMessage(messages) {
+      const stream = await engine.chat.completions.create({
+        messages,
+        temperature,
+        max_tokens: maxOutputTokens,
+        stream: true,
+        stream_options: { include_usage: true },
+      });
+
+      let assistantContent = "";
+      let usage = null;
+
+      for await (const chunk of stream) {
+        if (chunk.choices[0]?.delta?.content) {
+          const delta = chunk.choices[0].delta.content;
+          assistantContent += delta;
+          yield { type: "data", message: delta };
+        }
+        const finishReason = chunk.choices[0]?.finish_reason;
+        if (finishReason) {
+          yield { type: "finishReason", message: finishReason };
+        }
+        if (chunk.usage) {
+          usage = chunk.usage;
+        }
+      }
+
+      // Yield normalized cumulative usage
+      if (usage) {
+        const inputTokens = usage.prompt_tokens ?? 0;
+        const outputTokens = usage.completion_tokens ?? 0;
+
+        // Aggregate across turns
+        aggregatePromptTokens += inputTokens;
+        aggregateCompletionTokens += outputTokens;
+
+        yield {
+          type: "usage",
+          message: {
+            // Per-turn tokens
+            inputTokens,
+            outputTokens,
+            // Cumulative tokens (normalized interface)
+            totalInputTokens: aggregatePromptTokens,
+            totalOutputTokens: aggregateCompletionTokens,
+            totalTokens: aggregatePromptTokens + aggregateCompletionTokens,
+            // For caller's history update
+            assistantContent,
+          },
+        };
+      }
+    },
+
+    destroy() {
       // web-llm engines are cached and reused, no cleanup needed per-session
     },
   };
 };
-
-/**
- * Send a message using a web-llm session.
- * Web-LLM is stateless, so the full messages array (including history) must be passed.
- *
- * @param {Object} session - Session from createSession
- * @param {Array<{role: string, content: string}>} messages - Full message array including history
- * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
- */
-export async function* sendMessage(session, messages) {
-  const stream = await session.engine.chat.completions.create({
-    messages,
-    temperature: session.temperature,
-    max_tokens: session.maxOutputTokens,
-    stream: true,
-    stream_options: { include_usage: true },
-  });
-
-  let usage = null;
-
-  for await (const chunk of stream) {
-    if (chunk.choices[0]?.delta?.content) {
-      yield { type: "data", message: chunk.choices[0].delta.content };
-    }
-    const finishReason = chunk.choices[0]?.finish_reason;
-    if (finishReason) {
-      yield { type: "finishReason", message: finishReason };
-    }
-    if (chunk.usage) {
-      usage = chunk.usage;
-    }
-  }
-
-  // Yield usage at the end
-  if (usage) {
-    yield {
-      type: "usage",
-      message: {
-        inputTokens: usage.prompt_tokens ?? 0,
-        outputTokens: usage.completion_tokens ?? 0,
-        totalTokens: usage.total_tokens ?? 0,
-      },
-    };
-  }
-}

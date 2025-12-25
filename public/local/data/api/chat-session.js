@@ -13,14 +13,10 @@ import { getProviderCapabilities } from "./llm.js";
 import { searchResultsToPosts } from "../../../app/data/util.js";
 import { estimateTokens } from "../util.js";
 import {
-  createPromptSession,
-  sendPromptMessage,
-  sendWriterMessage,
+  createPromptHandler,
+  createWriterHandler,
 } from "./providers/chrome.js";
-import {
-  createSession as createWebLlmSession,
-  sendMessage as sendWebLlmMessage,
-} from "./providers/web-llm.js";
+import { createHandler as createWebLlmHandler } from "./providers/web-llm.js";
 import {
   getModelCfg,
   MIN_CONTEXT_CHUNKS,
@@ -82,14 +78,8 @@ export const createChatSession = ({ provider, model, temperature }) => {
   let rawChunks = [];
   let initialQuery = "";
 
-  // Provider-specific session handle (for Chrome Prompt API session reuse)
-  let providerSession = null;
-
-  // Token tracking state
-  let lastInputTokens = 0;
-  let totalOutputTokens = 0;
-  let aggregatePromptTokens = 0;
-  let aggregateCompletionTokens = 0;
+  // Provider handler (created after context is built, manages its own token state)
+  let handler = null;
 
   /**
    * Build contextTokens object for usage events.
@@ -134,60 +124,112 @@ export const createChatSession = ({ provider, model, temperature }) => {
   };
 
   /**
-   * Send message using Chrome Prompt API with session reuse.
-   * @param {string} userMessage - The user's message
-   * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
+   * Create the appropriate handler for the current provider.
+   * Called after context is built (in start()).
+   * @returns {Promise<Object>} Handler with sendMessage and destroy
    */
-  async function* sendChromePrompt(userMessage) {
-    // Lazy create Chrome session on first message
-    if (!providerSession) {
-      providerSession = await createPromptSession({
+  const createHandler = async () => {
+    if (provider === "chrome" && capabilities.supportsMultiTurn) {
+      return createPromptHandler({
         systemContext: currentSystemContext,
         temperature,
       });
+    } else if (provider === "chrome") {
+      return createWriterHandler({
+        systemContext: currentSystemContext,
+      });
+    } else if (provider === "webLlm") {
+      return createWebLlmHandler({
+        model,
+        temperature,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+      });
+    } else {
+      throw new Error(`Unknown provider: ${provider}`);
     }
+  };
+
+  /**
+   * Build messages array for the current turn.
+   * @param {string} userMessage - The user's message
+   * @returns {Array<{role: string, content: string}>}
+   */
+  const buildMessages = (userMessage) => [
+    ...buildBasePrompts(currentSystemContext),
+    ...history,
+    { role: "user", content: userMessage },
+  ];
+
+  /**
+   * Enrich normalized usage with context info.
+   * Handlers yield normalized cumulative usage; we add context-specific fields.
+   * @param {Object} normalizedUsage - Normalized usage from handler
+   * @param {string} userMessage - The user's message
+   * @param {Array} promptMessages - Messages sent to provider
+   * @returns {Object} Enriched usage message
+   */
+  const enrichUsage = (normalizedUsage, userMessage, promptMessages) => {
+    // Extract assistantContent (used for history, not needed in final usage)
+    // eslint-disable-next-line no-unused-vars
+    const { assistantContent, ...usage } = normalizedUsage;
+
+    // Update session's token tracking
+    tokensUsed = usage.totalTokens;
+
+    return {
+      ...usage,
+      available: getTokenUsage().available,
+      limit: maxTokens,
+      turnNumber: Math.floor(history.length / 2) + 1,
+      contextTokens: buildContextTokens(userMessage),
+      prompt: promptMessages,
+      context: currentSystemContext,
+    };
+  };
+
+  /**
+   * Dispatch message to provider handler and enrich events.
+   * @param {string} userMessage - The user's message
+   * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
+   */
+  async function* dispatchMessage(userMessage) {
+    // Writer API check for follow-up
+    if (
+      provider === "chrome" &&
+      !capabilities.supportsMultiTurn &&
+      history.length > 0
+    ) {
+      throw new Error(
+        "Follow-up questions are not supported with the Writer API. " +
+          "Please start a new conversation or switch to the Prompt API model.",
+      );
+    }
+
+    // Create handler if needed
+    if (!handler) {
+      handler = await createHandler();
+    }
+
+    // Build messages for this turn
+    const messages = buildMessages(userMessage);
+
+    // For web-llm, pass full messages; for Chrome, just user message
+    const handlerInput = provider === "webLlm" ? messages : userMessage;
 
     let assistantContent = "";
 
-    for await (const event of sendPromptMessage(providerSession, userMessage)) {
+    for await (const event of handler.sendMessage(handlerInput)) {
       if (event.type === "data") {
-        assistantContent += event.message;
         yield event;
       } else if (event.type === "finishReason") {
         yield event;
       } else if (event.type === "usage") {
-        // Calculate per-turn delta from tracked cumulative
-        const thisInputTokens =
-          event.message.totalInputTokens - lastInputTokens;
-        lastInputTokens = event.message.totalInputTokens;
-
-        // Update cumulative output token tracking
-        totalOutputTokens += event.message.outputTokens;
-        tokensUsed = event.message.totalInputTokens + totalOutputTokens;
-
-        const turnNumber = Math.ceil((history.length + 1) / 2);
-        const promptMessages = [
-          ...buildBasePrompts(currentSystemContext),
-          ...history,
-          { role: "user", content: userMessage },
-        ];
-
+        // Extract assistant content from usage event
+        assistantContent = event.message.assistantContent || "";
+        // Enrich and yield
         yield {
           type: "usage",
-          message: {
-            inputTokens: thisInputTokens,
-            outputTokens: event.message.outputTokens,
-            totalInputTokens: event.message.totalInputTokens,
-            totalOutputTokens,
-            totalTokens: tokensUsed,
-            available: getTokenUsage().available,
-            limit: maxTokens,
-            inputQuota: event.message.inputQuota,
-            turnNumber,
-            contextTokens: buildContextTokens(userMessage),
-            prompt: promptMessages,
-            context: currentSystemContext,
-          },
+          message: enrichUsage(event.message, userMessage, messages),
         };
       }
     }
@@ -196,192 +238,6 @@ export const createChatSession = ({ provider, model, temperature }) => {
     // If streaming throws, history remains unchanged (intentional).
     history.push({ role: "user", content: userMessage });
     history.push({ role: "assistant", content: assistantContent });
-  }
-
-  /**
-   * Send message using Chrome Writer API (single-turn only).
-   * @param {string} userMessage - The user's message/writing task
-   * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
-   */
-  async function* sendChromeWriter(userMessage) {
-    let assistantContent = "";
-
-    for await (const event of sendWriterMessage({
-      sharedContext: currentSystemContext,
-      writingTask: userMessage,
-    })) {
-      if (event.type === "data") {
-        assistantContent += event.message;
-        yield event;
-      } else if (event.type === "finishReason") {
-        yield event;
-      } else if (event.type === "usage") {
-        tokensUsed = event.message.totalTokens;
-        const turnNumber = 1;
-        const promptMessages = [
-          ...buildBasePrompts(currentSystemContext),
-          { role: "user", content: userMessage },
-        ];
-
-        yield {
-          type: "usage",
-          message: {
-            inputTokens: event.message.inputTokens,
-            outputTokens: event.message.outputTokens,
-            totalInputTokens: event.message.inputTokens,
-            totalOutputTokens: event.message.outputTokens,
-            totalTokens: event.message.totalTokens,
-            available: getTokenUsage().available,
-            limit: maxTokens,
-            inputQuota: event.message.inputQuota,
-            turnNumber,
-            contextTokens: buildContextTokens(userMessage),
-            prompt: promptMessages,
-            context: currentSystemContext,
-          },
-        };
-      }
-    }
-
-    // Add to history
-    history.push({ role: "user", content: userMessage });
-    history.push({ role: "assistant", content: assistantContent });
-  }
-
-  /**
-   * Send message using web-llm with multi-turn support.
-   * @param {string} userMessage - The user's message
-   * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
-   */
-  async function* sendWebLlm(userMessage) {
-    // Create session if needed (web-llm sessions are lightweight)
-    if (!providerSession) {
-      providerSession = await createWebLlmSession({
-        model,
-        temperature,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-      });
-    }
-
-    // Build full messages array: system context + history + current message
-    const messages = [
-      ...buildBasePrompts(currentSystemContext),
-      ...history,
-      { role: "user", content: userMessage },
-    ];
-
-    if (DEBUG_TOKENS) {
-      const contentLength = messages.reduce(
-        (acc, m) => acc + m.content.length,
-        0,
-      );
-      const estimatedInputTokens = messages.reduce((acc, m) => {
-        const hasMarkup = m.content.includes("<CHUNK>");
-        return acc + estimateTokens(m.content, hasMarkup);
-      }, 0);
-      // eslint-disable-next-line no-undef
-      console.log(
-        "DEBUG(TOKENS) web-llm sendWebLlm - pre-stream context:",
-        JSON.stringify(
-          {
-            messageCounts: {
-              basePrompts: buildBasePrompts(currentSystemContext).length,
-              history: history.length,
-              total: messages.length,
-            },
-            currentChunkCount,
-            estimated: { inputTokens: estimatedInputTokens, contentLength },
-          },
-          null,
-          2,
-        ),
-      );
-    }
-
-    let assistantContent = "";
-
-    for await (const event of sendWebLlmMessage(providerSession, messages)) {
-      if (event.type === "data") {
-        assistantContent += event.message;
-        yield event;
-      } else if (event.type === "finishReason") {
-        yield event;
-      } else if (event.type === "usage") {
-        aggregatePromptTokens += event.message.inputTokens;
-        aggregateCompletionTokens += event.message.outputTokens;
-        tokensUsed = aggregatePromptTokens + aggregateCompletionTokens;
-
-        const turnNumber = Math.ceil((history.length + 2) / 2);
-
-        if (DEBUG_TOKENS) {
-          // eslint-disable-next-line no-undef
-          console.log(
-            "DEBUG(TOKENS)(ACTUALS) web-llm sendWebLlm:",
-            JSON.stringify(
-              {
-                thisTurn: {
-                  promptTokens: event.message.inputTokens,
-                  completionTokens: event.message.outputTokens,
-                },
-                cumulative: {
-                  promptTokens: aggregatePromptTokens,
-                  completionTokens: aggregateCompletionTokens,
-                  total: tokensUsed,
-                },
-                turnNumber,
-              },
-              null,
-              2,
-            ),
-          );
-        }
-
-        yield {
-          type: "usage",
-          message: {
-            inputTokens: event.message.inputTokens,
-            outputTokens: event.message.outputTokens,
-            totalInputTokens: aggregatePromptTokens,
-            totalOutputTokens: aggregateCompletionTokens,
-            totalTokens: tokensUsed,
-            available: getTokenUsage().available,
-            limit: maxTokens,
-            turnNumber,
-            contextTokens: buildContextTokens(userMessage),
-            prompt: messages,
-            context: currentSystemContext,
-          },
-        };
-      }
-    }
-
-    // Add to history
-    history.push({ role: "user", content: userMessage });
-    history.push({ role: "assistant", content: assistantContent });
-  }
-
-  /**
-   * Dispatch message to appropriate provider.
-   * @param {string} userMessage - The user's message
-   * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
-   */
-  async function* dispatchMessage(userMessage) {
-    if (provider === "chrome" && capabilities.supportsMultiTurn) {
-      yield* sendChromePrompt(userMessage);
-    } else if (provider === "chrome") {
-      // Writer API - single-turn only
-      if (history.length > 0) {
-        throw new Error(
-          "Follow-up questions are not supported with the Writer API. " +
-            "Please start a new conversation or switch to the Prompt API model.",
-        );
-      }
-      yield* sendChromeWriter(userMessage);
-    } else if (provider === "webLlm") {
-      yield* sendWebLlm(userMessage);
-    } else {
-      throw new Error(`Unknown provider: ${provider}`);
-    }
   }
 
   /**
@@ -451,17 +307,13 @@ export const createChatSession = ({ provider, model, temperature }) => {
       }
 
       // Reset state for new conversation
-      if (providerSession) {
-        providerSession.destroy?.();
-        providerSession = null;
+      if (handler) {
+        handler.destroy?.();
+        handler = null;
       }
       searchData = null;
       history.length = 0;
       tokensUsed = 0;
-      lastInputTokens = 0;
-      totalOutputTokens = 0;
-      aggregatePromptTokens = 0;
-      aggregateCompletionTokens = 0;
 
       const startTime = Date.now();
 
@@ -664,9 +516,9 @@ export const createChatSession = ({ provider, model, temperature }) => {
      */
     destroy() {
       destroyed = true;
-      if (providerSession) {
-        providerSession.destroy?.();
-        providerSession = null;
+      if (handler) {
+        handler.destroy?.();
+        handler = null;
       }
       searchData = null;
       history.length = 0;

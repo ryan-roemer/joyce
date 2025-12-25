@@ -711,3 +711,134 @@ export async function* sendWriterMessage({ sharedContext, writingTask }) {
     writer.destroy();
   }
 }
+
+// ============================================================================
+// Unified Provider Interface (Handler Factories)
+// ============================================================================
+
+/**
+ * Create a conversation handler for Chrome Prompt API.
+ * Manages session lifecycle, token tracking, and yields normalized usage.
+ *
+ * @param {Object} options
+ * @param {string} options.systemContext - RAG context for system prompt
+ * @param {number} options.temperature - Sampling temperature
+ * @returns {Promise<Object>} Handler with sendMessage and destroy
+ */
+export const createPromptHandler = async ({ systemContext, temperature }) => {
+  // Lazy-create session on first message
+  let session = null;
+
+  // Token tracking: Chrome's inputUsage is cumulative per session
+  let lastInputTokens = 0;
+  let totalOutputTokens = 0;
+
+  return {
+    /**
+     * Send a message and stream response.
+     * Yields normalized cumulative usage for consistent interface.
+     * @param {string} userMessage - The user's message
+     * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
+     */
+    async *sendMessage(userMessage) {
+      if (!session) {
+        session = await createPromptSession({ systemContext, temperature });
+      }
+
+      let assistantContent = "";
+
+      for await (const event of sendPromptMessage(session, userMessage)) {
+        if (event.type === "data") {
+          assistantContent += event.message;
+          yield event;
+        } else if (event.type === "finishReason") {
+          yield event;
+        } else if (event.type === "usage") {
+          // Calculate per-turn delta from cumulative
+          const inputDelta = event.message.totalInputTokens - lastInputTokens;
+          lastInputTokens = event.message.totalInputTokens;
+          totalOutputTokens += event.message.outputTokens;
+
+          // Yield normalized cumulative usage
+          yield {
+            type: "usage",
+            message: {
+              // Per-turn tokens
+              inputTokens: inputDelta,
+              outputTokens: event.message.outputTokens,
+              // Cumulative tokens (normalized interface)
+              totalInputTokens: lastInputTokens,
+              totalOutputTokens,
+              totalTokens: lastInputTokens + totalOutputTokens,
+              // Provider-specific extras
+              inputQuota: event.message.inputQuota,
+              // For caller's history update
+              assistantContent,
+            },
+          };
+        }
+      }
+    },
+
+    destroy() {
+      session?.destroy();
+      session = null;
+    },
+  };
+};
+
+/**
+ * Create a conversation handler for Chrome Writer API.
+ * Single-turn only - each message creates a new writer instance.
+ * Yields normalized usage for consistent interface.
+ *
+ * @param {Object} options
+ * @param {string} options.systemContext - RAG context as sharedContext
+ * @returns {Object} Handler with sendMessage and destroy
+ */
+export const createWriterHandler = ({ systemContext }) => {
+  return {
+    /**
+     * Send a message and stream response.
+     * @param {string} userMessage - The writing task
+     * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
+     */
+    async *sendMessage(userMessage) {
+      let assistantContent = "";
+
+      for await (const event of sendWriterMessage({
+        sharedContext: systemContext,
+        writingTask: userMessage,
+      })) {
+        if (event.type === "data") {
+          assistantContent += event.message;
+          yield event;
+        } else if (event.type === "finishReason") {
+          yield event;
+        } else if (event.type === "usage") {
+          // Single-turn: per-call = cumulative (normalized interface)
+          yield {
+            type: "usage",
+            message: {
+              // Per-turn tokens
+              inputTokens: event.message.inputTokens,
+              outputTokens: event.message.outputTokens,
+              // Cumulative tokens (same as per-turn for single-turn)
+              totalInputTokens: event.message.inputTokens,
+              totalOutputTokens: event.message.outputTokens,
+              totalTokens: event.message.totalTokens,
+              // Provider-specific extras
+              inputQuota: event.message.inputQuota,
+              // For caller's history update
+              assistantContent,
+            },
+          };
+        }
+      }
+    },
+
+    destroy() {
+      // Writer API creates/destroys per-call, nothing to clean up
+    },
+  };
+};
