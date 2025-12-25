@@ -13,7 +13,7 @@ import {
 import { getPost } from "./posts.js";
 
 // Set to true to enable detailed token debugging in console
-const DEBUG_TOKENS = true;
+const DEBUG_TOKENS = false;
 
 /**
  * Build base system prompts with RAG context.

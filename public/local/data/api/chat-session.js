@@ -29,7 +29,7 @@ import {
 } from "../../../config.js";
 
 // Set to true to enable detailed token debugging in console
-const DEBUG_TOKENS = true;
+const DEBUG_TOKENS = false;
 
 // Minimum tokens needed for a meaningful exchange (question + response)
 const MIN_TOKENS_FOR_EXCHANGE = 500;
