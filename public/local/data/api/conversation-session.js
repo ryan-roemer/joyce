@@ -382,9 +382,10 @@ export const createConversationSession = async ({
      * 2. Track cumulative tokens ourselves
      * 3. Dynamically reduce context when approaching token limit
      *
-     * NOTE: web-llm's `usage.prompt_tokens` may only report newly processed tokens
-     * due to internal optimizations. We estimate cumulative tokens from message
-     * content rather than relying solely on the API-reported prompt_tokens.
+     * NOTE: web-llm's `usage.prompt_tokens` reports actual tokens for each call.
+     * We aggregate these API-reported values for cumulative tracking.
+     * The estimatedInputTokens calculation is only used for debug logging comparison,
+     * not for any actual behavior decisions.
      *
      * @param {string} userMessage - The user's message
      * @yields {{ type: "data" | "usage" | "done", message: any }}
@@ -416,16 +417,20 @@ export const createConversationSession = async ({
       if (DEBUG_TOKENS) {
         // eslint-disable-next-line no-undef
         console.log(
-          "DEBUG(TOKENS) web-llm _sendWebLlm - messages:",
+          "DEBUG(TOKENS) web-llm _sendWebLlm - pre-stream context:",
           JSON.stringify(
             {
-              basePromptsCount: buildBasePrompts(sessionOptions.systemContext)
-                .length,
-              historyCount: history.length - 1,
-              totalMessagesCount: messages.length,
+              messageCounts: {
+                basePrompts: buildBasePrompts(sessionOptions.systemContext)
+                  .length,
+                history: history.length - 1,
+                total: messages.length,
+              },
               currentChunkCount,
-              contentLength,
-              estimatedTokensFromContent: estimatedInputTokens,
+              estimated: {
+                inputTokens: estimatedInputTokens,
+                contentLength,
+              },
             },
             null,
             2,
@@ -491,15 +496,21 @@ export const createConversationSession = async ({
         if (DEBUG_TOKENS) {
           // eslint-disable-next-line no-undef
           console.log(
-            "DEBUG(TOKENS) web-llm _sendWebLlm - usage:",
+            "DEBUG(TOKENS) web-llm _sendWebLlm - usage (all values are actuals from API):",
             JSON.stringify(
               {
-                promptTokens: usage.prompt_tokens,
-                completionTokens: usage.completion_tokens,
-                aggregatePromptTokens,
-                aggregateCompletionTokens,
-                tokensUsed,
-                available: this.getTokenUsage().available,
+                thisTurn: {
+                  promptTokens: usage.prompt_tokens,
+                  completionTokens: usage.completion_tokens,
+                },
+                cumulative: {
+                  promptTokens: aggregatePromptTokens,
+                  completionTokens: aggregateCompletionTokens,
+                  total: tokensUsed,
+                },
+                capacity: {
+                  available: this.getTokenUsage().available,
+                },
                 turnNumber,
               },
               null,

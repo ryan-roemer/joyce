@@ -9,6 +9,7 @@ import {
   CHROME_HAS_WRITER_API,
 } from "../../../../config.js";
 import { buildBasePrompts } from "../chat.js";
+import { estimateTokens } from "../../util.js";
 
 // Set to true to enable detailed token debugging in console
 const DEBUG_TOKENS = true;
@@ -33,6 +34,41 @@ const modelState = new Map();
 // Aggregate tracking for DEBUG(TOKENS)(ACTUALS) logging
 let aggregatePromptInputUsage = 0;
 let aggregateWriterInputUsage = 0;
+
+/**
+ * Measure input tokens using Chrome API and compare with estimate.
+ * Useful for calibrating estimates and debugging token discrepancies.
+ * @param {Object} session - Chrome LanguageModel or Writer session
+ * @param {string} text - Text to measure
+ * @param {string} label - Label for debug logging
+ * @param {boolean} [hasMarkup=false] - Whether text contains XML markup
+ * @returns {Promise<{measured: number, estimated: number, diff: number}>}
+ */
+const measureAndCompare = async (session, text, label, hasMarkup = false) => {
+  const measured = await session.measureInputUsage(text);
+  const estimated = estimateTokens(text, hasMarkup);
+  const diff = measured - estimated;
+
+  if (DEBUG_TOKENS) {
+    // eslint-disable-next-line no-undef
+    console.log(
+      `DEBUG(TOKENS) ${label} - actual vs estimate:`,
+      JSON.stringify(
+        {
+          actual: measured,
+          estimated,
+          diff,
+          diffPercent:
+            estimated > 0 ? `${((diff / estimated) * 100).toFixed(1)}%` : "N/A",
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
+  return { measured, estimated, diff };
+};
 
 /**
  * Convert Chrome's streaming response to OpenAI-style async iterator.
@@ -74,9 +110,13 @@ const getUsage = ({ inputTokens, content }) => {
       "DEBUG(TOKENS) Chrome getUsage:",
       JSON.stringify(
         {
-          inputTokens,
-          contentLength: content?.length,
-          completionTokensEst,
+          actual: {
+            inputTokens,
+          },
+          estimated: {
+            completionTokens: completionTokensEst,
+            contentLength: content?.length,
+          },
         },
         null,
         2,
@@ -192,8 +232,8 @@ const getApiType = (model) => {
  * @returns {{ initialPrompts: Array, lastUserMessage: string }}
  */
 const createPromptMessages = (messages) => {
-  // Find the last user message - this will be the prompt
-  // TODO(CHROME): Double check this one...
+  // Chrome Prompt API pattern: initialPrompts for session context, last user message for prompt.
+  // OpenAI roles (system/user/assistant) map directly to Chrome's initialPrompts format.
   const lastUserIndex = messages.map((m) => m.role).lastIndexOf("user");
   if (lastUserIndex === -1) {
     throw new Error("No user message found in messages array");
@@ -244,13 +284,15 @@ const createPromptEngine = (options = {}) => ({
         if (DEBUG_TOKENS) {
           // eslint-disable-next-line no-undef
           console.log(
-            "DEBUG(TOKENS) Chrome Prompt API - token capture:",
+            "DEBUG(TOKENS) Chrome Prompt API - token capture (all values are actuals):",
             JSON.stringify(
               {
-                initialInputUsage,
-                promptTokens,
-                inputTokens,
-                inputQuota: session.inputQuota,
+                actual: {
+                  initialInputUsage,
+                  promptTokens,
+                  totalInputTokens: inputTokens,
+                },
+                quota: session.inputQuota,
               },
               null,
               2,
@@ -476,11 +518,13 @@ export const createPromptSession = async ({ systemContext, temperature }) => {
   if (DEBUG_TOKENS) {
     // eslint-disable-next-line no-undef
     console.log(
-      "DEBUG(TOKENS) Chrome createPromptSession:",
+      "DEBUG(TOKENS) Chrome createPromptSession (actuals from session):",
       JSON.stringify(
         {
-          inputUsage: session.inputUsage,
-          inputQuota: session.inputQuota,
+          actual: {
+            inputUsage: session.inputUsage,
+          },
+          quota: session.inputQuota,
           initialPromptsCount: initialPrompts.length,
         },
         null,
@@ -515,6 +559,16 @@ export const createPromptSession = async ({ systemContext, temperature }) => {
  * @yields {{ type: "data" | "usage", message: any }}
  */
 export async function* sendPromptMessage(session, userMessage) {
+  // Pre-validation: measure actual tokens for user message before streaming
+  // This allows calibration of estimates and early detection of issues
+  if (DEBUG_TOKENS) {
+    await measureAndCompare(
+      session,
+      userMessage,
+      "Chrome sendPromptMessage - userMessage",
+    );
+  }
+
   const stream = session.promptStreaming(userMessage);
   let content = "";
 
@@ -606,15 +660,28 @@ export async function* sendWriterMessage({ sharedContext, writingTask }) {
     });
 
     if (DEBUG_TOKENS) {
+      // Compare actual vs estimate for writingTask
+      const writingTaskEst = estimateTokens(writingTask);
+      const sharedContextEst = estimateTokens(fullSharedContext, true);
+
       // eslint-disable-next-line no-undef
       console.log(
         "DEBUG(TOKENS) Chrome sendWriterMessage:",
         JSON.stringify(
           {
-            inputTokens,
-            inputQuota: writer.inputQuota,
-            writingTaskLength: writingTask.length,
-            sharedContextLength: fullSharedContext.length,
+            actual: {
+              // NOTE: measureInputUsage only measures writingTask, NOT sharedContext
+              writingTaskTokens: inputTokens,
+            },
+            estimated: {
+              writingTaskTokens: writingTaskEst,
+              sharedContextTokens: sharedContextEst,
+            },
+            notMeasured: {
+              // Chrome Writer API doesn't expose sharedContext token count
+              sharedContextLength: fullSharedContext.length,
+            },
+            quota: writer.inputQuota,
           },
           null,
           2,

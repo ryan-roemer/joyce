@@ -132,10 +132,12 @@ export const buildContextFromChunks = async ({
   const maxContextTokens = forMultiTurn
     ? Math.floor(availableTokens * MULTI_TURN_CONTEXT_RATIO)
     : availableTokens;
-  let totalContextTokens = BASE_TOKEN_ESTIMATE + estimateTokens(query);
-
-  if (totalContextTokens > maxContextTokens) {
-    const msg = `Query is too long: ${query}`;
+  // TODO(ESTIMATE): These estimates determine how many chunks fit in context.
+  // For Chrome, could use measureInputUsage() for actual counts, but requires
+  // creating a session first. For now, estimates provide reasonable approximation.
+  let totalContextTokensEst = BASE_TOKEN_ESTIMATE + estimateTokens(query);
+  if (totalContextTokensEst > maxContextTokens) {
+    const msg = `Out of room for query (please try a new one): ${query}`;
     if (THROW_ON_TOKEN_LIMIT) {
       throw new Error(msg);
     }
@@ -156,9 +158,10 @@ export const buildContextFromChunks = async ({
     const chunkText = getChunk(post.content, chunk.start, chunk.end).join(
       "\n\n",
     );
+    // TODO(ESTIMATE): Per-chunk estimate affects which chunks are included.
     // Use markup factor since chunks will be wrapped in XML tags
     // (<CHUNK><URL>...</URL><TITLE>...</TITLE><CONTENT>...</CONTENT></CHUNK>)
-    const chunkTokens = estimateTokens(chunkText, true);
+    const chunkTokensEst = estimateTokens(chunkText, true);
 
     // Check if we've seen this post before
     const existingIndex = seenSlugs.get(chunk.slug);
@@ -169,22 +172,22 @@ export const buildContextFromChunks = async ({
         // Skip this chunk entirely
         continue;
       } else if (CHUNK_DEDUP_MODE === "combine") {
-        // Check if combining would exceed token limit
-        if (totalContextTokens + chunkTokens > maxContextTokens) {
+        // TODO(ESTIMATE): This estimate-based check determines context truncation
+        if (totalContextTokensEst + chunkTokensEst > maxContextTokens) {
           break;
         }
         // Append to existing entry with separator
         const entry = contextEntries[existingIndex];
         entry.content += CHUNK_COMBINE_SEPARATOR + chunkText;
-        totalContextTokens += chunkTokens;
+        totalContextTokensEst += chunkTokensEst;
         usedChunks.push(chunk);
         continue;
       }
       // "duplicate" mode falls through to add as new entry
     }
 
-    // Check if over max context
-    if (totalContextTokens + chunkTokens > maxContextTokens) {
+    // TODO(ESTIMATE): This estimate-based check determines context truncation
+    if (totalContextTokensEst + chunkTokensEst > maxContextTokens) {
       break;
     }
 
@@ -198,7 +201,7 @@ export const buildContextFromChunks = async ({
     seenSlugs.set(chunk.slug, entryIndex);
 
     // Accumulate tokens and track chunk
-    totalContextTokens += chunkTokens;
+    totalContextTokensEst += chunkTokensEst;
     usedChunks.push(chunk);
   }
 
@@ -212,19 +215,20 @@ export const buildContextFromChunks = async ({
 
   // Calculate granular token breakdown
   const queryTokens = estimateTokens(query);
-  const chunksTokens = totalContextTokens - BASE_TOKEN_ESTIMATE - queryTokens;
+  const chunksTokens =
+    totalContextTokensEst - BASE_TOKEN_ESTIMATE - queryTokens;
 
   return {
     context,
     usedChunks,
     chunkCount: usedChunks.length,
-    tokenEstimate: totalContextTokens,
+    tokenEstimate: totalContextTokensEst,
     // Granular token breakdown for UI display
     tokenBreakdown: {
       basePromptTokens: BASE_TOKEN_ESTIMATE,
       queryTokens,
       chunksTokens,
-      totalTokens: totalContextTokens,
+      totalTokens: totalContextTokensEst,
     },
   };
 };
@@ -318,7 +322,7 @@ export async function* chat({
     provider,
     model,
   });
-  const { context, tokenEstimate: totalContextTokens } = contextResult;
+  const { context, tokenEstimate: totalContextTokensEst } = contextResult;
 
   // For debug logging
   const modelCfg = getModelCfg({ provider, model });
@@ -327,18 +331,24 @@ export async function* chat({
   if (DEBUG_TOKENS) {
     // eslint-disable-next-line no-undef
     console.log(
-      "DEBUG(TOKENS) chat.js - estimated input tokens:",
+      "DEBUG(TOKENS) chat.js - context building (all values are estimates):",
       JSON.stringify(
         {
           provider,
           model,
-          baseTokens: BASE_TOKEN_ESTIMATE,
-          queryTokens: estimateTokens(query),
-          contextTokens:
-            totalContextTokens - BASE_TOKEN_ESTIMATE - estimateTokens(query),
-          totalContextTokens,
-          maxContextTokens,
-          headroom: maxContextTokens - totalContextTokens,
+          estimated: {
+            baseTokens: BASE_TOKEN_ESTIMATE,
+            queryTokens: estimateTokens(query),
+            contextTokens:
+              totalContextTokensEst -
+              BASE_TOKEN_ESTIMATE -
+              estimateTokens(query),
+            totalTokens: totalContextTokensEst,
+          },
+          limits: {
+            maxContextTokens,
+            headroom: maxContextTokens - totalContextTokensEst,
+          },
         },
         null,
         2,
@@ -439,7 +449,8 @@ export async function* chat({
     const inputDiscrepancy =
       reportedInputTokens > 0
         ? (
-            ((reportedInputTokens - totalContextTokens) / totalContextTokens) *
+            ((reportedInputTokens - totalContextTokensEst) /
+              totalContextTokensEst) *
             100
           ).toFixed(1)
         : "N/A";
@@ -451,7 +462,7 @@ export async function* chat({
           provider,
           model,
           estimated: {
-            inputTokens: totalContextTokens,
+            inputTokens: totalContextTokensEst,
           },
           reported: {
             inputTokens: reportedInputTokens,
