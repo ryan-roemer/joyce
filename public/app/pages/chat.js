@@ -505,6 +505,7 @@ export const Chat = () => {
             html`<${Answer}
               answer=${entry.answer}
               queryInfo=${entry.queryInfo}
+              onNewConversation=${handleReset}
             />`}
           </div>
         `,

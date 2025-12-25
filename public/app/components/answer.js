@@ -6,6 +6,7 @@ import { html } from "../util/html.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ALL_PROVIDERS, getModelCfg } from "../../config.js";
 import { formatInt, formatFloat, formatElapsed } from "../../shared-util.js";
+import { ContextLimitWarning } from "./context-limit-warning.js";
 
 /**
  * Prettify XML context string with proper indentation.
@@ -301,7 +302,7 @@ const AnswerContainer = ({
   </div>
 `;
 
-export const Answer = ({ answer, queryInfo }) => {
+export const Answer = ({ answer, queryInfo, onNewConversation }) => {
   const [isRaw, setIsRaw] = useState(false);
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
@@ -330,6 +331,10 @@ export const Answer = ({ answer, queryInfo }) => {
       <${AnswerContainer} ...${{ isDeveloperMode, isRaw, setIsRaw }}>
         ${answerSection}
       </${AnswerContainer}>
+      <${ContextLimitWarning}
+        finishReason=${queryInfo?.finishReason}
+        onNewConversation=${onNewConversation}
+      />
       ${isDeveloperMode && queryInfo && html`<${QueryInfo} ...${queryInfo} />`}
     </${Fragment}>
   `;

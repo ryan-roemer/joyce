@@ -34,6 +34,9 @@
   --color-success-bg: #e8f5e8;
   --color-success-text: #2d5a2d;
   --color-success-border: #d4e8d4;
+  --color-warning-bg: #fff8e6;
+  --color-warning-text: #8a6914;
+  --color-warning-border: #f0d77a;
   --color-primary: #007bff;
 
   /* Status Colors (for icons/indicators) */
@@ -382,6 +385,43 @@ table.pure-table-bordered tr:first-child th:last-child {
   background-color: var(--color-error-bg);
   color: var(--color-error-text-dark);
   border: 1px solid var(--color-error-border);
+}
+
+.alert-warning {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  border: 1px solid var(--color-warning-border);
+}
+
+.context-limit-warning-container {
+  margin-top: 1rem;
+}
+
+.context-limit-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.context-limit-warning-content {
+  display: flex;
+  gap: 0.75em;
+  align-items: flex-start;
+}
+
+.context-limit-warning-content > i {
+  font-size: 1.25em;
+  flex-shrink: 0;
+  margin-top: 0.1em;
+}
+
+.context-limit-warning-content p {
+  margin: 0.25em 0 0 0;
+  font-size: 0.9em;
+}
+
+.context-limit-warning button {
+  align-self: flex-start;
 }
 
 .alert-details {
