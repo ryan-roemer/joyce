@@ -336,6 +336,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
         provider,
         model,
         forMultiTurn: capabilities.supportsMultiTurn,
+        isFirstTurn: true, // Skip ratio on first turn to maximize initial context
       });
 
       currentSystemContext = contextResult.context;

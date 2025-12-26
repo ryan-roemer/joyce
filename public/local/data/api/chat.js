@@ -106,6 +106,7 @@ export const BASE_TOKEN_ESTIMATE = estimateTokens(
  * @param {string} options.model - Model ID
  * @param {number} [options.maxChunks] - Optional max number of chunks to include
  * @param {boolean} [options.forMultiTurn=false] - Use larger cushion for multi-turn
+ * @param {boolean} [options.isFirstTurn=false] - Skip ratio on first turn to maximize initial context
  * @returns {Promise<{context: string, usedChunks: Array, chunkCount: number, tokenEstimate: number, tokenBreakdown: {basePromptTokens: number, queryTokens: number, chunksTokens: number, totalTokens: number}}>}
  */
 export const buildContextFromChunks = async ({
@@ -115,6 +116,7 @@ export const buildContextFromChunks = async ({
   model,
   maxChunks,
   forMultiTurn = false,
+  isFirstTurn = false,
 }) => {
   const modelCfg = getModelCfg({ provider, model });
   const maxTokens = modelCfg.maxTokens;
@@ -123,15 +125,50 @@ export const buildContextFromChunks = async ({
     : TOKEN_CUSHION_CHAT;
 
   // For multi-turn, limit context to MULTI_TURN_CONTEXT_RATIO of available space
-  // leaving the remainder for conversation history growth across turns
+  // leaving the remainder for conversation history growth across turns.
+  // Exception: On first turn, skip the ratio to maximize initial RAG context quality.
   const availableTokens = maxTokens - cushion;
-  const maxContextTokens = forMultiTurn
+  const applyRatio = forMultiTurn && !isFirstTurn;
+  const maxContextTokens = applyRatio
     ? Math.floor(availableTokens * MULTI_TURN_CONTEXT_RATIO)
     : availableTokens;
   // TODO(ESTIMATE): These estimates determine how many chunks fit in context.
   // For Chrome, could use measureInputUsage() for actual counts, but requires
   // creating a session first. For now, estimates provide reasonable approximation.
-  let totalContextTokensEst = BASE_TOKEN_ESTIMATE + estimateTokens(query);
+  const queryTokens = estimateTokens(query);
+  let totalContextTokensEst = BASE_TOKEN_ESTIMATE + queryTokens;
+
+  if (DEBUG_TOKENS) {
+    const tokensForChunks = maxContextTokens - totalContextTokensEst;
+    // eslint-disable-next-line no-undef
+    console.log(
+      "DEBUG(TOKENS) buildContextFromChunks - BUDGET BREAKDOWN:",
+      JSON.stringify(
+        {
+          model,
+          forMultiTurn,
+          isFirstTurn,
+          applyRatio,
+          maxTokens,
+          cushion,
+          availableTokens,
+          multiTurnRatio: applyRatio
+            ? MULTI_TURN_CONTEXT_RATIO
+            : "N/A (skipped)",
+          maxContextTokens,
+          basePromptTokens: BASE_TOKEN_ESTIMATE,
+          queryTokens,
+          startingTotal: totalContextTokensEst,
+          tokensForChunks,
+          chunksAvailable: chunks.length,
+          maxChunksParam: maxChunks ?? "unlimited",
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
   if (totalContextTokensEst > maxContextTokens) {
     const msg = `Out of room for query (please try a new one): ${query}`;
     if (THROW_ON_TOKEN_LIMIT) {
@@ -184,6 +221,20 @@ export const buildContextFromChunks = async ({
 
     // TODO(ESTIMATE): This estimate-based check determines context truncation
     if (totalContextTokensEst + chunkTokensEst > maxContextTokens) {
+      if (DEBUG_TOKENS) {
+        // eslint-disable-next-line no-undef
+        console.log(
+          `DEBUG(TOKENS) CHUNK EXCLUDED (budget exceeded):`,
+          JSON.stringify({
+            chunkIndex: usedChunks.length,
+            slug: chunk.slug,
+            chunkTokensEst,
+            wouldBe: totalContextTokensEst + chunkTokensEst,
+            maxContextTokens,
+            over: totalContextTokensEst + chunkTokensEst - maxContextTokens,
+          }),
+        );
+      }
       break;
     }
 
@@ -199,6 +250,38 @@ export const buildContextFromChunks = async ({
     // Accumulate tokens and track chunk
     totalContextTokensEst += chunkTokensEst;
     usedChunks.push(chunk);
+
+    if (DEBUG_TOKENS) {
+      // eslint-disable-next-line no-undef
+      console.log(
+        `DEBUG(TOKENS) CHUNK INCLUDED #${usedChunks.length}:`,
+        JSON.stringify({
+          slug: chunk.slug.slice(0, 40) + (chunk.slug.length > 40 ? "..." : ""),
+          chunkTokensEst,
+          runningTotal: totalContextTokensEst,
+          remaining: maxContextTokens - totalContextTokensEst,
+        }),
+      );
+    }
+  }
+
+  if (DEBUG_TOKENS) {
+    // eslint-disable-next-line no-undef
+    console.log(
+      "DEBUG(TOKENS) buildContextFromChunks - FINAL SUMMARY:",
+      JSON.stringify(
+        {
+          chunksIncluded: usedChunks.length,
+          chunksAvailable: chunks.length,
+          totalContextTokensEst,
+          maxContextTokens,
+          utilization: `${((totalContextTokensEst / maxContextTokens) * 100).toFixed(1)}%`,
+          headroom: maxContextTokens - totalContextTokensEst,
+        },
+        null,
+        2,
+      ),
+    );
   }
 
   // Build final context string from entries
@@ -210,7 +293,6 @@ export const buildContextFromChunks = async ({
     .join("");
 
   // Calculate granular token breakdown
-  const queryTokens = estimateTokens(query);
   const chunksTokens =
     totalContextTokensEst - BASE_TOKEN_ESTIMATE - queryTokens;
 
@@ -255,6 +337,7 @@ export const rebuildContextWithLimit = async ({
     model,
     maxChunks: effectiveMax,
     forMultiTurn: true,
+    isFirstTurn: false, // Context reduction happens after first turn
   });
 };
 
