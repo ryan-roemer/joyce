@@ -1335,7 +1335,7 @@ button.loading-status-icon-button {
 }
 
 /* Models Filter Component */
-.form-filter-label {
+.pure-form .form-filter-label {
   display: flex;
   flex-direction: column;
   gap: 4px;
