@@ -149,17 +149,21 @@ const config = {
           model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
           modelShortName: "TinyLlama-1.1B",
           shortOption: "Fast",
-          default: !CHROME_ANY_API_POSSIBLE,
         },
         {
           model: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
           modelShortName: "SmolLM2-1.7B",
-          shortOption: "Better",
         },
         {
           model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
           modelShortName: "Llama-3.2-1B",
+          shortOption: "Better",
+        },
+        {
+          model: "Qwen3-0.6B-q4f32_1-MLC",
+          modelShortName: "Qwen3-0.6B",
           shortOption: "Best",
+          default: !CHROME_ANY_API_POSSIBLE,
         },
       ],
     },
