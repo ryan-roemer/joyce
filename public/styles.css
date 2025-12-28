@@ -393,65 +393,34 @@ table.pure-table-bordered tr:first-child th:last-child {
   border: 1px solid var(--color-warning-border);
 }
 
-.context-limit-warning-container {
+.context-message-container {
   margin-top: 1rem;
 }
 
-.context-limit-warning {
+.context-message {
   display: flex;
   flex-direction: column;
   gap: 0.75em;
 }
 
-.context-limit-warning-content {
+.context-message-content {
   display: flex;
   gap: 0.75em;
   align-items: flex-start;
 }
 
-.context-limit-warning-content > i {
+.context-message-content > i {
   font-size: 1.25em;
   flex-shrink: 0;
   margin-top: 0.1em;
 }
 
-.context-limit-warning-content p {
+.context-message-content p {
   margin: 0.25em 0 0 0;
   font-size: 0.9em;
 }
 
-.context-limit-warning button {
-  align-self: flex-start;
-}
-
-.context-exceeded-error-container {
-  margin-top: 1rem;
-}
-
-.context-exceeded-error {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75em;
-}
-
-.context-exceeded-error-content {
-  display: flex;
-  gap: 0.75em;
-  align-items: flex-start;
-}
-
-.context-exceeded-error-content > i {
-  font-size: 1.25em;
-  flex-shrink: 0;
-  margin-top: 0.1em;
-}
-
-.context-exceeded-error-content p {
-  margin: 0.25em 0 0 0;
-  font-size: 0.9em;
-}
-
-.context-exceeded-error button {
+.context-message button {
   align-self: flex-start;
 }
 

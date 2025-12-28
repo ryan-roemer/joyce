@@ -5,7 +5,7 @@ import { html, openTextInNewWindow } from "../util/html.js";
 import { useSettings } from "../hooks/use-settings.js";
 import { ALL_PROVIDERS, getModelCfg } from "../../config.js";
 import { formatInt, formatFloat, formatElapsed } from "../../shared-util.js";
-import { ContextLimitWarning } from "./context-limit-warning.js";
+import { ContextLimitWarning } from "./context-messages.js";
 
 /**
  * Prettify XML context string with proper indentation.

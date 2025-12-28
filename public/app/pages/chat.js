@@ -26,7 +26,7 @@ import { Alert } from "../components/alert.js";
 import {
   ContextExceededError,
   isContextExceededError,
-} from "../components/context-exceeded-error.js";
+} from "../components/context-messages.js";
 import { SuggestedQueries } from "../components/suggested-queries.js";
 import { LoadingBubble } from "../components/loading-bubble.js";
 import { QueryDisplay } from "../components/query-display.js";
