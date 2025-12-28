@@ -130,84 +130,55 @@ const Submit = ({ submitName = "Submit", isFetching }) => html`
   </button>
 `;
 
-// TODO(CONVO): Check if provider supports conversations
-// Some providers/models may not support multi-turn context.
-// Need to check per-provider and per-model capabilities from config.
-// When unsupported, hide "Ask More" even if FEATURES.chat.conversations is true.
+/** Submit button with arrow-up icon. */
+const AskButton = ({ isFetching, title = "Ask" }) => html`
+  <button
+    type="submit"
+    title=${title}
+    className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
+      ? "pure-button-disabled"
+      : ""}"
+  >
+    <i className="iconoir-arrow-up"></i>
+  </button>
+`;
 
-/**
- * Chat submit button with optional reset button for conversations.
- * - Before first completion: shows "Ask" icon button
- * - After first completion (conversations enabled): shows [Ask More] [Reset] button group
- * - After first completion (conversations disabled): shows "Ask" icon only (each query is independent)
- *
- * @param {boolean} conversationsEnabled - Whether conversation mode is active (passed from parent
- *   to account for model capabilities and model changes, not just the feature flag)
- */
+/** Reset button to clear conversation and start fresh. */
+const ResetButton = ({ isFetching, onReset }) => {
+  const handleReset = (e) => {
+    e.preventDefault();
+    onReset();
+  };
+  return html`
+    <button
+      type="button"
+      title="Clear conversation and start fresh"
+      className="pure-button chat-submit-icon-btn ${isFetching
+        ? "pure-button-disabled"
+        : ""}"
+      onClick=${handleReset}
+      disabled=${isFetching}
+    >
+      <i className="iconoir-refresh-double"></i>
+    </button>
+  `;
+};
+
 export const ChatSubmitButton = ({
   isFetching,
   hasCompletions = false,
   conversationsEnabled = false,
   onReset,
 }) => {
-  // Before first completion - simple Ask icon button
-  if (!hasCompletions) {
-    return html`
-      <button
-        type="submit"
-        title="Ask"
-        className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
-          ? "pure-button-disabled"
-          : ""}"
-      >
-        <i className="iconoir-arrow-up"></i>
-      </button>
-    `;
+  const showButtonGroup = hasCompletions && conversationsEnabled;
+  if (!showButtonGroup) {
+    return html`<${AskButton} isFetching=${isFetching} />`;
   }
-
-  // After first completion, conversations disabled - simple Ask icon button (each query is independent)
-  if (!conversationsEnabled) {
-    return html`
-      <button
-        type="submit"
-        title="Ask"
-        className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
-          ? "pure-button-disabled"
-          : ""}"
-      >
-        <i className="iconoir-arrow-up"></i>
-      </button>
-    `;
-  }
-
-  // After first completion, conversations enabled - [Ask More] [Reset] button group
-  const handleReset = (e) => {
-    e.preventDefault();
-    onReset();
-  };
 
   return html`
     <div className="pure-button-group" role="group">
-      <button
-        type="submit"
-        title="Continue conversation"
-        className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
-          ? "pure-button-disabled"
-          : ""}"
-      >
-        <i className="iconoir-arrow-up"></i>
-      </button>
-      <button
-        type="button"
-        title="Clear conversation and start fresh"
-        className="pure-button chat-submit-icon-btn ${isFetching
-          ? "pure-button-disabled"
-          : ""}"
-        onClick=${handleReset}
-        disabled=${isFetching}
-      >
-        <i className="iconoir-refresh-double"></i>
-      </button>
+      <${AskButton} isFetching=${isFetching} title="Continue conversation" />
+      <${ResetButton} isFetching=${isFetching} onReset=${onReset} />
     </div>
   `;
 };
