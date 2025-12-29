@@ -219,32 +219,82 @@ export const Chat = () => {
     }
   };
 
-  // Update the last conversation entry with the answer
-  const updateLastEntry = (updates) => {
+  // Transform the last conversation entry using a callback
+  const modifyLastEntry = (transformFn) => {
     setConversation((prev) => {
       const updated = [...prev];
       const lastIdx = updated.length - 1;
       if (lastIdx >= 0) {
-        updated[lastIdx] = { ...updated[lastIdx], ...updates };
+        updated[lastIdx] = transformFn(updated[lastIdx]);
       }
       return updated;
     });
   };
 
+  // Update the last conversation entry with merged properties
+  const updateLastEntry = (updates) =>
+    modifyLastEntry((entry) => ({ ...entry, ...updates }));
+
   // Append text to the last conversation entry's answer (for streaming)
-  const appendToLastAnswer = (text) => {
-    setConversation((prev) => {
-      const updated = [...prev];
-      const lastIdx = updated.length - 1;
-      if (lastIdx >= 0) {
-        updated[lastIdx] = {
-          ...updated[lastIdx],
-          answer: (updated[lastIdx].answer ?? "") + text,
-        };
-      }
-      return updated;
-    });
+  const appendToLastAnswer = (text) =>
+    modifyLastEntry((entry) => ({
+      ...entry,
+      answer: (entry.answer ?? "") + text,
+    }));
+
+  // Build queryInfo object for a conversation entry
+  const buildQueryInfo = ({
+    usage,
+    finishReason,
+    searchMetadata = null,
+    chunks = null,
+  }) => ({
+    usage: usage
+      ? {
+          input: { tokens: usage.inputTokens, cachedTokens: 0 },
+          output: { tokens: usage.outputTokens, reasoningTokens: 0 },
+          totalTokens: usage.totalTokens,
+          available: usage.available,
+          limit: usage.limit,
+        }
+      : null,
+    elapsed: usage?.elapsed ?? searchMetadata?.elapsed,
+    turnNumber: usage?.turnNumber ?? (searchMetadata ? 1 : null),
+    internal: searchMetadata?.internal ?? null,
+    model: modelObj.model,
+    provider: modelObj.provider,
+    finishReason,
+    chunks: chunks
+      ? {
+          numChunks: chunks.length,
+          similarityMin: searchMetadata?.chunks?.similarity?.min,
+          similarityMax: searchMetadata?.chunks?.similarity?.max,
+          similarityAvg: searchMetadata?.chunks?.similarity?.avg,
+        }
+      : null,
+    context: usage?.contextTokens ?? null,
+    prompt: usage?.prompt ?? null,
+    rawContext: usage?.context ?? null,
+  });
+
+  // Handle chat errors consistently
+  const handleChatError = (respErr) => {
+    console.error(respErr); // eslint-disable-line no-undef
+    if (isContextExceededError(respErr)) {
+      setContextExceededErr(respErr);
+    } else {
+      setErr(respErr);
+    }
+    updateLastEntry({ isLoading: false });
   };
+
+  // Create a new loading conversation entry
+  const createLoadingEntry = (query) => ({
+    query,
+    answer: null,
+    queryInfo: null,
+    isLoading: true,
+  });
 
   // Execute the actual chat query (first question in conversation)
   // Uses chat session facade for RAG search + context + session creation
@@ -253,9 +303,7 @@ export const Chat = () => {
 
     // Reset for new conversation and add the first entry
     resetForNewConversation();
-    setConversation([
-      { query, answer: null, queryInfo: null, isLoading: true },
-    ]);
+    setConversation([createLoadingEntry(query)]);
     setIsFetching(true);
 
     try {
@@ -300,43 +348,15 @@ export const Chat = () => {
 
       // Finalize the conversation entry with queryInfo
       const chunks = chatSessionRef.current.getSearchData()?.chunks ?? [];
-      const entryQueryInfo = {
-        usage: usage
-          ? {
-              input: { tokens: usage.inputTokens, cachedTokens: 0 },
-              output: { tokens: usage.outputTokens, reasoningTokens: 0 },
-              totalTokens: usage.totalTokens,
-              available: usage.available,
-              limit: usage.limit,
-            }
-          : null,
-        elapsed: usage?.elapsed ?? searchMetadata?.elapsed,
-        turnNumber: usage?.turnNumber ?? 1,
-        internal: searchMetadata?.internal,
-        model: modelObj.model,
-        provider: modelObj.provider,
+      const queryInfo = buildQueryInfo({
+        usage,
         finishReason,
-        chunks: {
-          numChunks: chunks.length,
-          similarityMin: searchMetadata?.chunks?.similarity?.min,
-          similarityMax: searchMetadata?.chunks?.similarity?.max,
-          similarityAvg: searchMetadata?.chunks?.similarity?.avg,
-        },
-        // Context info from usage event (recalculated per-turn with query tokens)
-        context: usage?.contextTokens ?? null,
-        // Full prompt and context for developer inspection
-        prompt: usage?.prompt ?? null,
-        rawContext: usage?.context ?? null,
-      };
-      updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
+        searchMetadata,
+        chunks,
+      });
+      updateLastEntry({ queryInfo, isLoading: false });
     } catch (respErr) {
-      console.error(respErr); // eslint-disable-line no-undef
-      if (isContextExceededError(respErr)) {
-        setContextExceededErr(respErr);
-      } else {
-        setErr(respErr);
-      }
-      updateLastEntry({ isLoading: false });
+      handleChatError(respErr);
       return;
     } finally {
       setIsFetching(false);
@@ -350,10 +370,7 @@ export const Chat = () => {
     setErr(null);
 
     // Add new entry (loading state)
-    setConversation((prev) => [
-      ...prev,
-      { query, answer: null, queryInfo: null, isLoading: true },
-    ]);
+    setConversation((prev) => [...prev, createLoadingEntry(query)]);
 
     try {
       if (!chatSessionRef.current) {
@@ -378,38 +395,10 @@ export const Chat = () => {
       }
 
       // Finalize entry with queryInfo
-      const entryQueryInfo = {
-        usage: usage
-          ? {
-              input: { tokens: usage.inputTokens, cachedTokens: 0 },
-              output: { tokens: usage.outputTokens, reasoningTokens: 0 },
-              totalTokens: usage.totalTokens,
-              available: usage.available,
-              limit: usage.limit,
-            }
-          : null,
-        elapsed: usage?.elapsed,
-        turnNumber: usage?.turnNumber ?? null,
-        internal: null,
-        model: modelObj.model,
-        provider: modelObj.provider,
-        finishReason,
-        chunks: null,
-        // Context info from usage event (recalculated per-turn with query tokens)
-        context: usage?.contextTokens ?? null,
-        // Full prompt and context for developer inspection
-        prompt: usage?.prompt ?? null,
-        rawContext: usage?.context ?? null,
-      };
-      updateLastEntry({ queryInfo: entryQueryInfo, isLoading: false });
+      const queryInfo = buildQueryInfo({ usage, finishReason });
+      updateLastEntry({ queryInfo, isLoading: false });
     } catch (respErr) {
-      console.error(respErr); // eslint-disable-line no-undef
-      if (isContextExceededError(respErr)) {
-        setContextExceededErr(respErr);
-      } else {
-        setErr(respErr);
-      }
-      updateLastEntry({ isLoading: false });
+      handleChatError(respErr);
     } finally {
       setIsFetching(false);
     }
