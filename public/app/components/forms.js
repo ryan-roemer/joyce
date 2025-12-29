@@ -775,35 +775,6 @@ export const Form = ({
   </form>
 `;
 
-/**
- * Chat-specific form that uses ChatSubmitButton for conversation support.
- */
-const ChatForm = ({
-  onSubmit,
-  onReset,
-  isFetching,
-  hasCompletions = false,
-  conversationsEnabled = false,
-  children,
-}) => {
-  const onFormSubmit = (e) => {
-    e.preventDefault();
-    onSubmit();
-  };
-
-  return html`
-    <form className="pure-form" onSubmit=${onFormSubmit}>
-      ${children}
-      <${ChatSubmitButton}
-        isFetching=${isFetching}
-        hasCompletions=${hasCompletions}
-        conversationsEnabled=${conversationsEnabled}
-        onReset=${onReset}
-      />
-    </form>
-  `;
-};
-
 export const ChatInputForm = ({
   onSubmit,
   onReset,
@@ -814,19 +785,24 @@ export const ChatInputForm = ({
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  const onFormSubmit = (e) => {
+    e.preventDefault();
+    onSubmit();
+  };
+
   return html`
     <${ChatFormProvider} onDropdownToggle=${setIsDropdownOpen}>
       <div className="chat-input-container">
         <div className="chat-input-container-inner">
-          <${ChatForm}
-            onSubmit=${onSubmit}
-            onReset=${onReset}
-            isFetching=${isFetching}
-            hasCompletions=${hasCompletions}
-            conversationsEnabled=${conversationsEnabled}
-          >
+          <form className="pure-form" onSubmit=${onFormSubmit}>
             ${children}
-          </${ChatForm}>
+            <${ChatSubmitButton}
+              isFetching=${isFetching}
+              hasCompletions=${hasCompletions}
+              conversationsEnabled=${conversationsEnabled}
+              onReset=${onReset}
+            />
+          </form>
           <div className=${isDropdownOpen ? "chat-input-overlay-mask" : ""}></div>
         </div>
       </div>
