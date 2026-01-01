@@ -1,7 +1,5 @@
 // web-llm provider implementation
-// Check if model is cached using web-llm's built-in utility
-// Internally uses browser Cache API or IndexedDB depending on config
-// See: https://deepwiki.com/mlc-ai/web-llm/5.4-caching-and-performance
+// Unified handler interface for chat sessions
 import { CreateMLCEngine, hasModelInCache } from "@mlc-ai/web-llm";
 import { DEFAULT_CHAT_MODEL } from "../../../../config.js";
 
@@ -11,7 +9,7 @@ const DEFAULT_MODEL = DEFAULT_CHAT_MODEL.model;
 const engines = new Map();
 
 /**
- * Set a progress callback for a specific model
+ * Set a progress callback for a specific model.
  * @param {string} model - The model ID
  * @param {Function} cb - Progress callback function
  */
@@ -23,7 +21,7 @@ export const setLlmProgressCallback = (model, cb) => {
 };
 
 /**
- * Get or create an LLM engine for a specific model
+ * Get or create an LLM engine for a specific model.
  * @param {string} model - The model ID
  * @returns {Promise<MLCEngine>} The engine instance
  */
@@ -36,9 +34,7 @@ export const getLlmEngine = async (model = DEFAULT_MODEL) => {
   if (!entry.enginePromise) {
     entry.enginePromise = CreateMLCEngine(model, {
       initProgressCallback: (progress) => {
-        if (entry.progressCallback) {
-          entry.progressCallback(progress);
-        }
+        entry.progressCallback?.(progress);
       },
     });
   }
@@ -46,39 +42,31 @@ export const getLlmEngine = async (model = DEFAULT_MODEL) => {
 };
 
 /**
- * Check if a model is cached
+ * Check if a model is cached.
  * @param {string} model - The model ID
  * @returns {Promise<boolean>} Whether the model is cached
  */
-export const isLlmCached = async (model = DEFAULT_MODEL) => {
-  return hasModelInCache(model);
-};
+export const isLlmCached = async (model = DEFAULT_MODEL) =>
+  hasModelInCache(model);
 
 /**
  * Get capabilities for a web-llm model.
- * @param {string} model - The model ID (unused, all web-llm models have same capabilities)
  * @returns {{ supportsMultiTurn: boolean, supportsTokenTracking: boolean }}
  */
-// eslint-disable-next-line no-unused-vars
-export const getCapabilities = (model) => ({
-  supportsMultiTurn: true, // Web-LLM multi-turn via stateless message history
-  supportsTokenTracking: true, // usage object in response
+export const getCapabilities = () => ({
+  supportsMultiTurn: true,
+  supportsTokenTracking: true,
 });
-
-// ============================================================================
-// Unified Provider Interface
-// ============================================================================
 
 /**
  * Create a conversation handler for web-llm.
- * Web-LLM is stateless - history must be passed to sendMessage().
- * Manages token aggregation and yields normalized cumulative usage.
+ * Yields unified events: { type: "data", content } and { type: "done", finishReason, usage }
  *
  * @param {Object} options
  * @param {string} options.model - Model ID
  * @param {number} options.temperature - Sampling temperature
  * @param {number} options.maxOutputTokens - Max tokens for response
- * @returns {Promise<Object>} Handler with sendMessage and destroy
+ * @returns {Promise<Object>} Handler with sendMessage(messages) and destroy()
  */
 export const createHandler = async ({
   model,
@@ -87,16 +75,11 @@ export const createHandler = async ({
 }) => {
   const engine = await getLlmEngine(model);
 
-  // Token tracking: web-llm gives per-call usage, we aggregate
-  let aggregatePromptTokens = 0;
-  let aggregateCompletionTokens = 0;
-
   return {
     /**
-     * Send a message and stream response.
-     * Yields normalized cumulative usage for consistent interface.
+     * Send messages and stream response.
      * @param {Array<{role: string, content: string}>} messages - Full messages array
-     * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
+     * @yields {{ type: "data", content: string } | { type: "done", finishReason: string, usage: Object }}
      */
     async *sendMessage(messages) {
       const stream = await engine.chat.completions.create({
@@ -108,47 +91,32 @@ export const createHandler = async ({
       });
 
       let assistantContent = "";
+      let finishReason = null;
       let usage = null;
 
       for await (const chunk of stream) {
-        if (chunk.choices[0]?.delta?.content) {
-          const delta = chunk.choices[0].delta.content;
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) {
           assistantContent += delta;
-          yield { type: "data", message: delta };
+          yield { type: "data", content: delta };
         }
-        const finishReason = chunk.choices[0]?.finish_reason;
-        if (finishReason) {
-          yield { type: "finishReason", message: finishReason };
+        if (chunk.choices[0]?.finish_reason) {
+          finishReason = chunk.choices[0].finish_reason;
         }
         if (chunk.usage) {
           usage = chunk.usage;
         }
       }
 
-      // Yield normalized cumulative usage
-      if (usage) {
-        const inputTokens = usage.prompt_tokens ?? 0;
-        const outputTokens = usage.completion_tokens ?? 0;
-
-        // Aggregate across turns
-        aggregatePromptTokens += inputTokens;
-        aggregateCompletionTokens += outputTokens;
-
-        yield {
-          type: "usage",
-          message: {
-            // Per-turn tokens
-            inputTokens,
-            outputTokens,
-            // Cumulative tokens (normalized interface)
-            totalInputTokens: aggregatePromptTokens,
-            totalOutputTokens: aggregateCompletionTokens,
-            totalTokens: aggregatePromptTokens + aggregateCompletionTokens,
-            // For caller's history update
-            assistantContent,
-          },
-        };
-      }
+      yield {
+        type: "done",
+        finishReason: finishReason || "stop",
+        usage: {
+          inputTokens: usage?.prompt_tokens ?? 0,
+          outputTokens: usage?.completion_tokens ?? 0,
+          assistantContent,
+        },
+      };
     },
 
     destroy() {

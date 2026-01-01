@@ -125,3 +125,12 @@ export const estimateTokens = (content = "", hasMarkup = false) => {
   const base = Math.ceil(content.split(/[\s\n]+/).length / TOKENS_PER_WORD);
   return hasMarkup ? Math.ceil(base * XML_MARKUP_FACTOR) : base;
 };
+
+/**
+ * Estimate output token count from generated content.
+ * Uses character-based heuristic (~4 chars per token).
+ * @param {string} content - The generated content
+ * @returns {number} Estimated token count
+ */
+export const estimateOutputTokens = (content = "") =>
+  Math.ceil(content.length / 4);

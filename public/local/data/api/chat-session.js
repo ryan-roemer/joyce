@@ -1,31 +1,24 @@
 // Chat Session - Unified API for RAG-based conversations
 // Encapsulates: search → context building → provider dispatch → messaging
-// Merged from former chat-session.js (facade) and conversation-session.js
 
 import { search } from "./search.js";
 import {
   buildContextFromChunks,
   rebuildContextWithLimit,
-  buildBasePrompts,
   BASE_TOKEN_ESTIMATE,
 } from "./chat.js";
 import { getProviderCapabilities } from "./llm.js";
 import { searchResultsToPosts } from "../../../app/data/util.js";
 import { estimateTokens } from "../util.js";
-import {
-  createPromptHandler,
-  createWriterHandler,
-} from "./providers/chrome.js";
+import { createHandler as createChromeHandler } from "./providers/chrome.js";
 import { createHandler as createWebLlmHandler } from "./providers/web-llm.js";
+import { buildBasePrompts } from "./chat.js";
 import {
   getModelCfg,
   MIN_CONTEXT_CHUNKS,
   THROW_ON_TOKEN_LIMIT,
   MAX_OUTPUT_TOKENS,
 } from "../../../config.js";
-
-// Set to true to enable detailed token debugging in console
-const DEBUG_TOKENS = false;
 
 // Minimum tokens needed for a meaningful exchange (question + response)
 const MIN_TOKENS_FOR_EXCHANGE = 500;
@@ -43,13 +36,6 @@ const MIN_TOKENS_FOR_EXCHANGE = 500;
 
 /**
  * Create a chat session for RAG-based conversations.
- *
- * This unified abstraction handles the entire conversation lifecycle:
- * 1. RAG search to find relevant content
- * 2. Context building from search chunks
- * 3. Provider-specific session management
- * 4. Message streaming with token tracking
- * 5. Multi-turn conversation support (where provider allows)
  *
  * @param {Object} options
  * @param {string} options.provider - LLM provider ("webLlm" | "chrome")
@@ -69,23 +55,21 @@ export const createChatSession = ({ provider, model, temperature }) => {
 
   // Conversation state
   const history = []; // { role, content }[]
-  let tokensUsed = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
 
-  // Context state (for multi-turn context reduction)
+  // Context state
   let currentSystemContext = "";
   let currentChunkCount = 0;
   let currentTokenBreakdown = null;
   let rawChunks = [];
   let initialQuery = "";
 
-  // Provider handler (created after context is built, manages its own token state)
+  // Provider handler
   let handler = null;
 
   /**
    * Build contextTokens object for usage events.
-   * Recalculates query tokens for the current turn's message.
-   * @param {string} userMessage - The current turn's user message
-   * @returns {Object|null} contextTokens object or null if breakdown unavailable
    */
   const buildContextTokens = (userMessage) => {
     if (!currentTokenBreakdown) return null;
@@ -102,41 +86,33 @@ export const createChatSession = ({ provider, model, temperature }) => {
 
   /**
    * Get current token usage.
-   * @returns {{ used: number, available: number, limit: number }}
    */
   const getTokenUsage = () => {
-    const available = Math.max(0, maxTokens - tokensUsed);
-    return { used: tokensUsed, available, limit: maxTokens };
+    const used = totalInputTokens + totalOutputTokens;
+    const available = Math.max(0, maxTokens - used);
+    return { used, available, limit: maxTokens };
   };
 
   /**
    * Check if we can continue before sending a message.
-   * @returns {boolean}
    */
   const checkCanContinue = () => {
-    // Single-turn providers can't continue after first message
     if (!capabilities.supportsMultiTurn && history.length > 0) {
       return false;
     }
-    // Check if we have enough tokens for another exchange
     const { available } = getTokenUsage();
     return available > MIN_TOKENS_FOR_EXCHANGE;
   };
 
   /**
    * Create the appropriate handler for the current provider.
-   * Called after context is built (in start()).
-   * @returns {Promise<Object>} Handler with sendMessage and destroy
    */
   const createHandler = async () => {
-    if (provider === "chrome" && capabilities.supportsMultiTurn) {
-      return createPromptHandler({
+    if (provider === "chrome") {
+      return createChromeHandler({
+        model,
         systemContext: currentSystemContext,
         temperature,
-      });
-    } else if (provider === "chrome") {
-      return createWriterHandler({
-        systemContext: currentSystemContext,
       });
     } else if (provider === "webLlm") {
       return createWebLlmHandler({
@@ -150,9 +126,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
   };
 
   /**
-   * Build messages array for the current turn.
-   * @param {string} userMessage - The user's message
-   * @returns {Array<{role: string, content: string}>}
+   * Build messages array for web-llm (stateless, needs full history).
    */
   const buildMessages = (userMessage) => [
     ...buildBasePrompts(currentSystemContext),
@@ -161,38 +135,10 @@ export const createChatSession = ({ provider, model, temperature }) => {
   ];
 
   /**
-   * Enrich normalized usage with context info.
-   * Handlers yield normalized cumulative usage; we add context-specific fields.
-   * @param {Object} normalizedUsage - Normalized usage from handler
-   * @param {string} userMessage - The user's message
-   * @param {Array} promptMessages - Messages sent to provider
-   * @returns {Object} Enriched usage message
+   * Stream a message through the provider and yield enriched events.
+   * Single enrichment point for all usage data.
    */
-  const enrichUsage = (normalizedUsage, userMessage, promptMessages) => {
-    // Extract assistantContent (used for history, not needed in final usage)
-    // eslint-disable-next-line no-unused-vars
-    const { assistantContent, ...usage } = normalizedUsage;
-
-    // Update session's token tracking
-    tokensUsed = usage.totalTokens;
-
-    return {
-      ...usage,
-      available: getTokenUsage().available,
-      limit: maxTokens,
-      turnNumber: Math.floor(history.length / 2) + 1,
-      contextTokens: buildContextTokens(userMessage),
-      prompt: promptMessages,
-      context: currentSystemContext,
-    };
-  };
-
-  /**
-   * Dispatch message to provider handler and enrich events.
-   * @param {string} userMessage - The user's message
-   * @yields {{ type: "data" | "finishReason" | "usage", message: any }}
-   */
-  async function* dispatchMessage(userMessage) {
+  async function* streamMessage(userMessage, startTime) {
     // Writer API check for follow-up
     if (
       provider === "chrome" &&
@@ -210,39 +156,67 @@ export const createChatSession = ({ provider, model, temperature }) => {
       handler = await createHandler();
     }
 
-    // Build messages for this turn
-    const messages = buildMessages(userMessage);
-
     // For web-llm, pass full messages; for Chrome, just user message
-    const handlerInput = provider === "webLlm" ? messages : userMessage;
+    const input =
+      provider === "webLlm" ? buildMessages(userMessage) : userMessage;
 
-    let assistantContent = "";
+    let firstTokenTime = null;
 
-    for await (const event of handler.sendMessage(handlerInput)) {
+    for await (const event of handler.sendMessage(input)) {
       if (event.type === "data") {
-        yield event;
-      } else if (event.type === "finishReason") {
-        yield event;
-      } else if (event.type === "usage") {
-        // Extract assistant content from usage event
-        assistantContent = event.message.assistantContent || "";
-        // Enrich and yield
+        if (firstTokenTime === null) {
+          firstTokenTime = Date.now() - startTime;
+        }
+        yield { type: "data", message: event.content };
+      } else if (event.type === "done") {
+        // Update cumulative token tracking
+        totalInputTokens += event.usage.inputTokens;
+        totalOutputTokens += event.usage.outputTokens;
+
+        // Add to history
+        history.push({ role: "user", content: userMessage });
+        history.push({
+          role: "assistant",
+          content: event.usage.assistantContent,
+        });
+
+        // Yield finishReason
+        yield { type: "finishReason", message: event.finishReason };
+
+        // Yield enriched usage (single enrichment point)
         yield {
           type: "usage",
-          message: enrichUsage(event.message, userMessage, messages),
+          message: {
+            // Per-turn tokens
+            inputTokens: event.usage.inputTokens,
+            outputTokens: event.usage.outputTokens,
+            // Cumulative tokens
+            totalInputTokens,
+            totalOutputTokens,
+            totalTokens: totalInputTokens + totalOutputTokens,
+            // Context info
+            available: getTokenUsage().available,
+            limit: maxTokens,
+            turnNumber: Math.floor(history.length / 2),
+            contextTokens: buildContextTokens(userMessage),
+            // Debug info
+            prompt: buildMessages(userMessage),
+            context: currentSystemContext,
+            // Provider-specific extras
+            inputQuota: event.usage.inputQuota,
+            // Timing
+            elapsed: {
+              tokensFirst: firstTokenTime,
+              tokensLast: Date.now() - startTime,
+            },
+          },
         };
       }
     }
-
-    // Add to history AFTER streaming completes successfully.
-    // If streaming throws, history remains unchanged (intentional).
-    history.push({ role: "user", content: userMessage });
-    history.push({ role: "assistant", content: assistantContent });
   }
 
   /**
    * Reduce context by rebuilding with fewer chunks.
-   * @returns {Promise<boolean>} Whether reduction was successful
    */
   const reduceContext = async () => {
     if (!rawChunks?.length || currentChunkCount <= MIN_CONTEXT_CHUNKS) {
@@ -253,14 +227,6 @@ export const createChatSession = ({ provider, model, temperature }) => {
       Math.floor(currentChunkCount / 2),
       MIN_CONTEXT_CHUNKS,
     );
-
-    if (DEBUG_TOKENS) {
-      // eslint-disable-next-line no-undef
-      console.log(
-        "DEBUG(TOKENS) reduceContext:",
-        JSON.stringify({ currentChunkCount, targetChunks }, null, 2),
-      );
-    }
 
     try {
       const result = await rebuildContextWithLimit({
@@ -276,8 +242,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
       currentTokenBreakdown = result.tokenBreakdown;
       return true;
     } catch (err) {
-      // eslint-disable-next-line no-undef
-      console.warn("Failed to reduce context:", err);
+      console.warn("Failed to reduce context:", err); // eslint-disable-line no-undef
       return false;
     }
   };
@@ -285,26 +250,15 @@ export const createChatSession = ({ provider, model, temperature }) => {
   return {
     /**
      * Start a new conversation with RAG search.
-     *
-     * Performs:
-     * 1. RAG search for relevant content
-     * 2. Context building from chunks
-     * 3. First message streaming
-     *
      * @param {string} query - User's initial query
      * @param {Object} searchOptions - Search filter options
-     * @param {string[]} searchOptions.postType - Post types to filter
-     * @param {string} searchOptions.minDate - Minimum date filter
-     * @param {string[]} searchOptions.categoryPrimary - Categories to filter
      * @yields {{ type: "search" | "data" | "finishReason" | "usage" | "done", message: any }}
      */
     async *start(
       query,
       { postType = [], minDate = "", categoryPrimary = [] } = {},
     ) {
-      if (destroyed) {
-        throw new Error("Session destroyed");
-      }
+      if (destroyed) throw new Error("Session destroyed");
 
       // Reset state for new conversation
       if (handler) {
@@ -313,7 +267,8 @@ export const createChatSession = ({ provider, model, temperature }) => {
       }
       searchData = null;
       history.length = 0;
-      tokensUsed = 0;
+      totalInputTokens = 0;
+      totalOutputTokens = 0;
 
       const startTime = Date.now();
 
@@ -336,7 +291,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
         provider,
         model,
         forMultiTurn: capabilities.supportsMultiTurn,
-        isFirstTurn: true, // Skip ratio on first turn to maximize initial context
+        isFirstTurn: true,
       });
 
       currentSystemContext = contextResult.context;
@@ -361,37 +316,25 @@ export const createChatSession = ({ provider, model, temperature }) => {
       // Yield search results for UI
       yield {
         type: "search",
-        message: {
-          posts: fetchedPosts,
-          chunks,
-          metadata,
-          displayPosts: searchData.displayPosts,
-        },
+        message: searchData,
       };
 
-      // Step 3: Send first message
-      let firstTokenTime = null;
-
-      for await (const event of dispatchMessage(query)) {
-        if (event.type === "data") {
-          if (firstTokenTime === null) {
-            firstTokenTime = Date.now() - startTime;
-          }
-          yield event;
-        } else if (event.type === "finishReason") {
-          yield event;
-        } else if (event.type === "usage") {
+      // Step 3: Stream first message
+      for await (const event of streamMessage(query, startTime)) {
+        if (event.type === "usage") {
+          // Add search elapsed time to usage
           yield {
             type: "usage",
             message: {
               ...event.message,
               elapsed: {
                 ...metadata.elapsed,
-                tokensFirst: firstTokenTime,
-                tokensLast: Date.now() - startTime,
+                ...event.message.elapsed,
               },
             },
           };
+        } else {
+          yield event;
         }
       }
 
@@ -400,127 +343,43 @@ export const createChatSession = ({ provider, model, temperature }) => {
 
     /**
      * Continue the conversation with a follow-up message.
-     *
-     * Uses the existing context from start().
-     * Follow-up queries don't trigger new RAG searches.
-     *
      * @param {string} query - User's follow-up query
      * @yields {{ type: "data" | "finishReason" | "usage" | "done", message: any }}
      */
     async *continue(query) {
-      if (destroyed) {
-        throw new Error("Session destroyed");
-      }
-
+      if (destroyed) throw new Error("Session destroyed");
       if (history.length === 0) {
         throw new Error("No conversation started. Call start() first.");
       }
 
-      // Check token limit
-      // TODO(UI): Surface token limit warning in UI before it's hit, not just after.
-      // Currently warns in console but proceeds, which may cause API errors.
       if (!checkCanContinue()) {
         const msg =
           "This conversation has reached its token limit. Please start a new conversation.";
-        if (THROW_ON_TOKEN_LIMIT) {
-          throw new Error(msg);
-        }
-        // eslint-disable-next-line no-undef
-        console.warn(msg);
+        if (THROW_ON_TOKEN_LIMIT) throw new Error(msg);
+        console.warn(msg); // eslint-disable-line no-undef
       }
 
       const startTime = Date.now();
-      let firstTokenTime = null;
 
-      for await (const event of dispatchMessage(query)) {
-        if (event.type === "data") {
-          if (firstTokenTime === null) {
-            firstTokenTime = Date.now() - startTime;
-          }
-          yield event;
-        } else if (event.type === "finishReason") {
-          yield event;
-        } else if (event.type === "usage") {
-          yield {
-            type: "usage",
-            message: {
-              ...event.message,
-              elapsed: {
-                tokensFirst: firstTokenTime,
-                tokensLast: Date.now() - startTime,
-              },
-            },
-          };
-        }
+      for await (const event of streamMessage(query, startTime)) {
+        yield event;
       }
 
       yield { type: "done", message: null };
     },
 
-    /**
-     * Get model capabilities.
-     * @returns {{ supportsMultiTurn: boolean, supportsTokenTracking: boolean }}
-     */
-    getCapabilities() {
-      return { ...capabilities };
-    },
-
-    /**
-     * Check if the conversation can continue with more turns.
-     * @returns {boolean}
-     */
-    canContinue() {
-      if (history.length === 0) {
-        return true; // Not started yet, can start
-      }
-      return checkCanContinue();
-    },
-
-    /**
-     * Get search data from the last start() call.
-     * @returns {{ posts, chunks, metadata, displayPosts } | null}
-     */
-    getSearchData() {
-      return searchData;
-    },
-
-    /**
-     * Get the model this session was created with.
-     * @returns {{ provider: string, model: string }}
-     */
-    getModel() {
-      return { provider, model };
-    },
-
-    /**
-     * Get current token usage.
-     * @returns {{ used: number, available: number, limit: number }}
-     */
+    getCapabilities: () => ({ ...capabilities }),
+    canContinue: () => history.length === 0 || checkCanContinue(),
+    getSearchData: () => searchData,
+    getModel: () => ({ provider, model }),
     getTokenUsage,
-
-    /**
-     * Get conversation history.
-     * @returns {Array<{role: string, content: string}>}
-     */
-    getHistory() {
-      return [...history];
-    },
-
-    /**
-     * Reduce context (for advanced use).
-     * @returns {Promise<boolean>}
-     */
+    getHistory: () => [...history],
     reduceContext,
 
-    /**
-     * Clean up session resources.
-     */
     destroy() {
       destroyed = true;
-      if (handler) {
-        handler.destroy?.();
-        handler = null;
-      }
+      handler?.destroy?.();
+      handler = null;
       searchData = null;
       history.length = 0;
     },
