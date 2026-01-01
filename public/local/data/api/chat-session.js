@@ -1,38 +1,156 @@
 // Chat Session - Unified API for RAG-based conversations
-// Encapsulates: search → context building → provider dispatch → messaging
+// Simplified architecture: RAG → Session → Provider
 
-import { search } from "./search.js";
-import {
-  buildContextFromChunks,
-  rebuildContextWithLimit,
-  BASE_TOKEN_ESTIMATE,
-} from "./chat.js";
 import { getProviderCapabilities } from "./llm.js";
-import { searchResultsToPosts } from "../../../app/data/util.js";
 import { estimateTokens } from "../util.js";
 import { createHandler as createChromeHandler } from "./providers/chrome.js";
 import { createHandler as createWebLlmHandler } from "./providers/web-llm.js";
-import { buildBasePrompts } from "./chat.js";
+import { buildBasePrompts, BASE_TOKEN_ESTIMATE } from "./chat.js";
+import { performRagSearch, reduceContext as ragReduceContext } from "./rag.js";
 import {
   getModelCfg,
-  MIN_CONTEXT_CHUNKS,
   THROW_ON_TOKEN_LIMIT,
   MAX_OUTPUT_TOKENS,
 } from "../../../config.js";
 
-// Minimum tokens needed for a meaningful exchange (question + response)
+// Minimum tokens needed for a meaningful exchange
 const MIN_TOKENS_FOR_EXCHANGE = 500;
 
+// ============================================================================
+// State Factory
+// ============================================================================
+
 /**
- * @typedef {Object} ChatSession
- * @property {function(string, Object): AsyncGenerator} start - Start new conversation with RAG
- * @property {function(string): AsyncGenerator} continue - Send follow-up message
- * @property {function(): Object} getCapabilities - Get model capabilities
- * @property {function(): boolean} canContinue - Check if more turns possible
- * @property {function(): Object|null} getSearchData - Get search results from start()
- * @property {function(): Object} getModel - Get { provider, model }
- * @property {function(): void} destroy - Clean up resources
+ * Create session state with all variables and simple mutators.
  */
+const createSessionState = ({ maxTokens, supportsMultiTurn }) => {
+  const state = {
+    // Core state
+    destroyed: false,
+    searchData: null,
+    handler: null,
+
+    // Token tracking
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+
+    // Conversation history
+    history: [],
+
+    // Context state (from RAG)
+    contextState: null,
+
+    // Computed properties
+    get context() {
+      return state.contextState?.context ?? "";
+    },
+    get chunkCount() {
+      return state.contextState?.chunkCount ?? 0;
+    },
+    get tokenBreakdown() {
+      return state.contextState?.tokenBreakdown ?? null;
+    },
+
+    // Token usage
+    getTokenUsage() {
+      const used = state.totalInputTokens + state.totalOutputTokens;
+      const available = Math.max(0, maxTokens - used);
+      return { used, available, limit: maxTokens };
+    },
+
+    canContinue() {
+      if (!supportsMultiTurn && state.history.length > 0) {
+        return false;
+      }
+      return state.getTokenUsage().available > MIN_TOKENS_FOR_EXCHANGE;
+    },
+
+    // Mutators
+    addTurn(userMessage, assistantContent, inputTokens, outputTokens) {
+      state.history.push({ role: "user", content: userMessage });
+      state.history.push({ role: "assistant", content: assistantContent });
+      state.totalInputTokens += inputTokens;
+      state.totalOutputTokens += outputTokens;
+    },
+
+    reset() {
+      if (state.handler) {
+        state.handler.destroy?.();
+        state.handler = null;
+      }
+      state.searchData = null;
+      state.history = [];
+      state.totalInputTokens = 0;
+      state.totalOutputTokens = 0;
+      state.contextState = null;
+    },
+
+    destroy() {
+      state.destroyed = true;
+      state.reset();
+    },
+  };
+
+  return state;
+};
+
+// ============================================================================
+// Usage Message Builder
+// ============================================================================
+
+/**
+ * Build enriched usage message from provider event.
+ */
+const buildUsageMessage = ({
+  event,
+  state,
+  userMessage,
+  prompt,
+  maxTokens,
+  firstTokenTime,
+  startTime,
+}) => {
+  const queryTokens = estimateTokens(userMessage);
+  const contextTokens = state.tokenBreakdown
+    ? {
+        basePromptTokens: BASE_TOKEN_ESTIMATE,
+        queryTokens,
+        chunksTokens: state.tokenBreakdown.chunksTokens,
+        chunkCount: state.chunkCount,
+        totalTokens:
+          BASE_TOKEN_ESTIMATE + state.tokenBreakdown.chunksTokens + queryTokens,
+      }
+    : null;
+
+  return {
+    // Per-turn tokens
+    inputTokens: event.usage.inputTokens,
+    outputTokens: event.usage.outputTokens,
+    // Cumulative tokens
+    totalInputTokens: state.totalInputTokens,
+    totalOutputTokens: state.totalOutputTokens,
+    totalTokens: state.totalInputTokens + state.totalOutputTokens,
+    // Context info
+    available: state.getTokenUsage().available,
+    limit: maxTokens,
+    turnNumber: Math.floor(state.history.length / 2),
+    contextTokens,
+    // Debug info
+    prompt,
+    context: state.context,
+    // Provider-specific extras
+    inputQuota: event.usage.inputQuota,
+    // Timing
+    elapsed: {
+      tokensFirst: firstTokenTime,
+      tokensLast: Date.now() - startTime,
+    },
+  };
+};
+
+// ============================================================================
+// Chat Session Factory
+// ============================================================================
 
 /**
  * Create a chat session for RAG-based conversations.
@@ -44,106 +162,55 @@ const MIN_TOKENS_FOR_EXCHANGE = 500;
  * @returns {ChatSession}
  */
 export const createChatSession = ({ provider, model, temperature }) => {
-  // Session state
-  let searchData = null;
-  let destroyed = false;
-
-  // Get model config and capabilities upfront
   const capabilities = getProviderCapabilities(provider, model);
   const modelCfg = getModelCfg({ provider, model });
   const maxTokens = modelCfg.maxTokens ?? Infinity;
 
-  // Conversation state
-  const history = []; // { role, content }[]
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
-
-  // Context state
-  let currentSystemContext = "";
-  let currentChunkCount = 0;
-  let currentTokenBreakdown = null;
-  let rawChunks = [];
-  let initialQuery = "";
-
-  // Provider handler
-  let handler = null;
+  const state = createSessionState({
+    maxTokens,
+    supportsMultiTurn: capabilities.supportsMultiTurn,
+  });
 
   /**
-   * Build contextTokens object for usage events.
+   * Create provider handler lazily.
    */
-  const buildContextTokens = (userMessage) => {
-    if (!currentTokenBreakdown) return null;
-    const queryTokens = estimateTokens(userMessage);
-    return {
-      basePromptTokens: BASE_TOKEN_ESTIMATE,
-      queryTokens,
-      chunksTokens: currentTokenBreakdown.chunksTokens,
-      chunkCount: currentChunkCount,
-      totalTokens:
-        BASE_TOKEN_ESTIMATE + currentTokenBreakdown.chunksTokens + queryTokens,
-    };
+  const ensureHandler = async () => {
+    if (state.handler) return state.handler;
+
+    state.handler =
+      provider === "chrome"
+        ? await createChromeHandler({
+            model,
+            systemContext: state.context,
+            temperature,
+          })
+        : await createWebLlmHandler({
+            model,
+            temperature,
+            maxOutputTokens: MAX_OUTPUT_TOKENS,
+          });
+
+    return state.handler;
   };
 
   /**
-   * Get current token usage.
-   */
-  const getTokenUsage = () => {
-    const used = totalInputTokens + totalOutputTokens;
-    const available = Math.max(0, maxTokens - used);
-    return { used, available, limit: maxTokens };
-  };
-
-  /**
-   * Check if we can continue before sending a message.
-   */
-  const checkCanContinue = () => {
-    if (!capabilities.supportsMultiTurn && history.length > 0) {
-      return false;
-    }
-    const { available } = getTokenUsage();
-    return available > MIN_TOKENS_FOR_EXCHANGE;
-  };
-
-  /**
-   * Create the appropriate handler for the current provider.
-   */
-  const createHandler = async () => {
-    if (provider === "chrome") {
-      return createChromeHandler({
-        model,
-        systemContext: currentSystemContext,
-        temperature,
-      });
-    } else if (provider === "webLlm") {
-      return createWebLlmHandler({
-        model,
-        temperature,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-      });
-    } else {
-      throw new Error(`Unknown provider: ${provider}`);
-    }
-  };
-
-  /**
-   * Build messages array for web-llm (stateless, needs full history).
+   * Build messages for web-llm (stateless provider).
    */
   const buildMessages = (userMessage) => [
-    ...buildBasePrompts(currentSystemContext),
-    ...history,
+    ...buildBasePrompts(state.context),
+    ...state.history,
     { role: "user", content: userMessage },
   ];
 
   /**
-   * Stream a message through the provider and yield enriched events.
-   * Single enrichment point for all usage data.
+   * Stream message through provider with enriched events.
    */
-  async function* streamMessage(userMessage, startTime) {
-    // Writer API check for follow-up
+  async function* streamMessage(query, startTime) {
+    // Writer API check
     if (
       provider === "chrome" &&
       !capabilities.supportsMultiTurn &&
-      history.length > 0
+      state.history.length > 0
     ) {
       throw new Error(
         "Follow-up questions are not supported with the Writer API. " +
@@ -151,15 +218,8 @@ export const createChatSession = ({ provider, model, temperature }) => {
       );
     }
 
-    // Create handler if needed
-    if (!handler) {
-      handler = await createHandler();
-    }
-
-    // For web-llm, pass full messages; for Chrome, just user message
-    const input =
-      provider === "webLlm" ? buildMessages(userMessage) : userMessage;
-
+    const handler = await ensureHandler();
+    const input = provider === "webLlm" ? buildMessages(query) : query;
     let firstTokenTime = null;
 
     for await (const event of handler.sendMessage(input)) {
@@ -169,166 +229,72 @@ export const createChatSession = ({ provider, model, temperature }) => {
         }
         yield { type: "data", message: event.content };
       } else if (event.type === "done") {
-        // Update cumulative token tracking
-        totalInputTokens += event.usage.inputTokens;
-        totalOutputTokens += event.usage.outputTokens;
+        // Update state
+        state.addTurn(
+          query,
+          event.usage.assistantContent,
+          event.usage.inputTokens,
+          event.usage.outputTokens,
+        );
 
-        // Add to history
-        history.push({ role: "user", content: userMessage });
-        history.push({
-          role: "assistant",
-          content: event.usage.assistantContent,
-        });
-
-        // Yield finishReason
         yield { type: "finishReason", message: event.finishReason };
-
-        // Yield enriched usage (single enrichment point)
         yield {
           type: "usage",
-          message: {
-            // Per-turn tokens
-            inputTokens: event.usage.inputTokens,
-            outputTokens: event.usage.outputTokens,
-            // Cumulative tokens
-            totalInputTokens,
-            totalOutputTokens,
-            totalTokens: totalInputTokens + totalOutputTokens,
-            // Context info
-            available: getTokenUsage().available,
-            limit: maxTokens,
-            turnNumber: Math.floor(history.length / 2),
-            contextTokens: buildContextTokens(userMessage),
-            // Debug info
-            prompt: buildMessages(userMessage),
-            context: currentSystemContext,
-            // Provider-specific extras
-            inputQuota: event.usage.inputQuota,
-            // Timing
-            elapsed: {
-              tokensFirst: firstTokenTime,
-              tokensLast: Date.now() - startTime,
-            },
-          },
+          message: buildUsageMessage({
+            event,
+            state,
+            userMessage: query,
+            prompt: buildMessages(query),
+            maxTokens,
+            firstTokenTime,
+            startTime,
+          }),
         };
       }
     }
   }
 
-  /**
-   * Reduce context by rebuilding with fewer chunks.
-   */
-  const reduceContext = async () => {
-    if (!rawChunks?.length || currentChunkCount <= MIN_CONTEXT_CHUNKS) {
-      return false;
-    }
-
-    const targetChunks = Math.max(
-      Math.floor(currentChunkCount / 2),
-      MIN_CONTEXT_CHUNKS,
-    );
-
-    try {
-      const result = await rebuildContextWithLimit({
-        chunks: rawChunks,
-        query: initialQuery,
-        provider,
-        model,
-        targetChunkCount: targetChunks,
-      });
-
-      currentSystemContext = result.context;
-      currentChunkCount = result.chunkCount;
-      currentTokenBreakdown = result.tokenBreakdown;
-      return true;
-    } catch (err) {
-      console.warn("Failed to reduce context:", err); // eslint-disable-line no-undef
-      return false;
-    }
-  };
+  // ============================================================================
+  // Public API
+  // ============================================================================
 
   return {
     /**
      * Start a new conversation with RAG search.
-     * @param {string} query - User's initial query
-     * @param {Object} searchOptions - Search filter options
-     * @yields {{ type: "search" | "data" | "finishReason" | "usage" | "done", message: any }}
      */
     async *start(
       query,
       { postType = [], minDate = "", categoryPrimary = [] } = {},
     ) {
-      if (destroyed) throw new Error("Session destroyed");
+      if (state.destroyed) throw new Error("Session destroyed");
 
-      // Reset state for new conversation
-      if (handler) {
-        handler.destroy?.();
-        handler = null;
-      }
-      searchData = null;
-      history.length = 0;
-      totalInputTokens = 0;
-      totalOutputTokens = 0;
-
+      state.reset();
       const startTime = Date.now();
 
-      // Step 1: RAG search
-      const searchResults = await search({
+      // RAG search + context building (extracted to rag.js)
+      const { searchData, contextState } = await performRagSearch({
         query,
-        postType,
-        minDate,
-        categoryPrimary,
-        withContent: false,
-      });
-
-      const { posts: fetchedPosts, chunks, metadata } = searchResults;
-      metadata.elapsed.search = Date.now() - startTime;
-
-      // Step 2: Build context from chunks
-      const contextResult = await buildContextFromChunks({
-        chunks,
-        query,
+        filters: { postType, minDate, categoryPrimary },
         provider,
         model,
-        forMultiTurn: capabilities.supportsMultiTurn,
-        isFirstTurn: true,
+        supportsMultiTurn: capabilities.supportsMultiTurn,
       });
 
-      currentSystemContext = contextResult.context;
-      currentChunkCount = contextResult.chunkCount;
-      currentTokenBreakdown = contextResult.tokenBreakdown;
-      rawChunks = chunks;
-      initialQuery = query;
+      state.searchData = searchData;
+      state.contextState = contextState;
 
-      metadata.context = contextResult.context;
-      metadata.contextChunkCount = contextResult.chunkCount;
-      metadata.contextTokenEstimate = contextResult.tokenEstimate;
-      metadata.contextTokens = contextResult.tokenBreakdown;
+      yield { type: "search", message: searchData };
 
-      // Store search data
-      searchData = {
-        posts: fetchedPosts,
-        chunks,
-        metadata,
-        displayPosts: searchResultsToPosts({ posts: fetchedPosts, chunks }),
-      };
-
-      // Yield search results for UI
-      yield {
-        type: "search",
-        message: searchData,
-      };
-
-      // Step 3: Stream first message
+      // Stream first message
       for await (const event of streamMessage(query, startTime)) {
         if (event.type === "usage") {
-          // Add search elapsed time to usage
+          // Merge search elapsed time
           yield {
             type: "usage",
             message: {
               ...event.message,
               elapsed: {
-                ...metadata.elapsed,
+                ...searchData.metadata.elapsed,
                 ...event.message.elapsed,
               },
             },
@@ -342,17 +308,15 @@ export const createChatSession = ({ provider, model, temperature }) => {
     },
 
     /**
-     * Continue the conversation with a follow-up message.
-     * @param {string} query - User's follow-up query
-     * @yields {{ type: "data" | "finishReason" | "usage" | "done", message: any }}
+     * Continue conversation with follow-up.
      */
     async *continue(query) {
-      if (destroyed) throw new Error("Session destroyed");
-      if (history.length === 0) {
+      if (state.destroyed) throw new Error("Session destroyed");
+      if (state.history.length === 0) {
         throw new Error("No conversation started. Call start() first.");
       }
 
-      if (!checkCanContinue()) {
+      if (!state.canContinue()) {
         const msg =
           "This conversation has reached its token limit. Please start a new conversation.";
         if (THROW_ON_TOKEN_LIMIT) throw new Error(msg);
@@ -360,28 +324,33 @@ export const createChatSession = ({ provider, model, temperature }) => {
       }
 
       const startTime = Date.now();
-
-      for await (const event of streamMessage(query, startTime)) {
-        yield event;
-      }
-
+      yield* streamMessage(query, startTime);
       yield { type: "done", message: null };
     },
 
+    // Getters
     getCapabilities: () => ({ ...capabilities }),
-    canContinue: () => history.length === 0 || checkCanContinue(),
-    getSearchData: () => searchData,
+    canContinue: () => state.history.length === 0 || state.canContinue(),
+    getSearchData: () => state.searchData,
     getModel: () => ({ provider, model }),
-    getTokenUsage,
-    getHistory: () => [...history],
-    reduceContext,
+    getTokenUsage: () => state.getTokenUsage(),
+    getHistory: () => [...state.history],
 
-    destroy() {
-      destroyed = true;
-      handler?.destroy?.();
-      handler = null;
-      searchData = null;
-      history.length = 0;
+    // Context reduction
+    async reduceContext() {
+      if (!state.contextState) return false;
+      const newContextState = await ragReduceContext({
+        contextState: state.contextState,
+        provider,
+        model,
+      });
+      if (newContextState) {
+        state.contextState = newContextState;
+        return true;
+      }
+      return false;
     },
+
+    destroy: () => state.destroy(),
   };
 };
