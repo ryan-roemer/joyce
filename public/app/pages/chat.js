@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 
-import { html, getQuerySetter } from "../util/html.js";
+import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import {
   ModelChatSelectDropdown,
@@ -19,14 +19,12 @@ import {
   JsonDataLink,
 } from "../components/posts-download.js";
 import { useSettings } from "../hooks/use-settings.js";
+import { useChatSession } from "../hooks/use-chat-session.js";
 import { useConfig } from "../contexts/config.js";
 import { useLoading } from "../../local/app/context/loading.js";
 import { LoadingButton } from "../../local/app/components/loading/button.js";
 import { Alert } from "../components/alert.js";
-import {
-  ContextExceededError,
-  isContextExceededError,
-} from "../components/context-messages.js";
+import { ContextExceededError } from "../components/context-messages.js";
 import { SuggestedQueries } from "../components/suggested-queries.js";
 import { LoadingBubble } from "../components/loading-bubble.js";
 import { QueryDisplay } from "../components/query-display.js";
@@ -35,12 +33,7 @@ import {
   DEFAULT_CHAT_MODEL,
   DEFAULT_TEMPERATURE,
   getModelCfg,
-  FEATURES,
 } from "../../config.js";
-import { createChatSession } from "../data/index.js";
-
-// TODO: REFACTOR TO PUT IN SUBMIT???
-const setQueryValue = getQuerySetter("query");
 
 const SUGGESTIONS = [
   "Tell me 2 sentences about Nearform's expertise in using AI for software development.",
@@ -116,77 +109,16 @@ export const Chat = () => {
   // Randomly select 3 suggestions on mount (persists during session)
   const [displayedSuggestions] = useState(() => getRandomItems(SUGGESTIONS, 3));
 
-  // Conversation state - array of Q&A entries
-  // Each entry: { query: string, answer: string, queryInfo: object, isLoading: boolean }
-  // TODO(TOKENS): Track conversation token usage
-  // - Running total of tokens used across all turns
-  // - Available tokens remaining (maxTokens - used)
-  // - Values come from: model config (maxTokens), API responses (usage)
-  // - May not always be known (some providers don't report usage)
-  // - Consider displaying in UI when isDeveloperMode is true
-  const [conversation, setConversation] = useState([]);
-  const [isFetching, setIsFetching] = useState(false);
-
-  // RAG context - only fetched on first question, persists until "New"
-  // TODO(CONVO): Decide posts display strategy for conversations
-  // Options: show latest only, accumulate all, or per-answer buttons
-  // For now, showing posts from the first query only.
-  const [posts, setPosts] = useState(null);
-  const [searchData, setSearchData] = useState(null);
-  const [analyticsDates, setAnalyticsDates] = useState({
-    start: null,
-    end: null,
-  });
-
-  // Form state - locked after first Q&A
+  // Form state
   const [selectedPostTypes, setSelectedPostTypes] = useState([]);
   const [selectedCategoryPrimary, setSelectedCategoryPrimary] = useState([]);
   const [modelObj, setModelObj] = useState(DEFAULT_CHAT_MODEL);
   const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
   const [minDate, setMinDate] = useState("");
 
-  // Other state
-  const [err, setErr] = useState(null);
-  const [contextExceededErr, setContextExceededErr] = useState(null);
-
-  // Refs for chat session (facade) and pending queries
-  const pendingQueryRef = useRef(null);
-  const chatSessionRef = useRef(null);
-
-  // Derived state
-  const isConversationActive = conversation.length > 0;
-  const hasCompletions = conversation.some((entry) => entry.answer);
-
-  // Check if current model supports multi-turn conversations
-  // Get capabilities from existing session if available, otherwise create temp session to check
-  const modelSupportsMultiTurn = chatSessionRef.current
-    ? chatSessionRef.current.getCapabilities().supportsMultiTurn
-    : createChatSession({
-        provider: modelObj.provider,
-        model: modelObj.model,
-        temperature,
-      }).getCapabilities().supportsMultiTurn;
-
-  // Check if model changed since current session was created
-  // When model changes, we treat the next submit as a fresh start (not a follow-up)
-  const sessionModel = chatSessionRef.current?.getModel();
-  const modelChanged = sessionModel && sessionModel.model !== modelObj.model;
-
-  // Conversations are only enabled if:
-  // 1. Feature flag is on AND
-  // 2. Current model supports multi-turn AND
-  // 3. Model hasn't changed since session was created
-  const conversationsEnabled =
-    FEATURES.chat.conversations && modelSupportsMultiTurn && !modelChanged;
-
-  // Form inputs are only locked when conversation is active AND conversations feature is enabled
-  // Single-turn models (Writer API) keep form unlocked so users can submit new questions freely
-  // When model changes, form stays unlocked (next submit starts fresh with new model)
-  const formInputsLocked = isConversationActive && conversationsEnabled;
-
+  // Settings and config
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
-  // TODO(CHAT): useConfig() depends on remote /api/config - needs local replacement
   const config = useConfig();
   const providers = new Set(
     Object.entries(config.providers)
@@ -200,275 +132,34 @@ export const Chat = () => {
   const modelStatus = getStatus(modelResourceId);
   const isModelLoaded = modelStatus === "loaded";
 
-  // Track when we're waiting for model to load before chat
-  const [isLoadingModelForChat, setIsLoadingModelForChat] = useState(false);
-
-  // Reset all outputs for a new conversation
-  const resetForNewConversation = () => {
-    setQueryValue("");
-    setConversation([]);
-    setPosts(null);
-    setSearchData(null);
-    setAnalyticsDates({ start: null, end: null });
-    setErr(null);
-    setContextExceededErr(null);
-    // Clean up chat session
-    if (chatSessionRef.current) {
-      chatSessionRef.current.destroy();
-      chatSessionRef.current = null;
-    }
-  };
-
-  // Transform the last conversation entry using a callback
-  const modifyLastEntry = (transformFn) => {
-    setConversation((prev) => {
-      const updated = [...prev];
-      const lastIdx = updated.length - 1;
-      if (lastIdx >= 0) {
-        updated[lastIdx] = transformFn(updated[lastIdx]);
-      }
-      return updated;
-    });
-  };
-
-  // Update the last conversation entry with merged properties
-  const updateLastEntry = (updates) =>
-    modifyLastEntry((entry) => ({ ...entry, ...updates }));
-
-  // Append text to the last conversation entry's answer (for streaming)
-  const appendToLastAnswer = (text) =>
-    modifyLastEntry((entry) => ({
-      ...entry,
-      answer: (entry.answer ?? "") + text,
-    }));
-
-  // Build queryInfo object for a conversation entry
-  const buildQueryInfo = ({
-    usage,
-    finishReason,
-    searchMetadata = null,
-    chunks = null,
-  }) => ({
-    usage: usage
-      ? {
-          input: { tokens: usage.inputTokens, cachedTokens: 0 },
-          output: { tokens: usage.outputTokens, reasoningTokens: 0 },
-          totalTokens: usage.totalTokens,
-          available: usage.available,
-          limit: usage.limit,
-        }
-      : null,
-    elapsed: usage?.elapsed ?? searchMetadata?.elapsed,
-    turnNumber: usage?.turnNumber ?? (searchMetadata ? 1 : null),
-    internal: searchMetadata?.internal ?? null,
-    model: modelObj.model,
-    provider: modelObj.provider,
-    finishReason,
-    chunks: chunks
-      ? {
-          numChunks: chunks.length,
-          similarityMin: searchMetadata?.chunks?.similarity?.min,
-          similarityMax: searchMetadata?.chunks?.similarity?.max,
-          similarityAvg: searchMetadata?.chunks?.similarity?.avg,
-        }
-      : null,
-    context: usage?.contextTokens ?? null,
-    prompt: usage?.prompt ?? null,
-    rawContext: usage?.context ?? null,
+  // Chat session hook - encapsulates all business logic
+  const {
+    conversation,
+    isFetching,
+    posts,
+    searchData,
+    analyticsDates,
+    err,
+    contextExceededErr,
+    isLoadingModelForChat,
+    hasCompletions,
+    conversationsEnabled,
+    formInputsLocked,
+    placeholder,
+    handleSubmit,
+    handleReset,
+  } = useChatSession({
+    modelObj,
+    temperature,
+    minDate,
+    selectedPostTypes,
+    selectedCategoryPrimary,
+    isModelLoaded,
+    startLoading,
+    getError,
+    modelResourceId,
+    modelStatus,
   });
-
-  // Handle chat errors consistently
-  const handleChatError = (respErr) => {
-    console.error(respErr); // eslint-disable-line no-undef
-    if (isContextExceededError(respErr)) {
-      setContextExceededErr(respErr);
-    } else {
-      setErr(respErr);
-    }
-    updateLastEntry({ isLoading: false });
-  };
-
-  // Create a new loading conversation entry
-  const createLoadingEntry = (query) => ({
-    query,
-    answer: null,
-    queryInfo: null,
-    isLoading: true,
-  });
-
-  // Execute the actual chat query (first question in conversation)
-  // Uses chat session facade for RAG search + context + session creation
-  const executeChatQuery = async (queryParams) => {
-    const { query, postType, categoryPrimary } = queryParams;
-
-    // Reset for new conversation and add the first entry
-    resetForNewConversation();
-    setConversation([createLoadingEntry(query)]);
-    setIsFetching(true);
-
-    try {
-      // Create chat session facade
-      chatSessionRef.current = createChatSession({
-        provider: modelObj.provider,
-        model: modelObj.model,
-        temperature,
-      });
-
-      let usage = null;
-      let searchMetadata = null;
-      let finishReason = null;
-
-      // Start conversation (does RAG search + context + first message)
-      for await (const event of chatSessionRef.current.start(query, {
-        postType,
-        minDate,
-        categoryPrimary,
-      })) {
-        if (event.type === "search") {
-          // Update UI with search results
-          const {
-            posts: fetchedPosts,
-            chunks,
-            metadata,
-            displayPosts,
-          } = event.message;
-          searchMetadata = metadata;
-          setSearchData({ posts: fetchedPosts, chunks, metadata });
-          setPosts(displayPosts);
-          setAnalyticsDates(metadata?.analytics?.dates);
-        } else if (event.type === "data") {
-          // Stream answer into the last conversation entry
-          appendToLastAnswer(event.message);
-        } else if (event.type === "finishReason") {
-          finishReason = event.message;
-        } else if (event.type === "usage") {
-          usage = event.message;
-        }
-      }
-
-      // Finalize the conversation entry with queryInfo
-      const chunks = chatSessionRef.current.getSearchData()?.chunks ?? [];
-      const queryInfo = buildQueryInfo({
-        usage,
-        finishReason,
-        searchMetadata,
-        chunks,
-      });
-      updateLastEntry({ queryInfo, isLoading: false });
-    } catch (respErr) {
-      handleChatError(respErr);
-      return;
-    } finally {
-      setIsFetching(false);
-    }
-  };
-
-  // Execute a follow-up query using existing chat session
-  const executeAskMore = async (query) => {
-    setQueryValue("");
-    setIsFetching(true);
-    setErr(null);
-
-    // Add new entry (loading state)
-    setConversation((prev) => [...prev, createLoadingEntry(query)]);
-
-    try {
-      if (!chatSessionRef.current) {
-        throw new Error(
-          "No conversation session available. Please start a new conversation.",
-        );
-      }
-
-      let usage = null;
-      let finishReason = null;
-
-      // Continue conversation using existing session
-      for await (const event of chatSessionRef.current.continue(query)) {
-        if (event.type === "data") {
-          // Stream answer into the last conversation entry
-          appendToLastAnswer(event.message);
-        } else if (event.type === "finishReason") {
-          finishReason = event.message;
-        } else if (event.type === "usage") {
-          usage = event.message;
-        }
-      }
-
-      // Finalize entry with queryInfo
-      const queryInfo = buildQueryInfo({ usage, finishReason });
-      updateLastEntry({ queryInfo, isLoading: false });
-    } catch (respErr) {
-      handleChatError(respErr);
-    } finally {
-      setIsFetching(false);
-    }
-  };
-
-  // Effect to execute pending query once model is loaded, or handle load error
-  useEffect(() => {
-    if (!isLoadingModelForChat) return;
-
-    if (isModelLoaded && pendingQueryRef.current) {
-      setIsLoadingModelForChat(false);
-      const { queryParams, shouldContinue } = pendingQueryRef.current;
-      pendingQueryRef.current = null;
-      if (shouldContinue) {
-        executeAskMore(queryParams.query);
-      } else {
-        executeChatQuery(queryParams);
-      }
-    } else if (modelStatus === "error") {
-      // Keep isLoadingModelForChat true so LoadingButton stays visible
-      pendingQueryRef.current = null;
-      setErr(getError(modelResourceId));
-    }
-  }, [isModelLoaded, isLoadingModelForChat, modelStatus, modelResourceId]);
-
-  // Handle form submission
-  // Behavior depends on conversation state and whether conversations are enabled
-  const handleSubmit = () => {
-    // Get the query from the form
-    const queryEl = document.getElementById("query"); // eslint-disable-line no-undef
-    const query = queryEl?.value?.trim();
-    if (!query) {
-      return;
-    }
-
-    // Infer other input parameters
-    const postType = selectedPostTypes.map(({ value }) => value);
-    const categoryPrimary = selectedCategoryPrimary.map(({ value }) => value);
-    const queryParams = { query, postType, categoryPrimary };
-
-    // Should we continue the existing conversation or start fresh?
-    // conversationsEnabled already accounts for: feature flag, model capability, model changes
-    const shouldContinue = conversationsEnabled && isConversationActive;
-
-    // If model not loaded, trigger loading and wait
-    if (!isModelLoaded) {
-      pendingQueryRef.current = { queryParams, shouldContinue };
-      setIsLoadingModelForChat(true);
-      startLoading(modelResourceId);
-      return;
-    }
-
-    // Model is loaded, proceed
-    if (shouldContinue) {
-      executeAskMore(query);
-    } else {
-      executeChatQuery(queryParams);
-    }
-  };
-
-  // Handle reset button - clears conversation and unlocks form inputs
-  const handleReset = () => {
-    resetForNewConversation();
-  };
-
-  const placeholder = isConversationActive
-    ? conversationsEnabled
-      ? "Ask a follow-up question..."
-      : "Ask a new question..."
-    : "Ask anything";
 
   return html`
     <${Page} name="Chat">

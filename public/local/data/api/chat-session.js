@@ -17,81 +17,104 @@ import {
 const MIN_TOKENS_FOR_EXCHANGE = 500;
 
 // ============================================================================
-// State Factory
+// State Management - Pure Functions
 // ============================================================================
 
 /**
- * Create session state with all variables and simple mutators.
+ * Create initial session state.
  */
-const createSessionState = ({ maxTokens, supportsMultiTurn }) => {
-  const state = {
-    // Core state
-    destroyed: false,
-    searchData: null,
-    handler: null,
+const createSessionState = ({ maxTokens, supportsMultiTurn }) => ({
+  // Core state
+  destroyed: false,
+  searchData: null,
+  handler: null,
 
-    // Token tracking
-    totalInputTokens: 0,
-    totalOutputTokens: 0,
+  // Token tracking
+  totalInputTokens: 0,
+  totalOutputTokens: 0,
 
-    // Conversation history
-    history: [],
+  // Conversation history
+  history: [],
 
-    // Context state (from RAG)
-    contextState: null,
+  // Context state (from RAG)
+  contextState: null,
 
-    // Computed properties
-    get context() {
-      return state.contextState?.context ?? "";
-    },
-    get chunkCount() {
-      return state.contextState?.chunkCount ?? 0;
-    },
-    get tokenBreakdown() {
-      return state.contextState?.tokenBreakdown ?? null;
-    },
+  // Configuration
+  maxTokens,
+  supportsMultiTurn,
+});
 
-    // Token usage
-    getTokenUsage() {
-      const used = state.totalInputTokens + state.totalOutputTokens;
-      const available = Math.max(0, maxTokens - used);
-      return { used, available, limit: maxTokens };
-    },
+/**
+ * Get context string from state.
+ */
+const getContext = (state) => state.contextState?.context ?? "";
 
-    canContinue() {
-      if (!supportsMultiTurn && state.history.length > 0) {
-        return false;
-      }
-      return state.getTokenUsage().available > MIN_TOKENS_FOR_EXCHANGE;
-    },
+/**
+ * Get chunk count from state.
+ */
+const getChunkCount = (state) => state.contextState?.chunkCount ?? 0;
 
-    // Mutators
-    addTurn(userMessage, assistantContent, inputTokens, outputTokens) {
-      state.history.push({ role: "user", content: userMessage });
-      state.history.push({ role: "assistant", content: assistantContent });
-      state.totalInputTokens += inputTokens;
-      state.totalOutputTokens += outputTokens;
-    },
+/**
+ * Get token breakdown from state.
+ */
+const getTokenBreakdown = (state) => state.contextState?.tokenBreakdown ?? null;
 
-    reset() {
-      if (state.handler) {
-        state.handler.destroy?.();
-        state.handler = null;
-      }
-      state.searchData = null;
-      state.history = [];
-      state.totalInputTokens = 0;
-      state.totalOutputTokens = 0;
-      state.contextState = null;
-    },
+/**
+ * Calculate token usage from state.
+ */
+const getTokenUsage = (state) => {
+  const used = state.totalInputTokens + state.totalOutputTokens;
+  const available = Math.max(0, state.maxTokens - used);
+  return { used, available, limit: state.maxTokens };
+};
 
-    destroy() {
-      state.destroyed = true;
-      state.reset();
-    },
-  };
+/**
+ * Check if conversation can continue.
+ */
+const canContinue = (state) => {
+  if (!state.supportsMultiTurn && state.history.length > 0) {
+    return false;
+  }
+  return getTokenUsage(state).available > MIN_TOKENS_FOR_EXCHANGE;
+};
 
-  return state;
+/**
+ * Add a turn to conversation history (mutates state).
+ */
+const addTurn = (
+  state,
+  userMessage,
+  assistantContent,
+  inputTokens,
+  outputTokens,
+) => {
+  state.history.push({ role: "user", content: userMessage });
+  state.history.push({ role: "assistant", content: assistantContent });
+  state.totalInputTokens += inputTokens;
+  state.totalOutputTokens += outputTokens;
+};
+
+/**
+ * Reset session state (mutates state).
+ */
+const reset = (state) => {
+  if (state.handler) {
+    state.handler.destroy?.();
+    state.handler = null;
+  }
+  state.searchData = null;
+  state.history = [];
+  state.totalInputTokens = 0;
+  state.totalOutputTokens = 0;
+  state.contextState = null;
+};
+
+/**
+ * Destroy session (mutates state).
+ */
+const destroy = (state) => {
+  state.destroyed = true;
+  reset(state);
 };
 
 // ============================================================================
@@ -106,21 +129,23 @@ const buildUsageMessage = ({
   state,
   userMessage,
   prompt,
-  maxTokens,
   firstTokenTime,
   startTime,
 }) => {
   const queryTokens = estimateTokens(userMessage);
-  const contextTokens = state.tokenBreakdown
+  const tokenBreakdown = getTokenBreakdown(state);
+  const contextTokens = tokenBreakdown
     ? {
         basePromptTokens: BASE_TOKEN_ESTIMATE,
         queryTokens,
-        chunksTokens: state.tokenBreakdown.chunksTokens,
-        chunkCount: state.chunkCount,
+        chunksTokens: tokenBreakdown.chunksTokens,
+        chunkCount: getChunkCount(state),
         totalTokens:
-          BASE_TOKEN_ESTIMATE + state.tokenBreakdown.chunksTokens + queryTokens,
+          BASE_TOKEN_ESTIMATE + tokenBreakdown.chunksTokens + queryTokens,
       }
     : null;
+
+  const usage = getTokenUsage(state);
 
   return {
     // Per-turn tokens
@@ -131,13 +156,13 @@ const buildUsageMessage = ({
     totalOutputTokens: state.totalOutputTokens,
     totalTokens: state.totalInputTokens + state.totalOutputTokens,
     // Context info
-    available: state.getTokenUsage().available,
-    limit: maxTokens,
+    available: usage.available,
+    limit: usage.limit,
     turnNumber: Math.floor(state.history.length / 2),
     contextTokens,
     // Debug info
     prompt,
-    context: state.context,
+    context: getContext(state),
     // Provider-specific extras
     inputQuota: event.usage.inputQuota,
     // Timing
@@ -181,7 +206,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
       provider === "chrome"
         ? await createChromeHandler({
             model,
-            systemContext: state.context,
+            systemContext: getContext(state),
             temperature,
           })
         : await createWebLlmHandler({
@@ -197,7 +222,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
    * Build messages for web-llm (stateless provider).
    */
   const buildMessages = (userMessage) => [
-    ...buildBasePrompts(state.context),
+    ...buildBasePrompts(getContext(state)),
     ...state.history,
     { role: "user", content: userMessage },
   ];
@@ -230,7 +255,8 @@ export const createChatSession = ({ provider, model, temperature }) => {
         yield { type: "data", message: event.content };
       } else if (event.type === "done") {
         // Update state
-        state.addTurn(
+        addTurn(
+          state,
           query,
           event.usage.assistantContent,
           event.usage.inputTokens,
@@ -245,7 +271,6 @@ export const createChatSession = ({ provider, model, temperature }) => {
             state,
             userMessage: query,
             prompt: buildMessages(query),
-            maxTokens,
             firstTokenTime,
             startTime,
           }),
@@ -268,7 +293,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
     ) {
       if (state.destroyed) throw new Error("Session destroyed");
 
-      state.reset();
+      reset(state);
       const startTime = Date.now();
 
       // RAG search + context building (extracted to rag.js)
@@ -316,7 +341,7 @@ export const createChatSession = ({ provider, model, temperature }) => {
         throw new Error("No conversation started. Call start() first.");
       }
 
-      if (!state.canContinue()) {
+      if (!canContinue(state)) {
         const msg =
           "This conversation has reached its token limit. Please start a new conversation.";
         if (THROW_ON_TOKEN_LIMIT) throw new Error(msg);
@@ -330,10 +355,10 @@ export const createChatSession = ({ provider, model, temperature }) => {
 
     // Getters
     getCapabilities: () => ({ ...capabilities }),
-    canContinue: () => state.history.length === 0 || state.canContinue(),
+    canContinue: () => state.history.length === 0 || canContinue(state),
     getSearchData: () => state.searchData,
     getModel: () => ({ provider, model }),
-    getTokenUsage: () => state.getTokenUsage(),
+    getTokenUsage: () => getTokenUsage(state),
     getHistory: () => [...state.history],
 
     // Context reduction
@@ -351,6 +376,6 @@ export const createChatSession = ({ provider, model, temperature }) => {
       return false;
     },
 
-    destroy: () => state.destroy(),
+    destroy: () => destroy(state),
   };
 };
