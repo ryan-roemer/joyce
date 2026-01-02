@@ -1,7 +1,7 @@
 // Cache function for memoizing async operations
 export const getAndCache = (fn) => {
   let cache;
-  return async () => {
+  return () => {
     if (!cache) {
       cache = fn();
     }
