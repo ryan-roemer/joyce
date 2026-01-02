@@ -105,32 +105,21 @@ export const getSystemInfo = async () => {
   return { webgpu, limits, gpuInfo, ramGb };
 };
 
-// Rough estimate is 0.75 so we go a little conservative.
+// Conservative tokens-per-word ratio for word-based estimation.
 const TOKENS_PER_WORD = 0.55;
 
 // Multiplier for content with XML markup (e.g., RAG chunks with <CHUNK>, <URL>, etc.)
-// XML tags add significant token overhead that the word-based heuristic misses.
-// Based on observed discrepancy: ~13% undercount with TinyLlama tokenizer.
+// XML tags add token overhead that the word-based heuristic misses.
 const XML_MARKUP_FACTOR = 1.15;
 
 /**
- * Estimate token count from text content.
- * Uses a word-based heuristic (~0.55 tokens per word).
+ * Estimate token count from text content using a word-based heuristic.
  *
  * @param {string} content - The text content to estimate
- * @param {boolean} [hasMarkup=false] - If true, applies 15% multiplier for XML markup overhead
+ * @param {boolean} [hasMarkup=false] - If true, applies markup multiplier for XML overhead
  * @returns {number} Estimated token count
  */
 export const estimateTokens = (content = "", hasMarkup = false) => {
   const base = Math.ceil(content.split(/[\s\n]+/).length / TOKENS_PER_WORD);
   return hasMarkup ? Math.ceil(base * XML_MARKUP_FACTOR) : base;
 };
-
-/**
- * Estimate output token count from generated content.
- * Uses character-based heuristic (~4 chars per token).
- * @param {string} content - The generated content
- * @returns {number} Estimated token count
- */
-export const estimateOutputTokens = (content = "") =>
-  Math.ceil(content.length / 4);

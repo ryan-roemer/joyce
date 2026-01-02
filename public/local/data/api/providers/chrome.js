@@ -9,7 +9,7 @@ import {
   CHROME_HAS_WRITER_API,
 } from "../../../../config.js";
 import { buildBasePrompts } from "../chat.js";
-import { estimateOutputTokens } from "../../util.js";
+import { estimateTokens } from "../../util.js";
 
 const PROMPT_OPTIONS = {
   expectedInputs: [{ type: "text", languages: ["en"] }],
@@ -220,7 +220,7 @@ const createPromptHandler = async ({
         finishReason: "stop",
         usage: {
           inputTokens: session.inputUsage ?? 0,
-          outputTokens: estimateOutputTokens(assistantContent),
+          outputTokens: estimateTokens(assistantContent),
           assistantContent,
           inputQuota: session.inputQuota,
         },
@@ -287,7 +287,7 @@ const createWriterHandler = async ({ systemContext, progressCallback }) => {
           finishReason: "stop",
           usage: {
             inputTokens,
-            outputTokens: estimateOutputTokens(assistantContent),
+            outputTokens: estimateTokens(assistantContent),
             assistantContent,
             inputQuota: writer.inputQuota,
           },
