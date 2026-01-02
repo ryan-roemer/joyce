@@ -185,13 +185,6 @@ export const Data = () => {
             )
         }
       </div>
-      <div>
-        <!-- TODO(LOCAL): Remove these demo buttons -->
-        <${LoadingButton} resourceId="demo_not_loaded" label="Demo: Not loaded" forceStatus="not_loaded" />
-        <${LoadingButton} resourceId="demo_loading" label="Demo: Loading" forceStatus="loading" />
-        <${LoadingButton} resourceId="demo_loaded" label="Demo: Loaded" forceStatus="loaded" />
-        <${LoadingButton} resourceId="demo_error" label="Demo: Error" forceStatus="error" />
-      </div>
 
       ${
         FEATURES.chat.enabled &&
