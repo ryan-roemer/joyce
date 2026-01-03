@@ -785,9 +785,9 @@ export const ChatInputForm = ({
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const onFormSubmit = (e) => {
-    e.preventDefault();
-    onSubmit();
+  const onFormSubmit = (event) => {
+    event.preventDefault();
+    onSubmit(event);
   };
 
   return html`

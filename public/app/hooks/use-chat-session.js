@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { getQuerySetter } from "../util/html.js";
+import { getElements, getQuerySetter } from "../util/html.js";
 import { createChatSession, getProviderCapabilities } from "../data/index.js";
 import { FEATURES } from "../../config.js";
 import { isContextExceededError } from "../components/context-messages.js";
@@ -319,10 +319,9 @@ export const useChatSession = ({
    * Handle form submission.
    * Behavior depends on conversation state and whether conversations are enabled.
    */
-  const handleSubmit = () => {
-    // Get the query from the form
-    const queryEl = document.getElementById("query"); // eslint-disable-line no-undef
-    const query = queryEl?.value?.trim();
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const { query } = getElements(event);
     if (!query) {
       return;
     }
