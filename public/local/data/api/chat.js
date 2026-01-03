@@ -53,7 +53,7 @@ Content is provided as XML CHUNKs. Each <CHUNK> contains:
 - If no relevant information exists, state that you don't have enough information to answer.
 
 ## Citation Rules
-- If asked for "links", "articles", "sources", "citations", "references", "etc.", you SHOULD reference links from context <CHUNKS />..
+- If asked for "links", "articles", "sources", "citations", or "references", you SHOULD reference links from context <CHUNKS />..
 - Do NOT add links unless they appear in <CHUNK><URL>.
 - You MUST cite sources using markdown links: [TITLE](URL)
 - Each URL may appear at most ONCE in your answer. Chunks may repeat URLs; do not duplicate links.
