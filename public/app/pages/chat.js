@@ -48,9 +48,13 @@ const SUGGESTIONS = [
   "How has Nearform helped companies modernize their frontend architectures?",
 ];
 
-// Randomly select N items from an array
+// Randomly select N items from an array using Fisher-Yates shuffle
 const getRandomItems = (array, count) => {
-  const shuffled = [...array].sort(() => Math.random() - 0.5);
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
   return shuffled.slice(0, count);
 };
 
