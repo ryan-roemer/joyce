@@ -67,6 +67,7 @@ export const DropdownWrapper = ({
   iconTitle = "Show options",
   isChanged = false,
   hidden = false,
+  disabled = false,
   className,
   children,
 }) => {
@@ -79,8 +80,18 @@ export const DropdownWrapper = ({
   const dropdownRef = useClickOutside(isOpen, setOpenState);
 
   const toggleOpen = () => {
+    if (disabled) return;
     setOpenState(!isOpen);
   };
+
+  const iconClasses = [
+    icon,
+    "form-dropdown-icon",
+    isChanged ? "form-dropdown-icon-changed" : "",
+    disabled ? "form-dropdown-icon-disabled" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return html`
     <div
@@ -88,14 +99,8 @@ export const DropdownWrapper = ({
       hidden=${hidden}
       ref=${dropdownRef}
     >
-      <i
-        className=${`
-          ${icon} form-dropdown-icon${isChanged ? " form-dropdown-icon-changed" : ""}
-        `}
-        onClick=${toggleOpen}
-        title=${iconTitle}
-      ></i>
-      ${isOpen
+      <i className=${iconClasses} onClick=${toggleOpen} title=${iconTitle}></i>
+      ${isOpen && !disabled
         ? html`<div className="form-dropdown-content" onClick=${toggleOpen}>
             <div
               className="form-dropdown-content-inner"
@@ -124,6 +129,59 @@ const Submit = ({ submitName = "Submit", isFetching }) => html`
       : submitName}
   </button>
 `;
+
+/** Submit button with arrow-up icon. */
+const AskButton = ({ isFetching, title = "Ask" }) => html`
+  <button
+    type="submit"
+    title=${title}
+    className="pure-button pure-button-primary chat-submit-icon-btn ${isFetching
+      ? "pure-button-disabled"
+      : ""}"
+  >
+    <i className="iconoir-arrow-up"></i>
+  </button>
+`;
+
+/** Reset button to clear conversation and start fresh. */
+const ResetButton = ({ isFetching, onReset }) => {
+  const handleReset = (e) => {
+    e.preventDefault();
+    onReset();
+  };
+  return html`
+    <button
+      type="button"
+      title="Clear conversation and start fresh"
+      className="pure-button chat-submit-icon-btn ${isFetching
+        ? "pure-button-disabled"
+        : ""}"
+      onClick=${handleReset}
+      disabled=${isFetching}
+    >
+      <i className="iconoir-refresh-double"></i>
+    </button>
+  `;
+};
+
+export const ChatSubmitButton = ({
+  isFetching,
+  hasCompletions = false,
+  conversationsEnabled = false,
+  onReset,
+}) => {
+  const showButtonGroup = hasCompletions && conversationsEnabled;
+  if (!showButtonGroup) {
+    return html`<${AskButton} isFetching=${isFetching} />`;
+  }
+
+  return html`
+    <div className="pure-button-group" role="group">
+      <${AskButton} isFetching=${isFetching} title="Continue conversation" />
+      <${ResetButton} isFetching=${isFetching} onReset=${onReset} />
+    </div>
+  `;
+};
 
 export const QueryField = ({ placeholder = "Ask anything" }) => html`
   <fieldset>
@@ -160,6 +218,7 @@ export const PostTypeSelectDropdown = ({
   hidden,
   selected = [],
   setSelected,
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -171,9 +230,10 @@ export const PostTypeSelectDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-multiple-pages"
-      iconTitle="Post Types"
+      iconTitle=${disabled ? "Post Types (locked)" : "Post Types"}
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${PostTypeSelect}
         selected=${selected}
@@ -208,6 +268,7 @@ export const PostCategoryPrimarySelectDropdown = ({
   hidden,
   selected = [],
   setSelected,
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -219,9 +280,10 @@ export const PostCategoryPrimarySelectDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-list-select"
-      iconTitle="Primary Categories"
+      iconTitle=${disabled ? "Categories (locked)" : "Primary Categories"}
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${PostCategoryPrimarySelect}
         selected=${selected}
@@ -316,7 +378,7 @@ export const ModelChatSelect = ({
       return label;
     }
 
-    const { modelShortName, quantization, vramMb, maxTokens } = getModelCfg({
+    const { quantization, vramMb, maxTokens } = getModelCfg({
       provider,
       model,
     });
@@ -330,7 +392,7 @@ export const ModelChatSelect = ({
     const statsString = [maxTokensString, vramString, quantizationString]
       .filter(Boolean)
       .join(", ");
-    return `${modelShortName} ${statsString ? `(${statsString})` : ""}`;
+    return `${label} ${statsString ? `(${statsString})` : ""}`;
   };
 
   let options = [];
@@ -344,7 +406,7 @@ export const ModelChatSelect = ({
         return {
           id: `${provider}-${model}`,
           title: modelStats(cfg),
-          label: getLabel(model, { provider, model }),
+          label: getLabel(cfg.modelShortName, { provider, model }),
           value: modelObjToOption({ provider, model }),
           model, // Store model ID for status lookup
         };
@@ -402,6 +464,7 @@ export const ModelChatSelectDropdown = ({
   setSelected,
   defaultValue = DEFAULT_CHAT_MODEL,
   providers,
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -413,9 +476,10 @@ export const ModelChatSelectDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-sparks"
-      iconTitle="LLM Model (Chat)"
+      iconTitle=${disabled ? "Model (locked)" : "LLM Model (Chat)"}
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${ModelChatSelect}
         defaultValue=${defaultValue}
@@ -625,6 +689,7 @@ export const TemperatureDropdown = ({
   hidden,
   value = DEFAULT_TEMPERATURE,
   onChange = () => {},
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -636,10 +701,11 @@ export const TemperatureDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-temperature-high"
-      iconTitle=${TEMPERATURE_TITLE}
+      iconTitle=${disabled ? "Temperature (locked)" : TEMPERATURE_TITLE}
       className="form-dropdown-hideable"
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${Temperature}
         value=${value}
@@ -672,6 +738,7 @@ export const PostMinDateDropdown = ({
   hidden,
   value = "",
   onChange = () => {},
+  disabled = false,
 }) => {
   const [hasChanged, setHasChanged] = useState(false);
 
@@ -683,9 +750,10 @@ export const PostMinDateDropdown = ({
   return html`
     <${DropdownWrapper}
       icon="iconoir-calendar"
-      iconTitle=${MIN_DATE_TITLE}
+      iconTitle=${disabled ? "Date (locked)" : MIN_DATE_TITLE}
       isChanged=${hasChanged}
       hidden=${hidden}
+      disabled=${disabled}
     >
       <${PostMinDate} className="form-dropdown-input-box" value=${value} setValue=${handleChange}/>
     </${DropdownWrapper}>
@@ -707,14 +775,34 @@ export const Form = ({
   </form>
 `;
 
-export const ChatInputForm = (props) => {
+export const ChatInputForm = ({
+  onSubmit,
+  onReset,
+  isFetching,
+  hasCompletions = false,
+  conversationsEnabled = false,
+  children,
+}) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const onFormSubmit = (event) => {
+    event.preventDefault();
+    onSubmit(event);
+  };
 
   return html`
     <${ChatFormProvider} onDropdownToggle=${setIsDropdownOpen}>
       <div className="chat-input-container">
         <div className="chat-input-container-inner">
-          <${Form} ...${props} />
+          <form className="pure-form" onSubmit=${onFormSubmit}>
+            ${children}
+            <${ChatSubmitButton}
+              isFetching=${isFetching}
+              hasCompletions=${hasCompletions}
+              conversationsEnabled=${conversationsEnabled}
+              onReset=${onReset}
+            />
+          </form>
           <div className=${isDropdownOpen ? "chat-input-overlay-mask" : ""}></div>
         </div>
       </div>

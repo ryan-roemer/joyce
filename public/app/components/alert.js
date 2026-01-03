@@ -6,6 +6,7 @@ export const Alert = ({ type = "success", children, err }) => {
   const typeClasses = {
     success: "alert-success",
     error: "alert-error",
+    warning: "alert-warning",
   };
 
   return html`

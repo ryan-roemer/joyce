@@ -1,1 +1,6 @@
-export { search, chat, posts } from "../../local/data/api/index.js";
+export {
+  search,
+  posts,
+  createChatSession,
+  getProviderCapabilities,
+} from "../../local/data/api/index.js";

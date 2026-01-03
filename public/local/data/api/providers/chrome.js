@@ -8,6 +8,8 @@ import {
   CHROME_HAS_PROMPT_API,
   CHROME_HAS_WRITER_API,
 } from "../../../../config.js";
+import { buildBasePrompts } from "../chat.js";
+import { estimateTokens } from "../../util.js";
 
 const PROMPT_OPTIONS = {
   expectedInputs: [{ type: "text", languages: ["en"] }],
@@ -20,45 +22,7 @@ const WRITER_OPTIONS = {
 };
 
 // Map of model -> { progressCallback }
-// Note: Unlike web-llm, we don't cache engines because Chrome AI sessions
-// maintain internal conversation history. Each chat.completions.create()
-// call gets a fresh session to match OpenAI's stateless behavior.
 const modelState = new Map();
-// TODO: Specify language model output language.
-
-/**
- * Convert Chrome's streaming response to OpenAI-style async iterator.
- * Chrome streams accumulated full text, so we extract deltas.
- * @param {ReadableStream} stream - Chrome AI streaming response (async iterable)
- * @yields {{ choices: [{ delta: { content: string } }] }}
- */
-async function* streamToAsyncIterator({ stream, session }) {
-  let content = "";
-
-  for await (const chunk of stream) {
-    if (chunk) {
-      yield { choices: [{ delta: { content: chunk } }] };
-      content += chunk;
-    }
-  }
-
-  yield {
-    choices: [{ delta: {} }],
-    usage: getUsage({ session, content }),
-  };
-}
-
-const getUsage = ({ session, content }) => {
-  // TODO(TOKENS): Figure overall token estimation / counting strategy.
-  // TODO(TOKENS): There is `inputQuota` that's smaller than `maxTokens`. Figure this out too.
-  const completionTokensEst = Math.ceil((content.length ?? 0) / 4);
-
-  return {
-    prompt_tokens: session?.inputUsage ?? 0,
-    completion_tokens: completionTokensEst,
-    total_tokens: completionTokensEst,
-  };
-};
 
 /**
  * Create a download progress monitor for Chrome AI APIs.
@@ -76,7 +40,6 @@ const createDownloadMonitor = (progressCallback) => (m) => {
 
 /**
  * Check Chrome AI availability for a specific API type.
- * Uses correct global access and availability values per Chrome documentation.
  * @param {"prompt" | "writer"} apiType - The API to check
  * @returns {Promise<{ available: boolean, downloading?: boolean, reason: string }>}
  */
@@ -84,7 +47,6 @@ export const checkAvailability = async (apiType) => {
   let status;
   try {
     if (apiType === "prompt") {
-      // Feature detection using global LanguageModel
       if (!CHROME_HAS_PROMPT_API) {
         return {
           available: false,
@@ -93,7 +55,6 @@ export const checkAvailability = async (apiType) => {
       }
       status = await LanguageModel.availability(PROMPT_OPTIONS);
     } else if (apiType === "writer") {
-      // Feature detection using global Writer
       if (!CHROME_HAS_WRITER_API) {
         return {
           available: false,
@@ -107,157 +68,24 @@ export const checkAvailability = async (apiType) => {
   }
 
   if (status) {
-    // "available" | "downloading" | "downloadable" | "unavailable"
     return {
       available: status === "available",
       downloading: status === "downloading" || status === "downloadable",
       reason: status,
     };
   }
-
   return { available: false, reason: "Unknown API type" };
 };
 
 /**
- * Determine API type from model ID
+ * Determine API type from model ID.
  * @param {string} model - The model ID (e.g., "gemini-nano-prompt")
  * @returns {"prompt" | "writer"}
  */
-const getApiType = (model) => {
-  if (model.includes("-writer")) return "writer";
-  return "prompt";
-};
-
-/**
- * Convert OpenAI-style messages to Chrome AI initialPrompts format.
- * Returns { initialPrompts, lastUserMessage } for session setup.
- * @param {Array<{role: string, content: string}>} messages
- * @returns {{ initialPrompts: Array, lastUserMessage: string }}
- */
-const createPromptMessages = (messages) => {
-  // Find the last user message - this will be the prompt
-  // TODO(CHROME): Double check this one...
-  const lastUserIndex = messages.map((m) => m.role).lastIndexOf("user");
-  if (lastUserIndex === -1) {
-    throw new Error("No user message found in messages array");
-  }
-
-  const lastUserMessage = messages[lastUserIndex].content;
-
-  // All messages before the last user message become initialPrompts
-  const historyMessages = messages.slice(0, lastUserIndex);
-
-  // Convert to Chrome AI format (same role names work)
-  const initialPrompts = historyMessages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
-
-  return { initialPrompts, lastUserMessage };
-};
-
-/**
- * Create a Prompt API engine wrapper with OpenAI-compatible interface.
- * Each chat.completions.create() call creates a fresh session with initialPrompts
- * to match OpenAI's stateless API behavior. Streaming-only.
- * @param {Object} options - Engine options
- * @param {Function} options.progressCallback - Optional callback for download progress
- * @returns {Object} Engine with chat.completions.create method
- */
-const createPromptEngine = (options = {}) => ({
-  chat: {
-    completions: {
-      create: async ({ messages, temperature }) => {
-        const { initialPrompts, lastUserMessage } =
-          createPromptMessages(messages);
-
-        const session = await LanguageModel.create({
-          ...PROMPT_OPTIONS,
-          topK: CHROME_DEFAULT_TOP_K,
-          temperature,
-          initialPrompts:
-            initialPrompts.length > 0 ? initialPrompts : undefined,
-          monitor: createDownloadMonitor(options.progressCallback),
-        }).catch((err) => {
-          // console.error("ERROR: PROMPT SESSION CREATE", err);
-          throw err;
-        });
-
-        const stream = session.promptStreaming(lastUserMessage);
-        return (async function* () {
-          try {
-            yield* streamToAsyncIterator({ stream, session });
-          } finally {
-            session.destroy();
-          }
-        })();
-      },
-    },
-  },
-});
-
-/**
- * Convert OpenAI-style messages to Chrome Writer API format.
- * Returns { sharedContext, writingTask, context } for Writer.create() and write().
- * @param {Array<{role: string, content: string}>} messages
- * @returns {{ sharedContext: string, writingTask: string, context: string }}
- */
-const createWriterMessages = (messages) => {
-  // Last user message becomes the writing task
-  const userMessages = messages.filter((m) => m.role === "user");
-  const writingTask =
-    userMessages.length > 0
-      ? userMessages[userMessages.length - 1].content
-      : "";
-
-  // Non-user messages (system, assistant) become shared context
-  const contextMessages = messages.filter((m) => m.role !== "user");
-  const sharedContext = contextMessages.map((m) => m.content).join("\n\n");
-
-  return { sharedContext, writingTask, context: "" };
-};
-
-/**
- * Create a Writer API engine wrapper with OpenAI-compatible interface.
- * Writer API is for content generation, not chat - we adapt it by using
- * the last user message as the writing task and other messages as context. Streaming-only.
- * @param {Object} options - Writer options
- * @param {Function} options.progressCallback - Optional callback for download progress
- * @returns {Object} Engine with chat.completions.create method
- */
-const createWriterEngine = (options = {}) => ({
-  chat: {
-    completions: {
-      create: async ({ messages }) => {
-        const { sharedContext, writingTask, context } =
-          createWriterMessages(messages);
-
-        const writer = await Writer.create({
-          tone: options.tone || "neutral",
-          length: options.length || "medium",
-          format: options.format || "markdown",
-          sharedContext,
-          ...WRITER_OPTIONS,
-          outputLanguage: "en",
-          monitor: createDownloadMonitor(options.progressCallback),
-        });
-
-        const stream = writer.writeStreaming(writingTask, { context });
-        return (async function* () {
-          try {
-            yield* streamToAsyncIterator({ stream });
-          } finally {
-            writer.destroy();
-          }
-        })();
-      },
-    },
-  },
-});
+const getApiType = (model) => (model.includes("-writer") ? "writer" : "prompt");
 
 /**
  * Set a progress callback for a specific model.
- * Chrome manages downloads internally, so we report availability status.
  * @param {string} model - The model ID
  * @param {Function} cb - Progress callback function
  */
@@ -267,7 +95,6 @@ export const setLlmProgressCallback = async (model, cb) => {
   }
   modelState.get(model).progressCallback = cb;
 
-  // Check availability and report status
   const apiType = getApiType(model);
   const status = await checkAvailability(apiType);
 
@@ -282,13 +109,12 @@ export const setLlmProgressCallback = async (model, cb) => {
 
 /**
  * Get or create an LLM engine for a specific model.
- * @param {string} model - The model ID (e.g., "gemini-nano-prompt", "gemini-nano-writer")
- * @returns {Promise<Object>} Engine with OpenAI-compatible chat.completions.create
+ * Returns a dummy engine - actual sessions are created in createHandler.
+ * @param {string} model - The model ID
+ * @returns {Promise<Object>} Engine placeholder
  */
 export const getLlmEngine = async (model) => {
   const apiType = getApiType(model);
-
-  // Check availability first
   const status = await checkAvailability(apiType);
   if (!status.available && !status.downloading) {
     throw new Error(
@@ -296,29 +122,183 @@ export const getLlmEngine = async (model) => {
         "Ensure you're using Chrome 138+ with AI features enabled.",
     );
   }
-
-  // Get stored progress callback if any
-  const state = modelState.get(model) || { progressCallback: null };
-  const options = { progressCallback: state.progressCallback };
-
-  // Return appropriate engine (engines are stateless wrappers, not cached sessions)
-  if (apiType === "writer") {
-    return createWriterEngine(options);
-  } else if (apiType === "prompt") {
-    return createPromptEngine(options);
-  } else {
-    throw new Error(`Unknown API type: ${apiType}`);
-  }
+  return {}; // Placeholder - actual session created in createHandler
 };
 
 /**
  * Check if a model is cached/ready.
- * For Chrome AI, this checks if the model is "available" (ready to use).
  * @param {string} model - The model ID
  * @returns {Promise<boolean>} Whether the model is ready
  */
 export const isLlmCached = async (model) => {
-  const apiType = getApiType(model);
-  const status = await checkAvailability(apiType);
+  const status = await checkAvailability(getApiType(model));
   return status.available === true;
+};
+
+/**
+ * Get capabilities for a Chrome AI model.
+ * @param {string} model - The model ID
+ * @returns {{ supportsMultiTurn: boolean, supportsTokenTracking: boolean }}
+ */
+export const getCapabilities = (model) => ({
+  supportsMultiTurn: getApiType(model) === "prompt",
+  supportsTokenTracking: true,
+});
+
+/**
+ * Create a conversation handler for Chrome AI.
+ * Yields unified events: { type: "data", content } and { type: "done", finishReason, usage }
+ *
+ * @param {Object} options
+ * @param {string} options.model - Model ID (determines prompt vs writer API)
+ * @param {string} options.systemContext - RAG context for system prompt
+ * @param {number} options.temperature - Sampling temperature
+ * @returns {Promise<Object>} Handler with sendMessage(userMessage) and destroy()
+ */
+export const createHandler = async ({ model, systemContext, temperature }) => {
+  const apiType = getApiType(model);
+  const progressCallback = modelState.get(model)?.progressCallback ?? null;
+
+  if (apiType === "prompt") {
+    return createPromptHandler({
+      systemContext,
+      temperature,
+      progressCallback,
+    });
+  } else {
+    return createWriterHandler({ systemContext, progressCallback });
+  }
+};
+
+/**
+ * Create a Prompt API handler (multi-turn).
+ */
+const createPromptHandler = async ({
+  systemContext,
+  temperature,
+  progressCallback,
+}) => {
+  const status = await checkAvailability("prompt");
+  if (!status.available && !status.downloading) {
+    throw new Error(
+      `Chrome Prompt API not available: ${status.reason}. ` +
+        "Ensure you're using Chrome 138+ with AI features enabled.",
+    );
+  }
+
+  const initialPrompts = buildBasePrompts(systemContext);
+
+  const session = await LanguageModel.create({
+    ...PROMPT_OPTIONS,
+    topK: CHROME_DEFAULT_TOP_K,
+    temperature,
+    initialPrompts: initialPrompts.length > 0 ? initialPrompts : undefined,
+    monitor: progressCallback
+      ? createDownloadMonitor(progressCallback)
+      : undefined,
+  });
+
+  return {
+    /**
+     * Send a message and stream response.
+     * @param {string} userMessage - The user's message
+     * @yields {{ type: "data", content: string } | { type: "done", finishReason: string, usage: Object }}
+     */
+    async *sendMessage(userMessage) {
+      const stream = session.promptStreaming(userMessage);
+      let assistantContent = "";
+
+      for await (const chunk of stream) {
+        if (chunk) {
+          assistantContent += chunk;
+          yield { type: "data", content: chunk };
+        }
+      }
+
+      yield {
+        type: "done",
+        finishReason: "stop",
+        usage: {
+          inputTokens: session.inputUsage ?? 0,
+          outputTokens: estimateTokens(assistantContent),
+          assistantContent,
+          inputQuota: session.inputQuota,
+        },
+      };
+    },
+
+    destroy() {
+      session?.destroy();
+    },
+  };
+};
+
+/**
+ * Create a Writer API handler (single-turn).
+ */
+const createWriterHandler = async ({ systemContext, progressCallback }) => {
+  const status = await checkAvailability("writer");
+  if (!status.available && !status.downloading) {
+    throw new Error(
+      `Chrome Writer API not available: ${status.reason}. ` +
+        "Ensure you're using Chrome 138+ with AI features enabled.",
+    );
+  }
+
+  const basePrompts = buildBasePrompts(systemContext);
+  const fullSharedContext = basePrompts.map((m) => m.content).join("\n\n");
+
+  return {
+    /**
+     * Send a message and stream response.
+     * Single-turn: creates fresh writer for each message.
+     * @param {string} userMessage - The writing task
+     * @yields {{ type: "data", content: string } | { type: "done", finishReason: string, usage: Object }}
+     */
+    async *sendMessage(userMessage) {
+      const writer = await Writer.create({
+        tone: "neutral",
+        length: "medium",
+        format: "markdown",
+        sharedContext: fullSharedContext,
+        ...WRITER_OPTIONS,
+        outputLanguage: "en",
+        monitor: progressCallback
+          ? createDownloadMonitor(progressCallback)
+          : undefined,
+      });
+
+      try {
+        const inputTokens = await writer.measureInputUsage(userMessage, {
+          context: "",
+        });
+        const stream = writer.writeStreaming(userMessage, { context: "" });
+        let assistantContent = "";
+
+        for await (const chunk of stream) {
+          if (chunk) {
+            assistantContent += chunk;
+            yield { type: "data", content: chunk };
+          }
+        }
+
+        yield {
+          type: "done",
+          finishReason: "stop",
+          usage: {
+            inputTokens,
+            outputTokens: estimateTokens(assistantContent),
+            assistantContent,
+            inputQuota: writer.inputQuota,
+          },
+        };
+      } finally {
+        writer.destroy();
+      }
+    },
+
+    destroy() {
+      // Writer creates/destroys per-call, nothing to clean up at handler level
+    },
+  };
 };

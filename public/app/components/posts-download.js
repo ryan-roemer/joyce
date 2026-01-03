@@ -1,6 +1,6 @@
 /* global Blob:false,window:false */
 import FileSaver from "file-saver";
-import { html } from "../util/html.js";
+import { html, openTextInNewWindow } from "../util/html.js";
 
 const { saveAs } = FileSaver;
 
@@ -54,13 +54,7 @@ export const JsonDataLink = ({ data }) => {
     return "";
   }
 
-  const handleOpen = () => {
-    const win = window.open("", "_blank");
-    win.document.write("<html><body><pre></pre></body></html>");
-    win.document.close();
-    const pre = win.document.querySelector("pre");
-    pre.innerText = JSON.stringify(data, null, 2);
-  };
+  const handleOpen = () => openTextInNewWindow(JSON.stringify(data, null, 2));
 
   return html`
     <span onClick=${handleOpen} title="Open search API results as JSON">

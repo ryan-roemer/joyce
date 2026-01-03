@@ -105,10 +105,21 @@ export const getSystemInfo = async () => {
   return { webgpu, limits, gpuInfo, ramGb };
 };
 
-// Rough estimate is 0.75 so we go a little conservative.
+// Conservative tokens-per-word ratio for word-based estimation.
 const TOKENS_PER_WORD = 0.55;
 
-// Token estimator.
-export const estimateTokens = (content = "") => {
-  return Math.ceil(content.split(/[\s\n]+/).length / TOKENS_PER_WORD);
+// Multiplier for content with XML markup (e.g., RAG chunks with <CHUNK>, <URL>, etc.)
+// XML tags add token overhead that the word-based heuristic misses.
+const XML_MARKUP_FACTOR = 1.15;
+
+/**
+ * Estimate token count from text content using a word-based heuristic.
+ *
+ * @param {string} content - The text content to estimate
+ * @param {boolean} [hasMarkup=false] - If true, applies markup multiplier for XML overhead
+ * @returns {number} Estimated token count
+ */
+export const estimateTokens = (content = "", hasMarkup = false) => {
+  const base = Math.ceil(content.split(/[\s\n]+/).length / TOKENS_PER_WORD);
+  return hasMarkup ? Math.ceil(base * XML_MARKUP_FACTOR) : base;
 };

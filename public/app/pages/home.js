@@ -18,10 +18,9 @@ export const Home = () => {
         html`
         <${Fragment}>
           <p>
-            This site incorporates Nearform's blogs, case studies, and services pages to provide
-            tools to find, list, and generate text answers using AI.
-            Go ahead and try it out!
-            ${" "}<i className="iconoir-sparks"></i>
+            This site incorporates Nearform's blogs, case studies, and services pages into
+            tools to find content ${FEATURES.chat.enabled ? "and generate text answers" : ""} using AI.
+            Go ahead and try it out! ${" "}<i className="iconoir-sparks"></i>
           </p>
           <ul>
             <li id="posts"><${Link} to="/posts">Posts</${Link}>: Browse / filter all available content.</li>

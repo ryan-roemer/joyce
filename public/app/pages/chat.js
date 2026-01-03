@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 
-import { html, getElements, getQuerySetter } from "../util/html.js";
+import { html } from "../util/html.js";
 import { Page } from "../components/page.js";
 import {
   ModelChatSelectDropdown,
@@ -19,30 +19,44 @@ import {
   JsonDataLink,
 } from "../components/posts-download.js";
 import { useSettings } from "../hooks/use-settings.js";
+import { useChatSession } from "../hooks/use-chat-session.js";
 import { useConfig } from "../contexts/config.js";
 import { useLoading } from "../../local/app/context/loading.js";
 import { LoadingButton } from "../../local/app/components/loading/button.js";
 import { Alert } from "../components/alert.js";
+import { ContextExceededError } from "../components/context-messages.js";
 import { SuggestedQueries } from "../components/suggested-queries.js";
 import { LoadingBubble } from "../components/loading-bubble.js";
 import { QueryDisplay } from "../components/query-display.js";
 import { Description } from "../components/description.js";
-import { searchResultsToPosts } from "../data/util.js";
 import {
   DEFAULT_CHAT_MODEL,
   DEFAULT_TEMPERATURE,
   getModelCfg,
 } from "../../config.js";
-import { chat } from "../data/index.js";
-
-// TODO: REFACTOR TO PUT IN SUBMIT???
-const setQueryValue = getQuerySetter("query");
 
 const SUGGESTIONS = [
   "Tell me 2 sentences about Nearform's expertise in using AI for software development.",
   "Give me a single paragraph about Nearform's React and React Native expertise.",
-  "Give me 3 articles by Nearform on AI in engineering teams.",
+  "What case studies show Nearform building design systems for global brands?",
+  "How does Nearform approach accessibility in mobile applications?",
+  "Summarize Nearform's work with Node.js in enterprise companies.",
+  "What open source tools has Nearform contributed to the React ecosystem?",
+  "Explain in 2 sentences how Nearform uses GraphQL in their projects.",
+  "What are Nearform's recommendations for choosing between open and closed AI models?",
+  "Give me a brief overview of Nearform's serverless and cloud expertise.",
+  "How has Nearform helped companies modernize their frontend architectures?",
 ];
+
+// Randomly select N items from an array using Fisher-Yates shuffle
+const getRandomItems = (array, count) => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, count);
+};
 
 export const ShortDescription = () => html`
   <p>
@@ -96,28 +110,19 @@ const DescriptionButton = () => {
 };
 
 export const Chat = () => {
-  // Woah, that's a lot of state.
-  const [isFetching, setIsFetching] = useState(false);
-  const [posts, setPosts] = useState(null);
-  const [searchData, setSearchData] = useState(null);
+  // Randomly select 3 suggestions on mount (persists during session)
+  const [displayedSuggestions] = useState(() => getRandomItems(SUGGESTIONS, 3));
+
+  // Form state
   const [selectedPostTypes, setSelectedPostTypes] = useState([]);
   const [selectedCategoryPrimary, setSelectedCategoryPrimary] = useState([]);
-  const [completions, setCompletions] = useState(null);
-  const [completionsCount, setCompletionsCount] = useState(0);
-  const [queryInfo, setQueryInfo] = useState(null);
-  const [err, setErr] = useState(null);
-  const [analyticsDates, setAnalyticsDates] = useState({
-    start: null,
-    end: null,
-  });
   const [modelObj, setModelObj] = useState(DEFAULT_CHAT_MODEL);
   const [temperature, setTemperature] = useState(DEFAULT_TEMPERATURE);
   const [minDate, setMinDate] = useState("");
-  const [currentQuery, setCurrentQuery] = useState(null);
 
+  // Settings and config
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
-  // TODO(CHAT): useConfig() depends on remote /api/config - needs local replacement
   const config = useConfig();
   const providers = new Set(
     Object.entries(config.providers)
@@ -131,130 +136,34 @@ export const Chat = () => {
   const modelStatus = getStatus(modelResourceId);
   const isModelLoaded = modelStatus === "loaded";
 
-  // Track when we're waiting for model to load before chat
-  const [isLoadingModelForChat, setIsLoadingModelForChat] = useState(false);
-  const pendingQueryRef = useRef(null);
-
-  const resetOutputs = (query, { setFetching = true } = {}) => {
-    setQueryValue("");
-    if (setFetching) setIsFetching(true);
-    setPosts(null);
-    setSearchData(null);
-    setQueryInfo(null);
-    setCompletions(null);
-    setErr(null);
-    setCurrentQuery(query);
-  };
-
-  // Execute the actual chat query
-  const executeChatQuery = async (queryParams) => {
-    const { query, postType, categoryPrimary } = queryParams;
-
-    // Get ready for new query output for the page.
-    resetOutputs(query);
-
-    // Do the query.
-    try {
-      let chunks = [];
-      let posts = [];
-      let metadata = null;
-      let usage = null;
-      for await (let part of chat({
-        query,
-        postType,
-        minDate,
-        categoryPrimary,
-        withContent: false,
-        model: modelObj.model,
-        provider: modelObj.provider,
-        temperature,
-      })) {
-        if (part.type === "chunks") {
-          chunks.push(...part.message);
-        } else if (part.type === "posts") {
-          posts = part.message;
-        } else if (part.type === "metadata") {
-          metadata = part.message;
-        } else if (part.type === "usage") {
-          usage = part.message;
-        } else if (part.type === "data") {
-          setCompletions((prev) => (prev ?? "") + part.message);
-        }
-      }
-
-      // Set state
-      setSearchData({ posts, chunks, metadata });
-      setPosts(searchResultsToPosts({ posts, chunks }));
-      setAnalyticsDates(metadata?.analytics?.dates);
-      setQueryInfo({
-        usage,
-        elapsed: metadata?.elapsed,
-        internal: metadata?.internal,
-        model: modelObj.model,
-        provider: modelObj.provider,
-        chunks: {
-          numChunks: chunks.length,
-          similarityMin: metadata?.chunks?.similarity?.min,
-          similarityMax: metadata?.chunks?.similarity?.max,
-          similarityAvg: metadata?.chunks?.similarity?.avg,
-        },
-      });
-      setCompletionsCount((prev) => prev + 1);
-    } catch (respErr) {
-      console.error(respErr); // eslint-disable-line no-undef
-      setErr(respErr);
-      return;
-    } finally {
-      setIsFetching(false);
-    }
-  };
-
-  // Effect to execute pending query once model is loaded, or handle load error
-  useEffect(() => {
-    if (!isLoadingModelForChat) return;
-
-    if (isModelLoaded && pendingQueryRef.current) {
-      setIsLoadingModelForChat(false);
-      const queryParams = pendingQueryRef.current;
-      pendingQueryRef.current = null;
-      executeChatQuery(queryParams);
-    } else if (modelStatus === "error") {
-      // Keep isLoadingModelForChat true so LoadingButton stays visible
-      pendingQueryRef.current = null;
-      setErr(getError(modelResourceId));
-    }
-  }, [isModelLoaded, isLoadingModelForChat, modelStatus, modelResourceId]);
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const { query } = getElements(event);
-    if (!query) {
-      return;
-    }
-
-    // Infer other input parameters.
-    const postType = selectedPostTypes.map(({ value }) => value);
-    const categoryPrimary = selectedCategoryPrimary.map(({ value }) => value);
-    const queryParams = { query, postType, categoryPrimary };
-
-    // If model not loaded, trigger loading and wait
-    if (!isModelLoaded) {
-      pendingQueryRef.current = queryParams;
-      setIsLoadingModelForChat(true);
-      resetOutputs(query, { setFetching: false });
-      startLoading(modelResourceId);
-      return;
-    }
-
-    // Model is loaded, proceed directly
-    executeChatQuery(queryParams);
-  };
-
-  const submitName = `Ask${completionsCount > 0 ? "  (New)" : ""}`;
-  const placeholder =
-    completionsCount > 0
-      ? "Ask something else (in a new chat)"
-      : "Ask anything";
+  // Chat session hook - encapsulates all business logic
+  const {
+    conversation,
+    isFetching,
+    posts,
+    searchData,
+    analyticsDates,
+    err,
+    contextExceededErr,
+    isLoadingModelForChat,
+    hasCompletions,
+    conversationsEnabled,
+    formInputsLocked,
+    placeholder,
+    handleSubmit,
+    handleReset,
+  } = useChatSession({
+    modelObj,
+    temperature,
+    minDate,
+    selectedPostTypes,
+    selectedCategoryPrimary,
+    isModelLoaded,
+    startLoading,
+    getError,
+    modelResourceId,
+    modelStatus,
+  });
 
   return html`
     <${Page} name="Chat">
@@ -268,7 +177,7 @@ export const Chat = () => {
       </p>
 
       <${DescriptionButton} />
-      <${SuggestedQueries} ...${{ suggestions: SUGGESTIONS, isFetching }} />
+      <${SuggestedQueries} ...${{ suggestions: displayedSuggestions, isFetching }} />
       ${posts && html`<${PostsFound} ...${{ posts, analyticsDates }} />`}
 
       ${err && html`<${Alert} type="error" err=${err}>${err.toString()}</${Alert}>`}
@@ -281,30 +190,65 @@ export const Chat = () => {
         </${LoadingButton}>
       `
       }
-      ${currentQuery && html`<${QueryDisplay} query=${currentQuery} />`}
-      ${isFetching && !completions && !isLoadingModelForChat && html`<${LoadingBubble} />`}
-      ${
-        completions &&
-        html`<${Answer} answer=${completions} queryInfo=${queryInfo} />`
-      }
 
-      <${ChatInputForm} ...${{ isFetching, handleSubmit, submitName }}>
+      ${conversation.map(
+        (entry, idx) => html`
+          <div
+            key=${`conversation-entry-${idx}`}
+            className="conversation-entry"
+          >
+            <${QueryDisplay} query=${entry.query} />
+            ${entry.isLoading && !entry.answer && html`<${LoadingBubble} />`}
+            ${entry.answer &&
+            html`<${Answer}
+              answer=${entry.answer}
+              queryInfo=${entry.queryInfo}
+              onNewConversation=${handleReset}
+            />`}
+          </div>
+        `,
+      )}
+
+      <${ContextExceededError}
+        error=${contextExceededErr}
+        onNewConversation=${handleReset}
+      />
+
+      <${ChatInputForm}
+        isFetching=${isFetching}
+        onSubmit=${handleSubmit}
+        onReset=${handleReset}
+        hasCompletions=${hasCompletions}
+        conversationsEnabled=${conversationsEnabled}
+      >
         <${QueryField} placeholder=${placeholder} />
         <${PostTypeSelectDropdown}
           selected=${selectedPostTypes}
           setSelected=${setSelectedPostTypes}
+          disabled=${formInputsLocked}
         />
         <${PostCategoryPrimarySelectDropdown}
           selected=${selectedCategoryPrimary}
           setSelected=${setSelectedCategoryPrimary}
+          disabled=${formInputsLocked}
         />
-        <${PostMinDateDropdown} value=${minDate} onChange=${setMinDate} />
+        <${PostMinDateDropdown}
+          value=${minDate}
+          onChange=${setMinDate}
+          disabled=${formInputsLocked}
+        />
         <${ModelChatSelectDropdown}
           selected=${modelObj}
           setSelected=${setModelObj}
           providers=${providers}
+          disabled=${formInputsLocked}
         />
-        <${TemperatureDropdown} hidden=${!isDeveloperMode} value=${temperature} onChange=${setTemperature} />
+        <${TemperatureDropdown}
+          hidden=${!isDeveloperMode}
+          value=${temperature}
+          onChange=${setTemperature}
+          disabled=${formInputsLocked}
+        />
       </${ChatInputForm}>
     </${Page}>
   `;

@@ -22,6 +22,7 @@ if (globalThis.location?.search) {
 export const FEATURES = {
   chat: {
     enabled: params.get("chatEnabled") === "true",
+    conversations: params.get("chatConversations") === "true",
   },
 };
 
@@ -42,6 +43,48 @@ const DEV_ONLY_PAGES = [{ name: "Data", to: "/data", icon: "iconoir-cpu" }];
 
 export const TOKEN_CUSHION_CHAT = 512; // 250 ok for web-llm
 export const TOKEN_CUSHION_EMBEDDINGS = 25;
+export const MAX_OUTPUT_TOKENS = 1024; // Limit LLM response length
+
+// When false: token limit checks warn and proceed, letting real API errors occur
+// When true: token limit checks throw errors immediately (current behavior)
+export const THROW_ON_TOKEN_LIMIT = false;
+
+/**
+ * Calculate token cushion for multi-turn conversations.
+ * Scales proportionally with model size, with floor and ceiling.
+ * Reserves space for the next user question + assistant response.
+ * @param {number} maxTokens - Model's maximum context window
+ * @returns {number} Token cushion to reserve
+ */
+export const getMultiTurnCushion = (maxTokens) => {
+  if (maxTokens <= 2048) {
+    // Small models (1-2K): fixed minimum for one exchange
+    return 350;
+  } else if (maxTokens <= 4096) {
+    // Medium models (4K): ~12% = 491 tokens
+    return Math.floor(maxTokens * 0.12);
+  } else if (maxTokens <= 8192) {
+    // Large models (8K Gemini): ~10% = 819 tokens
+    return Math.floor(maxTokens * 0.1);
+  } else {
+    // Very large models: ~8% with 2000 token cap
+    return Math.min(2000, Math.floor(maxTokens * 0.08));
+  }
+};
+
+// Minimum number of context chunks to maintain in multi-turn conversations
+export const MIN_CONTEXT_CHUNKS = 5;
+
+// Ratio of available tokens to use for RAG context in multi-turn conversations
+// Remainder is reserved for conversation history growth across turns
+export const MULTI_TURN_CONTEXT_RATIO = 0.7;
+
+// How to handle multiple chunks from the same post when building context
+// "duplicate" - add all chunks in order (current behavior)
+// "combine" - merge text with separator into single chunk per post
+// "skip" - only use first chunk per post
+export const CHUNK_DEDUP_MODE = "combine";
+export const CHUNK_COMBINE_SEPARATOR = "\n\n...\n\n";
 
 // TODO(CHAT): Can we programmatically get these values?
 export const GEMMA_NANO_MAX_TOKENS = 32768;
@@ -102,17 +145,17 @@ const config = {
           model: "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
           modelShortName: "TinyLlama-1.1B",
           shortOption: "Fast",
-          default: !CHROME_ANY_API_POSSIBLE,
-        },
-        {
-          model: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
-          modelShortName: "SmolLM2-1.7B",
-          shortOption: "Better",
         },
         {
           model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
           modelShortName: "Llama-3.2-1B",
+          shortOption: "Better",
+        },
+        {
+          model: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
+          modelShortName: "Qwen2.5-0.5B",
           shortOption: "Best",
+          default: !CHROME_ANY_API_POSSIBLE,
         },
       ],
     },

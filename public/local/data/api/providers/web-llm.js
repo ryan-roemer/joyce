@@ -1,7 +1,5 @@
 // web-llm provider implementation
-// Check if model is cached using web-llm's built-in utility
-// Internally uses browser Cache API or IndexedDB depending on config
-// See: https://deepwiki.com/mlc-ai/web-llm/5.4-caching-and-performance
+// Unified handler interface for chat sessions
 import { CreateMLCEngine, hasModelInCache } from "@mlc-ai/web-llm";
 import { DEFAULT_CHAT_MODEL } from "../../../../config.js";
 
@@ -11,7 +9,7 @@ const DEFAULT_MODEL = DEFAULT_CHAT_MODEL.model;
 const engines = new Map();
 
 /**
- * Set a progress callback for a specific model
+ * Set a progress callback for a specific model.
  * @param {string} model - The model ID
  * @param {Function} cb - Progress callback function
  */
@@ -23,7 +21,7 @@ export const setLlmProgressCallback = (model, cb) => {
 };
 
 /**
- * Get or create an LLM engine for a specific model
+ * Get or create an LLM engine for a specific model.
  * @param {string} model - The model ID
  * @returns {Promise<MLCEngine>} The engine instance
  */
@@ -36,9 +34,7 @@ export const getLlmEngine = async (model = DEFAULT_MODEL) => {
   if (!entry.enginePromise) {
     entry.enginePromise = CreateMLCEngine(model, {
       initProgressCallback: (progress) => {
-        if (entry.progressCallback) {
-          entry.progressCallback(progress);
-        }
+        entry.progressCallback?.(progress);
       },
     });
   }
@@ -46,10 +42,85 @@ export const getLlmEngine = async (model = DEFAULT_MODEL) => {
 };
 
 /**
- * Check if a model is cached
+ * Check if a model is cached.
  * @param {string} model - The model ID
  * @returns {Promise<boolean>} Whether the model is cached
  */
-export const isLlmCached = async (model = DEFAULT_MODEL) => {
-  return hasModelInCache(model);
+export const isLlmCached = async (model = DEFAULT_MODEL) =>
+  hasModelInCache(model);
+
+/**
+ * Get capabilities for a web-llm model.
+ * @returns {{ supportsMultiTurn: boolean, supportsTokenTracking: boolean }}
+ */
+export const getCapabilities = () => ({
+  supportsMultiTurn: true,
+  supportsTokenTracking: true,
+});
+
+/**
+ * Create a conversation handler for web-llm.
+ * Yields unified events: { type: "data", content } and { type: "done", finishReason, usage }
+ *
+ * @param {Object} options
+ * @param {string} options.model - Model ID
+ * @param {number} options.temperature - Sampling temperature
+ * @param {number} options.maxOutputTokens - Max tokens for response
+ * @returns {Promise<Object>} Handler with sendMessage(messages) and destroy()
+ */
+export const createHandler = async ({
+  model,
+  temperature,
+  maxOutputTokens,
+}) => {
+  const engine = await getLlmEngine(model);
+
+  return {
+    /**
+     * Send messages and stream response.
+     * @param {Array<{role: string, content: string}>} messages - Full messages array
+     * @yields {{ type: "data", content: string } | { type: "done", finishReason: string, usage: Object }}
+     */
+    async *sendMessage(messages) {
+      const stream = await engine.chat.completions.create({
+        messages,
+        temperature,
+        max_tokens: maxOutputTokens,
+        stream: true,
+        stream_options: { include_usage: true },
+      });
+
+      let assistantContent = "";
+      let finishReason = null;
+      let usage = null;
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) {
+          assistantContent += delta;
+          yield { type: "data", content: delta };
+        }
+        if (chunk.choices[0]?.finish_reason) {
+          finishReason = chunk.choices[0].finish_reason;
+        }
+        if (chunk.usage) {
+          usage = chunk.usage;
+        }
+      }
+
+      yield {
+        type: "done",
+        finishReason: finishReason || "stop",
+        usage: {
+          inputTokens: usage?.prompt_tokens ?? 0,
+          outputTokens: usage?.completion_tokens ?? 0,
+          assistantContent,
+        },
+      };
+    },
+
+    destroy() {
+      // web-llm engines are cached and reused, no cleanup needed per-session
+    },
+  };
 };

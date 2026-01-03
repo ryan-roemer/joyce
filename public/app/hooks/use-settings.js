@@ -11,6 +11,9 @@ const SETTINGS_CHANGE_EVENT = "app-settings-change";
 const DEFAULT_SETTINGS = {
   isDeveloperMode: false,
   displayModelStats: false,
+  // Remote-specific settings (included for compatibility, not shown in UI)
+  displayAnalytics: false,
+  featureOpenAIToolEnabled: false,
 };
 
 /**

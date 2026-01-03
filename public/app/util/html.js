@@ -1,4 +1,4 @@
-/* global TextDecoder:false,document:false */
+/* global TextDecoder:false,document:false,window:false */
 import React from "react";
 import htm from "htm";
 
@@ -64,4 +64,15 @@ export const getQuerySetter = (id) => (query) => {
   if (textarea) {
     textarea.value = query;
   }
+};
+
+/**
+ * Open formatted text in a new browser window inside a <pre> element.
+ * @param {string} text - Pre-formatted text to display
+ */
+export const openTextInNewWindow = (text) => {
+  const win = window.open("", "_blank");
+  win.document.write("<html><body><pre></pre></body></html>");
+  win.document.close();
+  win.document.querySelector("pre").innerText = text;
 };
