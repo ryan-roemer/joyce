@@ -27,8 +27,7 @@ export const buildBasePrompts = (context = "") => {
   const linkPattern =
     /<CHUNK><URL>([^<]+)<\/URL><TITLE>([^<]+)<\/TITLE><CONTENT>/g;
   let links = "";
-  let match;
-  while ((match = linkPattern.exec(context)) !== null) {
+  for (const match of context.matchAll(linkPattern)) {
     links += `- [${match[2]}](${match[1]})\n`;
   }
 
@@ -42,7 +41,7 @@ export const buildBasePrompts = (context = "") => {
 - Always use "Nearform" (lowercase 'f'), never "NearForm". Even if sources use "NearForm", answer with "Nearform".
 
 ## Context Format
-Content is provided as XML CHUNKs. Each <CHUNK> contains:
+Content is provided as XML CHUNKs, which are PARTS of full Nearform web pages. Each <CHUNK> contains:
 - <URL>: Reference link
 - <TITLE>: Post title
 - <CONTENT>: Text content
@@ -51,6 +50,7 @@ Content is provided as XML CHUNKs. Each <CHUNK> contains:
 - Use information from <CHUNK><CONTENT> wherever possible.
 - Chunks are ranked by relevance; prefer earlier chunks but use the most relevant content from any chunk.
 - If no relevant information exists, state that you don't have enough information to answer.
+- In your answers, ALWAYS refer to content from chunks as "articles" or "sources", and NOT as "chunks" or "context".
 
 ## Citation Rules
 - If asked for "links", "articles", "sources", "citations", or "references", you SHOULD reference links from context <CHUNKS />..
