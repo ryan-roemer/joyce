@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getQuerySetter } from "../util/html.js";
-import { createChatSession } from "../data/index.js";
+import { createChatSession, getProviderCapabilities } from "../data/index.js";
 import { FEATURES } from "../../config.js";
 import { isContextExceededError } from "../components/context-messages.js";
 import { buildQueryInfo } from "../util/query-info-builder.js";
@@ -71,13 +71,10 @@ export const useChatSession = ({
   const hasCompletions = conversation.some((entry) => entry.answer);
 
   // Check if current model supports multi-turn conversations
-  const modelSupportsMultiTurn = chatSessionRef.current
-    ? chatSessionRef.current.getCapabilities().supportsMultiTurn
-    : createChatSession({
-        provider: modelObj.provider,
-        model: modelObj.model,
-        temperature,
-      }).getCapabilities().supportsMultiTurn;
+  const capabilities = chatSessionRef.current
+    ? chatSessionRef.current.getCapabilities()
+    : getProviderCapabilities(modelObj.provider, modelObj.model);
+  const modelSupportsMultiTurn = capabilities.supportsMultiTurn;
 
   // Check if model changed since current session was created
   const sessionModel = chatSessionRef.current?.getModel();
