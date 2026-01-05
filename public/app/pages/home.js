@@ -6,7 +6,6 @@ import { useSettings } from "../hooks/use-settings.js";
 import { ShortDescription as ChatShortDescription } from "./chat.js";
 import { FEATURES } from "../../config.js";
 
-// TODO(LOCAL): Need to redo all text to discuss SLMs and our techniques.
 export const Home = () => {
   const [settings] = useSettings();
   const { isDeveloperMode } = settings;
@@ -18,7 +17,7 @@ export const Home = () => {
         html`
         <${Fragment}>
           <p>
-            This site incorporates Nearform's blogs, case studies, and services pages into
+            Joyce is a knowledge assistant that incorporates Nearform's blogs, case studies, and services pages into
             tools to find content ${FEATURES.chat.enabled ? "and generate text answers" : ""} using AI.
             Go ahead and try it out! ${" "}<i className="iconoir-sparks"></i>
           </p>
@@ -42,10 +41,10 @@ export const Home = () => {
         <${Fragment}>
           <h2 className="content-subhead">Introduction</h2>
           <p>
-            This site provides a little bit of introduction to some AI concepts using some of the
-            Nearform blogs and case studies as our data source for useful information and examples.
+            Joyce is a knowledge assistant that introduces AI concepts using
+            Nearform's web content as a data source for useful information and examples.
             To take a glance at all of the source data, please head over to
-            the <${Link} to="/posts">posts</${Link}> page.
+            the <${Link} to="/posts">posts</${Link}> page and see the downloadable JSON data.
           </p>
           <p>
             We scrape all blog and work/case study post data directly from our websites and first store
