@@ -22,4 +22,4 @@ $ npm run dev:root
 
 Almost all of this project (the code) is licensed under the MIT License - see the [LICENSE](./LICENSE.txt) file for details.
 
-**Exception:** The data files in `public/data/` are proprietary and all rights reserved. See [public/data/LICENSE](public/data/LICENSE.txt) for details.
+**Exception:** The data files in `public/data/` are proprietary and all rights reserved. See [public/data/LICENSE](./public/data/LICENSE.txt) for details.
