@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "A small, browser-based knowledge assistant for Nearform's web content.",
   "type": "module",
-  "license": "See LICENSE.txt and public/data/LICENSE.txt",
+  "license": "SEE LICENSES IN LICENSE.txt AND public/data/LICENSE.txt",
   "scripts": {
     "dev": "npx serve -p 4300",
     "dev:root": "npx serve -c serve-root.json -p 4301",
