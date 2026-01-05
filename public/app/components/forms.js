@@ -491,7 +491,7 @@ export const ModelChatSelectDropdown = ({
   `;
 };
 
-// TODO(LOCAL): Remove (or just don't use) datastore option?
+// TODO(LOCAL): Remove (or just don't use) datastore option (and input and dropdown input)?
 // Datastore select helpers
 const DATASTORE_OPTIONS = [
   {
