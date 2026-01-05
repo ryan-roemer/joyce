@@ -35,7 +35,6 @@ const STATES = {
  * @param {string} props.label - Display label for the resource
  * @param {string} props.forceStatus - Optional status to force (for demo purposes)
  */
-// TODO(CLEANUP): Remove forceStatus prop
 export const LoadingButton = ({
   resourceId,
   label,
@@ -74,7 +73,6 @@ export const LoadingButton = ({
     setIsModalOpen(true);
   };
 
-  // TODO(CLEANUP): Move elapsed to right side in italics.
   // TODO(LOADING): Maybe add label name and description, separated in styles, then elapsed separately.
   // TODO(LOADING): Add visual progress bar for future enhancement
   return html`
