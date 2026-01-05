@@ -1,6 +1,6 @@
 # Joyce
 
-A small, browser-based knowledge assistant for Nearform' web content.
+A small, browser-based knowledge assistant for Nearform's web content.
 
 ## Development
 

@@ -1,7 +1,7 @@
 {
   "name": "joyce",
   "version": "0.0.1",
-  "description": "Nearform web content knowledge assistant.",
+  "description": "A small, browser-based knowledge assistant for Nearform's web content.",
   "type": "module",
   "license": "See LICENSE.txt and public/data/LICENSE.txt",
   "scripts": {
